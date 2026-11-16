@@ -6,29 +6,57 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
+// IsValidExecutable reports whether p is a non-ephemeral, regular, non-symlink executable
+// (and has at least one execute permission bit set on POSIX systems).
+func IsValidExecutable(p string) bool {
+	if p == "" || !filepath.IsAbs(p) {
+		return false
+	}
+	clean := filepath.Clean(p)
+	if isEphemeralExecutablePath(clean) {
+		return false
+	}
+	info, err := os.Lstat(clean)
+	if err != nil {
+		return false
+	}
+	return validateExecutableInfo(clean, info) == nil
+}
+
+func validateExecutableInfo(clean string, info os.FileInfo) error {
+	if isEphemeralExecutablePath(clean) {
+		return apperr.WithPath(apperr.Usage("ephemeral_executable", "hook executable cannot reside in a temporary build or test binary path"), clean)
+	}
+	if paths.IsReparseOrSymlink(info) || !info.Mode().IsRegular() {
+		return apperr.WithPath(apperr.Usage("invalid_executable", "executable must be a regular file (not symlink or directory)"), clean)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+		return apperr.WithPath(apperr.Usage("executable_not_executable", "executable lacks POSIX execute permission"), clean)
+	}
+	return nil
+}
+
 // ResolveStableExecutable finds a non-ephemeral dtkit binary path for native hooks.
-// Temporary go-run/go-build paths are rejected so hooks do not break after cleanup.
+// Temporary go-run/go-build paths and test binaries are rejected so hooks do not break after cleanup.
 func ResolveStableExecutable(explicit string, executableFn func() (string, error), lookPathFn func(string) (string, error)) (string, error) {
 	if explicit != "" {
 		if !filepath.IsAbs(explicit) {
 			return "", apperr.WithPath(apperr.Usage("invalid_executable", "--executable must be an absolute path"), explicit)
 		}
 		clean := filepath.Clean(explicit)
-		if strings.Contains(strings.ToLower(filepath.ToSlash(clean)), "/go-build") {
-			return "", apperr.WithPath(apperr.Usage("ephemeral_executable", "hook executable cannot reside in a temporary go build directory"), clean)
-		}
 		info, err := os.Lstat(clean)
 		if err != nil {
 			return "", apperr.WithPath(apperr.Usage("invalid_executable", fmt.Sprintf("executable not accessible: %v", err)), clean)
 		}
-		if paths.IsReparseOrSymlink(info) || !info.Mode().IsRegular() {
-			return "", apperr.WithPath(apperr.Usage("invalid_executable", "executable must be a regular file (not symlink or directory)"), clean)
+		if vErr := validateExecutableInfo(clean, info); vErr != nil {
+			return "", vErr
 		}
 		return clean, nil
 	}
@@ -49,24 +77,21 @@ func ResolveStableExecutable(explicit string, executableFn func() (string, error
 		if err != nil {
 			continue
 		}
-		abs = filepath.Clean(abs)
-		if isEphemeralBuildPath(abs) || strings.HasSuffix(strings.ToLower(abs), ".test") || strings.HasSuffix(strings.ToLower(abs), ".test.exe") {
-			continue
-		}
-		info, err := os.Lstat(abs)
-		if err == nil && !paths.IsReparseOrSymlink(info) && info.Mode().IsRegular() {
-			return abs, nil
+		clean := filepath.Clean(abs)
+		info, err := os.Lstat(clean)
+		if err == nil && validateExecutableInfo(clean, info) == nil {
+			return clean, nil
 		}
 	}
 	return "", apperr.WithHint(
-		apperr.Usage("unstable_executable", "cannot locate a stable installed dtkit executable"),
-		"pass --executable <absolute-path> pointing to an installed dtkit binary",
+		apperr.Usage("unstable_executable", "cannot locate a stable executable dtkit binary"),
+		"pass --executable <absolute-path> pointing to an installed executable dtkit binary",
 	)
 }
 
-func isEphemeralBuildPath(p string) bool {
+func isEphemeralExecutablePath(p string) bool {
 	lower := strings.ToLower(filepath.ToSlash(p))
-	return strings.Contains(lower, "/go-build") || strings.Contains(lower, "\\go-build")
+	return strings.Contains(lower, "/go-build") || strings.Contains(lower, "\\go-build") || strings.HasSuffix(lower, ".test") || strings.HasSuffix(lower, ".test.exe")
 }
 
 // QuotePOSIX returns a single-quoted POSIX shell token safe for arbitrary paths.

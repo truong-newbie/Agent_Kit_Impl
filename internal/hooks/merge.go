@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 )
 
 const (
@@ -53,6 +54,9 @@ func MergeHooksJSON(existing []byte, exists bool, entry map[string]any) (out []b
 	digest, err = CanonicalEntryDigest(entry)
 	if err != nil {
 		return nil, "", err
+	}
+	if exists && len(existing) > MaxHooksJSONBytes {
+		return nil, "", apperr.Conflict("hooks_json_too_large", "hooks.json exceeds 4 MiB limit")
 	}
 	var root map[string]any
 	if !exists || len(bytes.TrimSpace(existing)) == 0 {
@@ -136,6 +140,12 @@ func UnmergeHooksJSON(existing []byte, expectedDigest string, createdFile bool) 
 	if removedCount == 0 {
 		return nil, false, apperr.Conflict("hook_entry_modified", "DTKit hook entry in hooks.json was modified or removed externally")
 	}
+	if removedCount > 1 {
+		return nil, false, apperr.WithHint(
+			apperr.Conflict("hook_entry_ambiguous", fmt.Sprintf("multiple (%d) hooks.json entries share digest %s; cannot safely disambiguate ownership", removedCount, expectedDigest)),
+			"remove duplicate entries in hooks.json manually before disabling or uninstalling",
+		)
+	}
 
 	if len(kept) == 0 {
 		delete(hooksMap, EventSessionStart)
@@ -178,12 +188,16 @@ func InspectHooksJSON(existing []byte, expectedDigest string) (present bool, err
 	if !ok {
 		return false, apperr.Conflict("unsupported_hooks_schema", "hooks.json 'SessionStart' field is not an array")
 	}
+	matchCount := 0
 	for _, item := range sessionList {
 		if d, dErr := CanonicalEntryDigest(item); dErr == nil && d == expectedDigest {
-			return true, nil
+			matchCount++
 		}
 	}
-	return false, nil
+	if matchCount > 1 {
+		return false, apperr.Conflict("hook_entry_ambiguous", fmt.Sprintf("multiple (%d) hooks.json entries share digest %s", matchCount, expectedDigest))
+	}
+	return matchCount == 1, nil
 }
 
 func parseHooksObject(data []byte) (map[string]any, error) {
@@ -192,6 +206,9 @@ func parseHooksObject(data []byte) (map[string]any, error) {
 	}
 	if len(data) > MaxHooksJSONBytes {
 		return nil, apperr.Conflict("hooks_json_too_large", "hooks.json exceeds 4 MiB limit")
+	}
+	if err := catalog.CheckStrictJSON(data); err != nil {
+		return nil, apperr.Wrap(apperr.ExitConflict, "invalid_hooks_json", fmt.Sprintf("invalid hooks.json: %v", err), err)
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
@@ -204,6 +221,23 @@ func parseHooksObject(data []byte) (map[string]any, error) {
 	}
 	if err := dec.Decode(new(any)); err != io.EOF {
 		return nil, apperr.Conflict("invalid_hooks_json", "hooks.json contains trailing JSON data")
+	}
+	if rawHooks, ok := root["hooks"]; ok {
+		hm, ok := rawHooks.(map[string]any)
+		if !ok {
+			return nil, apperr.Conflict("unsupported_hooks_schema", "existing hooks.json 'hooks' field must be an object")
+		}
+		for evName, rawList := range hm {
+			items, ok := rawList.([]any)
+			if !ok {
+				return nil, apperr.Conflict("unsupported_hooks_schema", fmt.Sprintf("existing hooks.json event %q must be an array", evName))
+			}
+			for _, item := range items {
+				if _, isObj := item.(map[string]any); !isObj {
+					return nil, apperr.Conflict("unsupported_hooks_schema", fmt.Sprintf("existing hooks.json event %q entries must be JSON objects", evName))
+				}
+			}
+		}
 	}
 	return root, nil
 }

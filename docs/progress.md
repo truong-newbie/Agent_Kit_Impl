@@ -15,8 +15,8 @@
 | `N02` — Source resolution read-only contract | `verified` | `feat/release-hardening` | F02, F05 | Separated `CacheReadOnly`/`CachePersist`; in-memory `FetchRemoteBytes`; no preview/offline cache writes or `.part` cleanup (`verify-docker.ps1`) |
 | `N03` — Remote transport, index strictness, cache safety | `verified` | `feat/release-hardening` | F03, F05, F06 | HTTP timeout/redirect/redaction, strict index, offline `minCliVersion` meta, concurrent cache `Put`, flood cap + fuzz (`verify-docker.ps1`) |
 | `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `verified` | `feat/release-hardening` | F04 | Shared target locks (`.dtkit/locks`), atomic recover-under-lock, strict full-state check, barrier & multi-process tests (`verify-docker.ps1`) |
-| `N05` — Capability contract & status consistency | `verified` | `feat/release-hardening` | F07 | Added `optionalCapabilities`, pre-write `requiresCapabilities` enforcement, consistent warnings across commands, `integrationStatus` separation (`verify-docker.ps1`) |
-| `N06` — Hook JSON strictness & executable lifecycle | `not-started` | `feat/release-hardening` | F12 | Duplicate-key rejection, ambiguous digest guard, special-char quoting, timeout/leak checks |
+| `N05` — Capability contract & status consistency | `verified` | `feat/release-hardening` | F07 | Added `optionalCapabilities`, pre-write `requiresCapabilities` enforcement, consistent warnings across commands, `integrationStatus` separation (`verify-docker.ps1`, CI `43901270341`) |
+| `N06` — Hook JSON strictness & executable lifecycle | `verified` | `feat/release-hardening` | F12 | Duplicate-key/oversize/schema rejection, ambiguous digest guard, real `sh`/PowerShell special-char quoting execution, zero-leak timeout/cancel, update/drift/chmod lifecycle (`verify-docker.ps1`) |
 | `N07` — Native OS edge cases & crash subprocess tests | `not-started` | `feat/release-hardening` | F11 | CI skip inventory, Windows locks/junctions, child-process crash recovery |
 | `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `not-started` | `feat/release-hardening` | F08 | Discover/task verification per runtime; unverified integrations stay experimental |
 | `N09` — Engineer Kit quality baseline evaluation | `not-started` | `feat/release-hardening` | F08 | 8–12 task rubric (`docs/evaluation/`), baseline vs with-kit verification |
@@ -134,6 +134,15 @@ Tests actually run:
 Remaining limitation / external blocker: Cross-OS CI runs on push; runtime `integrationStatus` reflects real observed evidence prior to N08 full runtime verification.
 Acceptance checklist result: Pass (required capabilities strictly fail pre-write; optional fallback explicitly declared and warned identically across preview, apply, noop, info, status, and doctor; artifact health cleanly separated from runtime integration evidence).
 Next task: N06 — Hook ownership, parser và executable lifecycle (F12).
+
+Task: N06 — Hook ownership, parser và executable lifecycle
+Status: verified
+Branch / Commit: `feat/release-hardening` (pending N06 CI push; N05 CI `43901270341` all 4 jobs `completed/success`)
+Artifact changed: `internal/hooks/command.go`, `internal/hooks/merge.go`, `internal/hooks/runner.go`, `internal/installer/hooks.go`, `internal/hooks/hardening_test.go`, `internal/installer/hooks_test.go`, `docs/progress.md`, `docs/release.md`
+Verification run: `gofmt -w internal/hooks internal/installer` + `.\scripts\verify-docker.ps1` exited `0` (`gofmt`, `go test ./...`, `go vet ./...`, `go build ./cmd/dtkit` inside `golang:1.27.4`), verifying strict duplicate-key & `MaxHooksJSONBytes` (checked pre-`TrimSpace`) & invalid schema rejection, large-int/unknown-event/custom-field preservation across merge/unmerge, `hook_entry_ambiguous` conflict guard, `IsValidExecutable` non-ephemeral/non-symlink/POSIX-exec-bit checks & `broken_executable` + actionable drift hints, real POSIX `sh -c` argv execution under spaces/Unicode/`'`/`"`/`$DOLLAR`/backticks, zero-goroutine-leak stdin timeout/cancel via deadline/closer, untrusted `cwd` isolation, and active-hook `Update`/`Disable`/`Remove` lifecycle.
+Remaining limitation / external blocker: Windows native `powershell` quoting execution test will run natively on `windows-latest` CI upon push (POSIX `sh -c` passed locally in Docker).
+Acceptance checklist result: Pass (hooks parser, ownership, shell quoting, timeout/leak isolation, and lifecycle verified).
+Next task: N07 — OS-native edge cases, CI skip audit và crash recovery (F11).
 
 ---
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"sort"
 	"strings"
@@ -41,14 +42,21 @@ type hookSpecificOutput struct {
 // RunSessionContext implements the read-only SessionStart hook handler.
 // It ignores payload cwd for filesystem access and enforces stdin/output/timeout bounds.
 func RunSessionContext(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, scope, stateRoot string) error {
+	return runSessionContextWithTimeout(ctx, stdin, stdout, stderr, scope, stateRoot, DefaultHandlerTimeout)
+}
+
+func runSessionContextWithTimeout(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, scope, stateRoot string, timeout time.Duration) error {
 	if scope != "project" && scope != "global" {
 		return apperr.Usage("invalid_scope", fmt.Sprintf("invalid hook scope %q", scope))
 	}
 	if stateRoot == "" {
 		return apperr.Usage("missing_root", "--root is required")
 	}
+	if timeout <= 0 {
+		timeout = DefaultHandlerTimeout
+	}
 
-	ctx, cancel := context.WithTimeout(ctx, DefaultHandlerTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	if stdin != nil {
@@ -123,18 +131,43 @@ func buildSessionContextMessage(inst *state.Installation) string {
 	return msg
 }
 
+type readDeadliner interface {
+	SetReadDeadline(time.Time) error
+}
+
 func readLimitedWithCtx(ctx context.Context, r io.Reader, limit int64) ([]byte, error) {
+	deadlineSupported := false
+	if dl, ok := r.(readDeadliner); ok {
+		if deadline, has := ctx.Deadline(); has {
+			if dl.SetReadDeadline(deadline) == nil {
+				deadlineSupported = true
+			}
+		}
+	}
 	type result struct {
 		data []byte
 		err  error
 	}
 	ch := make(chan result, 1)
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		data, err := io.ReadAll(io.LimitReader(r, limit))
 		ch <- result{data, err}
 	}()
 	select {
 	case <-ctx.Done():
+		if deadlineSupported {
+			if dl, ok := r.(readDeadliner); ok {
+				_ = dl.SetReadDeadline(time.Now())
+			}
+		} else if c, ok := r.(io.Closer); ok && r != os.Stdin {
+			_ = c.Close()
+		}
+		select {
+		case <-done:
+		case <-time.After(100 * time.Millisecond):
+		}
 		return nil, apperr.Cancelled("hook stdin read cancelled or timed out")
 	case res := <-ch:
 		return res.data, res.err

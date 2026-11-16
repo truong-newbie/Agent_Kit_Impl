@@ -115,9 +115,9 @@ func InspectHooks(scope string, roots map[string]string) ([]HookStatusInfo, erro
 			out = append(out, st)
 			continue
 		}
-		if exeInfo, exeErr := os.Lstat(reg.Executable); exeErr != nil || paths.IsReparseOrSymlink(exeInfo) || !exeInfo.Mode().IsRegular() {
+		if !hooks.IsValidExecutable(reg.Executable) {
 			st.Status = "broken_executable"
-			st.Detail = fmt.Sprintf("recorded executable %q is missing or invalid", reg.Executable)
+			st.Detail = fmt.Sprintf("recorded executable %q is missing, invalid, or lacks execute permission", reg.Executable)
 			out = append(out, st)
 			continue
 		}
@@ -192,10 +192,16 @@ func EnableHook(scope, hookID string, roots, otherScopeRoots map[string]string, 
 					if res.Status == "configured_pending_trust" {
 						return res, false, nil
 					}
-					return res, false, apperr.Conflict("hook_drift", fmt.Sprintf("hook %q is already enabled but status is %s", hookID, res.Status))
+					return res, false, apperr.WithHint(
+						apperr.Conflict("hook_drift", fmt.Sprintf("hook %q is already enabled but status is %s", hookID, res.Status)),
+						fmt.Sprintf("run 'dtkit hooks disable %s --%s --yes' then re-enable with a healthy executable", hookID, scope),
+					)
 				}
 			}
-			return res, false, apperr.Conflict("hook_already_enabled", fmt.Sprintf("hook %q is already enabled in %s scope", hookID, scope))
+			return res, false, apperr.WithHint(
+				apperr.Conflict("hook_already_enabled", fmt.Sprintf("hook %q is already enabled in %s scope (executable %s)", hookID, scope, h.Executable)),
+				fmt.Sprintf("run 'dtkit hooks disable %s --%s --yes' then re-enable with the new --executable path", hookID, scope),
+			)
 		}
 	}
 
