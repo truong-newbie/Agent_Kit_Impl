@@ -46,7 +46,11 @@ func Render(p catalog.Package, source fs.FS, scope string) ([]Artifact, error) {
 		if err != nil { return nil, err }
 		artifacts = append(artifacts, Artifact{Root: root, Path: path.Join(".dtkit/content", p.ID, component.Source), Strategy: "whole-file", Content: content})
 	}
-	block := fmt.Sprintf("<!-- dtkit:begin engineer %s -->\n# DTKit engineering guidance\n\nInspect relevant project instructions and code before changes. Respect the user's scope, preserve unrelated work, and report actual verification results. Use the dtkit-%s skills when appropriate.\n<!-- dtkit:end engineer %s -->\n", scope, scope, scope)
+	resourcePath := ".dtkit/content/engineer"
+	if scope == "global" { resourcePath = "$HOME/.dtkit/content/engineer" }
+	preference := ""
+	if scope == "project" { preference = " Prefer dtkit-project skills for this project when both scopes are installed." }
+	block := fmt.Sprintf("<!-- dtkit:begin engineer %s -->\n# DTKit engineering guidance\n\nInspect relevant project instructions and code before changes. Respect the user's scope, preserve unrelated work, and report actual verification results. Use the dtkit-%s skills when appropriate.%s For relevant tasks, consult workflows, rules and templates under %s.\n<!-- dtkit:end engineer %s -->\n", scope, scope, preference, resourcePath, scope)
 	instructionRoot := root
 	if scope == "global" { instructionRoot = "codex-home" }
 	artifacts = append(artifacts, Artifact{Root: instructionRoot, Path: "AGENTS.md", Strategy: "managed-block", Content: []byte(block)})

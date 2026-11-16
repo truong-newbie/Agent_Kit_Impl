@@ -44,7 +44,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	case "validate":
 		if len(args) != 2 { return fmt.Errorf("usage: dtkit validate <directory>") }
 		p, err := catalog.Load(os.DirFS(args[1])); if err != nil { return err }
-		_, err = fmt.Fprintf(stdout, "Valid package: %s %s\n", p.ID, p.Version); return err
+		_, err = fmt.Fprintf(stdout, "Basic validation passed: %s %s (not a security audit)\n", p.ID, p.Version); return err
 	case "doctor":
 		if len(args) != 1 { return fmt.Errorf("usage: dtkit doctor") }
 		path, err := exec.LookPath("codex")
