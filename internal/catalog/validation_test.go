@@ -17,7 +17,7 @@ func TestStrictJSON(t *testing.T) {
 		{"broken", `{"key":`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := checkJSON([]byte(tc.input)); (err == nil) != tc.ok {
+			if err := CheckStrictJSON([]byte(tc.input)); (err == nil) != tc.ok {
 				t.Fatalf("got %v", err)
 			}
 		})

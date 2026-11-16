@@ -43,7 +43,15 @@ var disallowedExtensions = map[string]bool{
 	".wsf": true, ".jar": true, ".scr": true, ".pif": true,
 }
 
-func validID(id string, max int) bool { return len(id) <= max && idPattern.MatchString(id) }
+func validID(id string, max int) bool { return IsValidID(id, max) }
+
+// IsValidID reports whether id conforms to DTKit's kebab-case identifier pattern and max length.
+func IsValidID(id string, max int) bool {
+	return id != "" && len(id) <= max && idPattern.MatchString(id)
+}
+
+// IsValidVersion reports whether v matches strict X.Y.Z semver without leading zeroes.
+func IsValidVersion(v string) bool { return versionPattern.MatchString(v) }
 
 func subsetUnique(actual []string, allowed []string) bool {
 	if len(actual) == 0 {
@@ -68,7 +76,7 @@ func checkManifestKeys(data []byte) error {
 	if err := json.Unmarshal(data, &top); err != nil {
 		return err
 	}
-	if err := exactKeys(top, []string{"schemaVersion", "id", "name", "version", "description", "runtimeTargets", "scopes", "requiresCapabilities", "packageDependencies", "components"}); err != nil {
+	if err := CheckObjectKeys(top, []string{"schemaVersion", "id", "name", "version", "description", "runtimeTargets", "scopes", "requiresCapabilities", "packageDependencies", "components"}, []string{"minCliVersion"}); err != nil {
 		return err
 	}
 	var components []map[string]json.RawMessage
@@ -76,19 +84,23 @@ func checkManifestKeys(data []byte) error {
 		return fmt.Errorf("components: %w", err)
 	}
 	for i, component := range components {
-		if err := exactKeys(component, []string{"id", "kind", "source", "requires"}); err != nil {
+		if err := CheckObjectKeys(component, []string{"id", "kind", "source", "requires"}, nil); err != nil {
 			return fmt.Errorf("component %d: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func exactKeys(object map[string]json.RawMessage, expected []string) error {
+// CheckObjectKeys validates that a JSON object has no unknown keys, no null field values, and all required keys.
+func CheckObjectKeys(object map[string]json.RawMessage, required, optional []string) error {
 	if object == nil {
 		return fmt.Errorf("expected an object")
 	}
-	allowed := map[string]bool{}
-	for _, key := range expected {
+	allowed := make(map[string]bool, len(required)+len(optional))
+	for _, key := range required {
+		allowed[key] = true
+	}
+	for _, key := range optional {
 		allowed[key] = true
 	}
 	for key, value := range object {
@@ -99,7 +111,7 @@ func exactKeys(object map[string]json.RawMessage, expected []string) error {
 			return fmt.Errorf("field %q cannot be null", key)
 		}
 	}
-	for _, key := range expected {
+	for _, key := range required {
 		if _, ok := object[key]; !ok {
 			return fmt.Errorf("missing field %q", key)
 		}
@@ -170,12 +182,13 @@ func checkContentSafety(name string, data []byte) error {
 	return nil
 }
 
-// checkJSON rejects duplicate object keys at every depth and trailing values.
-func checkJSON(data []byte) error {
+// CheckStrictJSON rejects invalid UTF-8, duplicate object keys at every depth, excessive nesting, and trailing values.
+func CheckStrictJSON(data []byte) error {
 	if !utf8.Valid(data) {
 		return fmt.Errorf("invalid UTF-8")
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
 	var value func(int) error
 	value = func(depth int) error {
 		if depth > 64 {

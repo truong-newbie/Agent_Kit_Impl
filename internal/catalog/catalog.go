@@ -31,6 +31,7 @@ type Package struct {
 	ID                   string      `json:"id"`
 	Name                 string      `json:"name"`
 	Version              string      `json:"version"`
+	MinCLIVersion        string      `json:"minCliVersion,omitempty"`
 	Description          string      `json:"description"`
 	RuntimeTargets       []string    `json:"runtimeTargets"`
 	Scopes               []string    `json:"scopes"`
@@ -151,7 +152,7 @@ func Load(fsys fs.FS) (Package, error) {
 	if len(b) > MaxManifestBytes {
 		return p, apperr.Usage("manifest_too_large", "manifest exceeds 256 KiB")
 	}
-	if err := checkJSON(b); err != nil {
+	if err := CheckStrictJSON(b); err != nil {
 		return p, apperr.Wrap(apperr.ExitUsage, "invalid_manifest_json", fmt.Sprintf("manifest: %v", err), err)
 	}
 	if err := checkManifestKeys(b); err != nil {
@@ -186,6 +187,9 @@ func ResolveOrder(p Package, fsys fs.FS) ([]Component, error) {
 	}
 	if !validID(p.ID, 32) || !versionPattern.MatchString(p.Version) || strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.Description) == "" {
 		return nil, apperr.Usage("invalid_package_metadata", "invalid package metadata")
+	}
+	if p.MinCLIVersion != "" && !versionPattern.MatchString(p.MinCLIVersion) {
+		return nil, apperr.Usage("invalid_package_metadata", fmt.Sprintf("invalid minCliVersion %q", p.MinCLIVersion))
 	}
 	if !subsetUnique(p.RuntimeTargets, []string{"codex", "gemini", "opencode", "cursor"}) || !subsetUnique(p.Scopes, []string{"project", "global"}) || !subsetUnique(p.RequiresCapabilities, []string{"instructions", "skills"}) {
 		return nil, apperr.Usage("unsupported_package_target", "unsupported runtime, scope or capability")
