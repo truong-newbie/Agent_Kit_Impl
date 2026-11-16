@@ -112,7 +112,7 @@ func TestGeminiInstallCoexistenceRollbackUpdateAndRemove(t *testing.T) {
 		t.Fatalf("expected gemini profile_mismatch, got %+v err=%v", mismatchRep, err)
 	}
 
-	// Update Gemini to v0.2.0 and verify Codex stays untouched.
+	// Update Gemini to v0.3.0 and verify Codex stays untouched.
 	v2FS := fstest.MapFS{
 		"rules/engineering.md": &fstest.MapFile{Data: []byte("# Updated Gemini Rule\n")},
 		"skills/plan/SKILL.md": &fstest.MapFile{Data: []byte("---\nname: dtkit-gemini-project-plan\ndescription: Updated gemini planner.\n---\nBody\n")},
@@ -121,8 +121,8 @@ func TestGeminiInstallCoexistenceRollbackUpdateAndRemove(t *testing.T) {
 		SchemaVersion:        1,
 		ID:                   "engineer",
 		Name:                 "Engineer",
-		Version:              "0.2.0",
-		Description:          "v2",
+		Version:              "0.3.0",
+		Description:          "v3",
 		RuntimeTargets:       []string{"gemini"},
 		Scopes:               []string{"project"},
 		RequiresCapabilities: []string{"instructions", "skills"},

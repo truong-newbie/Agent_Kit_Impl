@@ -79,7 +79,10 @@ var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[
 var kitIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
 func (s Installation) validateCommon() error {
-	if (s.SchemaVersion != 1 && s.SchemaVersion != 2) || s.ManagedBy != "dtkit" || s.Generation == 0 || s.Runtime == "" {
+	if s.SchemaVersion != 1 && s.SchemaVersion != 2 {
+		return fmt.Errorf("unsupported installation state schemaVersion %d (supported: 1, 2; upgrade dtkit or use a compatible version)", s.SchemaVersion)
+	}
+	if s.ManagedBy != "dtkit" || s.Generation == 0 || s.Runtime == "" {
 		return fmt.Errorf("unsupported or invalid installation metadata")
 	}
 	profile, ok := adapter.Profile(s.Runtime)

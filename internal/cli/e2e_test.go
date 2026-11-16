@@ -143,13 +143,13 @@ func TestBuiltBinaryEndToEndLifecycle(t *testing.T) {
 	}
 	_ = os.WriteFile(skillFile, origSkill, 0644)
 
-	// 7. update from local v0.2.0 kit.
-	manifest := `{"schemaVersion":1,"id":"engineer","name":"DTKit Engineer Kit","version":"0.2.0","description":"v2","runtimeTargets":["codex"],"scopes":["project","global"],"requiresCapabilities":["instructions","skills"],"packageDependencies":[],"components":[{"id":"rule/engineering","kind":"rule","source":"rules/engineering.md","requires":[]},{"id":"skill/plan","kind":"skill","source":"skills/plan","requires":["rule/engineering"]}]}`
+	// 7. update from local v0.3.0 kit.
+	manifest := `{"schemaVersion":1,"id":"engineer","name":"DTKit Engineer Kit","version":"0.3.0","description":"v3","runtimeTargets":["codex"],"scopes":["project","global"],"requiresCapabilities":["instructions","skills"],"packageDependencies":[],"components":[{"id":"rule/engineering","kind":"rule","source":"rules/engineering.md","requires":[]},{"id":"skill/plan","kind":"skill","source":"skills/plan","requires":["rule/engineering"]}]}`
 	_ = os.WriteFile(filepath.Join(v2Dir, "package.json"), []byte(manifest), 0644)
 	_ = os.WriteFile(filepath.Join(v2Dir, "rules", "engineering.md"), []byte("# Rules v2\n"), 0644)
 	_ = os.WriteFile(filepath.Join(v2Dir, "skills", "plan", "SKILL.md.tmpl"), []byte("---\nname: {{.SkillName}}\ndescription: v2 plan\n---\n# Plan v2\n"), 0644)
 	code, out, _ = runBin(proj, "update", "engineer", "--project", "--from", v2Dir, "--yes")
-	if code != 0 || !strings.Contains(out, "0.1.0 -> 0.2.0") {
+	if code != 0 || !strings.Contains(out, "0.2.0 -> 0.3.0") {
 		t.Fatalf("update failed: code=%d out=%s", code, out)
 	}
 

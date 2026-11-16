@@ -82,12 +82,15 @@ func PlanUpdateForRuntime(runtimeName, scope string, roots map[string]string, pk
 		return planner.InstallPlan{}, existing, false, err
 	}
 	if cmp < 0 {
-		return planner.InstallPlan{}, existing, false, apperr.Conflict("downgrade_not_supported", fmt.Sprintf("cannot downgrade %s from %s to %s in v0.1", pkg.ID, existing.Kit.Version, pkg.Version))
+		return planner.InstallPlan{}, existing, false, apperr.Conflict("downgrade_not_supported", fmt.Sprintf("cannot downgrade %s from %s to %s (downgrades are not supported)", pkg.ID, existing.Kit.Version, pkg.Version))
 	}
 	adapterMigration := false
 	if cmp == 0 {
 		if pkgDigest != existing.Kit.Digest {
-			return planner.InstallPlan{}, existing, false, apperr.Conflict("immutable_version", fmt.Sprintf("package version %s has a different digest than installed state; bump package version to update", pkg.Version))
+			return planner.InstallPlan{}, existing, false, apperr.WithHint(
+				apperr.Conflict("immutable_version", fmt.Sprintf("package version %s has a different digest than installed state; bump package version to update", pkg.Version)),
+				"bump kit version in package.json; to replace an unreleased dev snapshot at the same version, run 'dtkit remove' then 'dtkit install'",
+			)
 		}
 		if adapterRev != existing.AdapterRevision {
 			adapterMigration = true

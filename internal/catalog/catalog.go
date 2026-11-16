@@ -181,7 +181,10 @@ func Validate(p Package, fsys fs.FS) error {
 // ResolveOrder validates package metadata, components, and dependency graph,
 // returning components in a deterministic topological order.
 func ResolveOrder(p Package, fsys fs.FS) ([]Component, error) {
-	if p.SchemaVersion != 1 || !validID(p.ID, 32) || !versionPattern.MatchString(p.Version) || strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.Description) == "" {
+	if p.SchemaVersion != 1 {
+		return nil, apperr.Usage("unsupported_package_schema", fmt.Sprintf("unsupported package schemaVersion %d (supported: 1)", p.SchemaVersion))
+	}
+	if !validID(p.ID, 32) || !versionPattern.MatchString(p.Version) || strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.Description) == "" {
 		return nil, apperr.Usage("invalid_package_metadata", "invalid package metadata")
 	}
 	if !subsetUnique(p.RuntimeTargets, []string{"codex", "gemini", "opencode", "cursor"}) || !subsetUnique(p.Scopes, []string{"project", "global"}) || !subsetUnique(p.RequiresCapabilities, []string{"instructions", "skills"}) {
