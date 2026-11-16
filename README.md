@@ -28,6 +28,8 @@ dtkit version --json
 If you have an approved native Go toolchain:
 
 ```powershell
+go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@latest
+# or build locally:
 go build -trimpath -o .\dist\dtkit.exe ./cmd/dtkit
 ```
 
