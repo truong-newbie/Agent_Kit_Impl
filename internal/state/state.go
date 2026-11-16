@@ -35,10 +35,11 @@ type HookRegistration struct {
 }
 
 type Kit struct {
-	ID         string `json:"id"`
-	Version    string `json:"version"`
-	Digest     string `json:"digest"`
-	SourceKind string `json:"sourceKind,omitempty"`
+	ID            string `json:"id"`
+	Version       string `json:"version"`
+	Digest        string `json:"digest"`
+	ArchiveSHA256 string `json:"archiveSha256,omitempty"`
+	SourceKind    string `json:"sourceKind,omitempty"`
 }
 
 type Artifact struct {
@@ -84,8 +85,11 @@ func (s Installation) validateCommon() error {
 	if !kitIDPattern.MatchString(s.Kit.ID) || len(s.Kit.ID) > 32 || !versionPattern.MatchString(s.Kit.Version) || !validDigest(s.Kit.Digest) {
 		return fmt.Errorf("invalid installed kit")
 	}
-	if s.Kit.SourceKind != "" && s.Kit.SourceKind != "bundled" && s.Kit.SourceKind != "local" {
+	if s.Kit.SourceKind != "" && s.Kit.SourceKind != "bundled" && s.Kit.SourceKind != "local" && s.Kit.SourceKind != "archive" && s.Kit.SourceKind != "remote" {
 		return fmt.Errorf("invalid kit source kind")
+	}
+	if s.Kit.ArchiveSHA256 != "" && !validDigest(s.Kit.ArchiveSHA256) {
+		return fmt.Errorf("invalid kit archiveSha256")
 	}
 	if s.InstalledAt == "" || s.UpdatedAt == "" {
 		return fmt.Errorf("missing installation timestamps")

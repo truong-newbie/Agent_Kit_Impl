@@ -20,6 +20,7 @@ import (
 
 type UpdateOptions struct {
 	SourceKind      string
+	ArchiveSHA256   string
 	AdapterRevision string // optional override for adapter migration testing; defaults to codex.AdapterRevision
 	Hooks           *TxHooks
 }
@@ -157,10 +158,11 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 		InstalledAt:     existing.InstalledAt,
 		UpdatedAt:       now.UTC().Format(time.RFC3339),
 		Kit: state.Kit{
-			ID:         pkg.ID,
-			Version:    pkg.Version,
-			Digest:     pkgDigest,
-			SourceKind: opts.SourceKind,
+			ID:            pkg.ID,
+			Version:       pkg.Version,
+			Digest:        pkgDigest,
+			ArchiveSHA256: opts.ArchiveSHA256,
+			SourceKind:    opts.SourceKind,
 		},
 		Hooks: append([]state.HookRegistration(nil), existing.Hooks...),
 	}

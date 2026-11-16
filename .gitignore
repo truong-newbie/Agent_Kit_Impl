@@ -1,4 +1,4 @@
 .tools/
-dist/
+/dist/
 coverage.out
 .dtkit/local/

@@ -18,8 +18,9 @@ import (
 )
 
 type InstallOptions struct {
-	SourceKind string
-	Hooks      *TxHooks
+	SourceKind    string
+	ArchiveSHA256 string
+	Hooks         *TxHooks
 }
 
 // FreshInstall installs a package only when the provided preview is conflict-free.
@@ -74,10 +75,11 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 		InstalledAt:     now.UTC().Format(time.RFC3339),
 		UpdatedAt:       now.UTC().Format(time.RFC3339),
 		Kit: state.Kit{
-			ID:         pkg.ID,
-			Version:    pkg.Version,
-			Digest:     pkgDigest,
-			SourceKind: opts.SourceKind,
+			ID:            pkg.ID,
+			Version:       pkg.Version,
+			Digest:        pkgDigest,
+			ArchiveSHA256: opts.ArchiveSHA256,
+			SourceKind:    opts.SourceKind,
 		},
 	}
 	if scope == "global" {

@@ -31,7 +31,8 @@
         "id": { "type": "string" },
         "version": { "type": "string" },
         "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "sourceKind": { "enum": ["bundled", "local"] }
+        "archiveSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sourceKind": { "enum": ["bundled", "local", "archive", "remote"] }
       }
     },
     "artifacts": {

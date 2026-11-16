@@ -18,18 +18,20 @@ var reservedDevicePattern = regexp.MustCompile(`^(COM|LPT)[1-9]$`)
 
 // Environment abstracts OS/process lookups for deterministic testing.
 type Environment struct {
-	Getwd       func() (string, error)
-	UserHomeDir func() (string, error)
-	Getenv      func(string) string
-	GitTopLevel func(ctx context.Context, dir string) (string, error)
+	Getwd        func() (string, error)
+	UserHomeDir  func() (string, error)
+	UserCacheDir func() (string, error)
+	Getenv       func(string) string
+	GitTopLevel  func(ctx context.Context, dir string) (string, error)
 }
 
 func DefaultEnvironment() Environment {
 	return Environment{
-		Getwd:       os.Getwd,
-		UserHomeDir: os.UserHomeDir,
-		Getenv:      os.Getenv,
-		GitTopLevel: gitTopLevel,
+		Getwd:        os.Getwd,
+		UserHomeDir:  os.UserHomeDir,
+		UserCacheDir: os.UserCacheDir,
+		Getenv:       os.Getenv,
+		GitTopLevel:  gitTopLevel,
 	}
 }
 
@@ -40,6 +42,9 @@ func (e Environment) withDefaults() Environment {
 	}
 	if e.UserHomeDir == nil {
 		e.UserHomeDir = d.UserHomeDir
+	}
+	if e.UserCacheDir == nil {
+		e.UserCacheDir = d.UserCacheDir
 	}
 	if e.Getenv == nil {
 		e.Getenv = d.Getenv
