@@ -1,38 +1,48 @@
-# DTKit CLI Reference (v0.1)
+# DTKit CLI Reference
 
-## Commands
+DTKit (`dtkit`) is a single-binary Go CLI for packaging, validating, and safely installing reusable AI agent kits across `codex` (default), `gemini`, `opencode`, and `cursor`.
 
-- `dtkit version [--json]` — Print CLI version, commit, and build date.
-- `dtkit help [command]` — Show general or command-specific usage.
-- `dtkit list [--json]` — List kits in the bundled catalog.
-- `dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]` — Show kit metadata, capability contract, integration status, components, and deterministic digest.
-- `dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]` — Strictly validate a local kit directory or `.tar.gz` archive (schema, paths, DAG, and runtime rendering for declared targets/scopes).
-- `dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]` — Scaffold a new standalone kit package passing `dtkit validate`.
-- `dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]` — Add a templated skill to an existing kit package and re-validate.
-- `dtkit pack <dir> [--out <file.tar.gz>] [--json]` — Build a deterministic `.tar.gz` package archive and `.sha256` checksum file.
-- `dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]` — Read-only environment, root, runtime override (`AGENTS.override.md` / `.gemini/settings.json` / `opencode.json`), capability fallback notes, `.gitignore`, and state checks (never accesses network).
-- `dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]` — Fresh install or idempotent no-op from bundled catalog, local dir/archive, HTTPS source, or offline digest cache.
-- `dtkit status [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]` — Inspect installed state and report drift (`healthy`, `modified`, `missing`, `conflicted`, `recovery_required`, `profile_mismatch`, `not_installed`).
-- `dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]` — Upgrade kit version (semver increasing) or migrate adapter revision while preserving user content outside managed blocks.
-- `dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--dry-run] [--yes] [--json]` — Remove DTKit-owned files and managed blocks based on `state.json`.
-- `dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]` — Inspect and resolve interrupted transactions or stale dead-PID locks.
-- `dtkit hooks <list|status|enable|disable> [options]` — Manage opt-in `session-context` (`SessionStart`) Codex hooks (schema v2, structural JSON merge in `.codex/hooks.json` or `$CODEX_HOME/hooks.json`, cross-scope duplicate check, and `configured_pending_trust` guidance).
-- `dtkit hook run <id> --scope project|global --root <dir>` — Native runtime entrypoint for Codex hooks (reads JSON stdin <= 1 MiB, writes `hookSpecificOutput` JSON <= 2 KiB within 3s timeout, read-only).
+## Command Summary
+
+```text
+dtkit version [--json]
+dtkit help [command]
+dtkit list [--json]
+dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]
+dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]
+dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor>] [--json]
+dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
+dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
+dtkit pack <directory> [--out <file.tar.gz>] [--json]
+dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
+dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+dtkit status [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
+dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--dry-run] [--yes] [--json]
+dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
+dtkit hooks <list|status|enable|disable> [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]
+dtkit hook run <id> --scope project|global --root <dir>
+```
+
+## Core Contracts & Semantics
+
+- **One kit per `(runtime, scope)`:** Each runtime and scope pair (`codex/project`, `codex/global`, `opencode/project`, etc.) tracks one active installed kit in its isolated `state.json`. Different runtimes can coexist in the same workspace or home directory without clobbering each other's state.
+- **Read-only guarantees (`info`, `validate`, `doctor`, `status`, `--dry-run`, cancelled prompt):** Never write project files, user config, state, transaction backups, or persistent archive cache blobs.
+- **Capabilities fallback (`requiresCapabilities` vs. `optionalCapabilities`):** Packages requiring unsupported capabilities for a `(runtime, scope)` fail pre-write with `unsupported_capability`. Optional capabilities (for example `instructions` on `cursor/global`, where global User Rules live in Cursor Settings UI) emit an explicit warning and install supported artifacts (`skills`, resources).
+- **Pre-flight CLI warnings:** Missing target runtime binaries (`codex`, `gemini`, `opencode`, `cursor`) on `PATH` emit consistent non-blocking warnings across `info`, `install`, `update`, `status`, and `doctor` (with `doctor` also flagging `runtime_executable` exit `4`).
+- **Codex hooks (`dtkit hooks`):** Opt-in only and explicitly scoped to Codex (`SessionStart` via `.codex/hooks.json` or `$CODEX_HOME/hooks.json`). Project and global `SessionStart` hooks cannot be enabled simultaneously (`hook_scope_conflict`). Pass `--executable <abs>` if registering a specific stable non-ephemeral binary, and always run `dtkit hooks disable ...` before moving or deleting the `dtkit` binary.
+- **Kit upgrades vs. binary upgrades:** `dtkit update` updates the **installed kit package** using DTKit's atomic transaction engine while preserving user content outside managed blocks. Upgrading the **`dtkit` CLI binary** follows checksum-verified terminal replacement (see [docs/release.md](release.md)).
 
 ## Exit Codes
 
-| Code | Meaning |
-|---|---|
-| `0` | Success / no-op |
-| `1` | Internal or I/O error |
-| `2` | Usage error, validation error, or missing `--yes` in non-interactive mode |
-| `3` | Conflict, drift, profile mismatch, lock held, or recovery required |
-| `4` | Runtime capability missing (`codex` not found on `PATH` in `doctor`) |
-| `130` | Cancelled by user or interrupted context |
-
-## JSON Output
-
-Passing `--json` emits a single JSON object (`schemaVersion: 1`) to `stdout` on both success and error. Diagnostics go to `stderr`. Mutations with `--json` require `--yes` (except `--dry-run`).
+| Code | Constant | Meaning |
+|---|---|---|
+| `0` | `ExitOK` | Success (or clean no-op recovery) |
+| `1` | `ExitInternal` | Unexpected internal or I/O error |
+| `2` | `ExitUsage` | Invalid CLI usage, bad flags, or validation error |
+| `3` | `ExitConflict` | Ownership conflict, corrupted/incompatible state, unrecovered transaction, hook ambiguity, or blocked/unverified remote policy |
+| `4` | `ExitRuntime` | Target runtime readiness error (`doctor` runtime missing on `PATH`) |
+| `130` | `ExitCancelled` | Cancelled interactively (`[y/N]`), timeout, or `SIGINT` |
 
 ## Remote Source, Compatibility & Integrity Policy
 

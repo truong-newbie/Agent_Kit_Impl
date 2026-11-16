@@ -23,7 +23,7 @@ See [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md) for detailed accepta
 - [x] `N08` — Run full isolated runtime discovery + real task smoke checks across `codex`, `gemini`, `opencode`, and `cursor` (marking unverified integrations experimental).
 - [x] `N09` — Establish Engineer Kit evaluation rubric and baseline vs with-kit task results (`docs/evaluation/`).
 - [x] `N10` — Sanitize release workflow/scripts inputs, add GitHub Release publishing flow, generate next RC candidate (e.g., `0.4.0-rc.1`), and verify clean-machine terminal install.
-- [ ] `N11` — Final CLI/doc/changelog/troubleshooting audit and PR merge readiness to `main`.
+- [x] `N11` — Final CLI/doc/changelog/troubleshooting audit and PR merge readiness to `main`.
 - [ ] `N12` — Issue templates, redacted `--redact` diagnostic summary support, support policy, and incident handling procedure.
 
 ## Upgrade Notes (`0.1.0` -> `0.2.0` Engineer Kit & Dev Snapshots)
@@ -101,3 +101,29 @@ dtkit install engineer --project --dry-run
   1. Remove installed kit artifacts safely: `dtkit remove engineer --project --yes` (and `--global` / `--runtime <rt>` where installed).
   2. If Codex hooks were enabled, disable them **before** deleting or moving the `dtkit` binary: `dtkit hooks disable session-context --project --yes` (or `--global`).
   3. Only then delete `~/.local/bin/dtkit` or `%LOCALAPPDATA%\Programs\dtkit\bin\dtkit.exe`.
+
+## Changelog (`0.4.0-rc.1` Candidate vs. `v0.1` `f81ce6e` Baseline)
+
+- **Multi-Runtime Architecture (`R1`–`R3`, `N05`):** Added `gemini`, `opencode`, and `cursor` adapters alongside `codex`, strict `requiresCapabilities` / `optionalCapabilities` contract, `integrationStatus` separation (`verified` / `partial` / `unverified`), consistent runtime binary warnings, and shared `AGENTS.md` multi-block namespacing.
+- **Opt-In Codex Hooks (`H1`, `N06`):** Added `dtkit hooks list|status|enable|disable` and `dtkit hook run session-context` with strict duplicate-key/size/schema validation, `hook_entry_ambiguous` conflict protection, POSIX/PowerShell quoting execution guarantees, non-ephemeral executable checks, and zero-leak stdin timeout/cancel isolation.
+- **Authoring, Packaging & Remote Policy (`D1`, `N02`–`N03`):** Added `dtkit create kit|skill`, `dtkit pack`, `--from`, `--source`, `--sha256`, `--offline`, strict JSON & registry index parsing, `minCliVersion` compatibility checks (including `<sha>.meta.json` offline enforcement), HTTPS/loopback redirect hardening, URL credential scrubbing, and zero-write `dry-run` / `info` / `validate` guarantees.
+- **Concurrency, Upgrade Compatibility & Native Recovery (`N01`, `N04`, `N07`):** Bumped bundled `engineer` kit `0.1.0` -> `0.2.0` (`state` v1/v2 compatibility verified via `f81ce6e -> HEAD` upgrade smoke), added sorted canonical shared-target locking across concurrent runtimes, and verified Windows NTFS junctions, exclusive file locks, POSIX `0555` parent confinement, bounded 7-target fuzzing, and 4-boundary OS subprocess `Process.Kill()` crash recovery.
+- **Release Hardening & Evaluation (`N08`–`N11`):** Verified isolated Codex/OpenCode layout discovery, created `engineer` 10-task benchmark & structural evaluation tests (`docs/evaluation/`), hardened `.github/workflows/release.yml` + `scripts/*.ps1` with 3-OS native archive smoke, and synced CLI/troubleshooting docs.
+
+## Troubleshooting Guide
+
+- **Modified kit drift (`target_modified`) or immutable-version rejection (`version_already_installed`):**
+  - *Do not* delete `.dtkit/state.json`. Preview first: `dtkit status --project --runtime <rt>` and `dtkit remove engineer --project --runtime <rt> --dry-run`. If intentional local changes must be kept, copy them aside, run `dtkit remove ... --yes`, then `dtkit install ... --yes`.
+- **Interrupted transaction (`recoveryNeeded`) or stale/active `install.lock` (exit code `3`):**
+  - Check state safely with `dtkit recover --project --runtime <rt> --dry-run`. If the recorded PID is dead and no other `dtkit` instance is running, run `dtkit recover --project --runtime <rt> --yes`. External user edits made after a crash trigger conflict protection instead of silent overwrite.
+- **`broken_executable` or drifted hook after moving/upgrading `dtkit`:**
+  - Inspect via `dtkit hooks status --project`. Disable cleanly first (`dtkit hooks disable session-context --project --yes`), then re-enable with the new stable path (`dtkit hooks enable session-context --project --yes`). If `.codex/hooks.json` contains duplicate DTKit entries (`hook_entry_ambiguous`), remove duplicate entries manually before disabling.
+- **Corrupt archive cache, checksum mismatch, or missing `--offline` artifact (exit code `3`):**
+  - Do not disable `--sha256` checks or overwrite cache blobs manually. Re-fetch online with `--source <url> --sha256 <expected>` (matching the published `SHA256SUMS`), or verify connectivity/CA trust for HTTPS registries.
+- **`profileMismatch` (`CodexHome` / `runtimeHome` mismatch) or Cursor global instructions fallback:**
+  - Verify `CODEX_HOME`, `GEMINI_CLI_HOME`, or `OPENCODE_CONFIG_DIR` / `XDG_CONFIG_HOME` matches the directory bound when installing (`dtkit doctor --global --runtime <rt>`). For Cursor `--global`, instructions remain managed in Cursor Settings UI while skills/resources install to `~/.cursor/skills/`.
+
+## PR Merge Readiness (`feat/release-hardening` -> `main`)
+
+- `git merge-tree --write-tree origin/main HEAD` confirmed zero merge conflicts cleanly against `origin/main` (`f81ce6e`).
+- **Owner gates remaining before merge/tag/publish:** Approve PR merge into `main`, approve creating release tag (candidate default `0.4.0-rc.1`), and (if desired before declaring runtimes `stable`) run live A/B `T01`–`T10` LLM tasks cleanly in an unblocked tool sandbox (`docs/evaluation/README.md`).

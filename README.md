@@ -14,9 +14,13 @@ DTKit is a single-binary Go CLI toolkit for packaging, validating, and safely in
   - **Codex CLI (`0.169.0`, `project` + `$CODEX_HOME`):** Partial — project skill/instruction discovery & isolated `$CODEX_HOME/AGENTS.md` verified in [docs/verification/codex-0.169.0-2026-11-16.md](docs/verification/codex-0.169.0-2026-11-16.md); sandboxed PS subcommands blocked by host policy; hook trust & OS-profile `~/.agents/skills` live smoke pending.
   - **OpenCode (`1.19.5`, `project` + `global`):** Partial — isolated project-only, global-only, combined 14-skill discovery alongside Codex/Gemini/Cursor, and clean removal verified in [docs/verification/opencode-1.19.5-2026-11-16.md](docs/verification/opencode-1.19.5-2026-11-16.md); live LLM turn blocked by absent isolated credentials (`0 credentials`).
   - **Gemini CLI & Cursor:** Experimental (`unverified`) — automated adapter/CLI/coexistence tests pass; `gemini` and `cursor` CLIs absent on verification host ([docs/verification/gemini-cursor-external-blocker-2026-11-16.md](docs/verification/gemini-cursor-external-blocker-2026-11-16.md)).
-- **Open Release Gates:** Hardening tasks `N01`–`N12` in [DTKIT-NEXT-PHASE-PLAN.md](DTKIT-NEXT-PHASE-PLAN.md) (including kit version bump for `main`->candidate upgrades, remote dry-run/policy fixes, shared `AGENTS.md` concurrency proofs, runtime smoke tests, and release candidate packaging) remain open before tagging a public release.
+- **Release Readiness Status (`N00`–`N11` complete on `feat/release-hardening`):** Core hardening (`N01`–`N07`), isolated runtime discovery (`N08`), `engineer` evaluation rubric/suite (`N09`), hardened RC packaging workflow & terminal checksum instructions (`N10`), and final CLI/troubleshooting/merge prep (`N11`) are complete; remaining items are post-release diagnostics (`N12`), owner review/tag approval for publishing `0.4.0-rc.1`, and live A/B model benchmark execution under an unblocked workspace sandbox.
 
-See [docs/compatibility.md](docs/compatibility.md) for the per-runtime 4-layer evidence matrix and [docs/progress.md](docs/progress.md) for current task tracking.
+See [docs/compatibility.md](docs/compatibility.md) for the per-runtime 4-layer evidence matrix, [docs/cli.md](docs/cli.md) for CLI contracts, [docs/release.md](docs/release.md) for terminal installation, changelog, and troubleshooting, and [docs/progress.md](docs/progress.md) for verified task records.
+
+## Terminal Installation (Pinned Release Binary)
+
+Once a release tag (such as `v0.4.0-rc.1`) is published—or when building local archives via `.\scripts\package.ps1 -Version 0.4.0-rc.1`—follow the checksum-verified, user-local installation steps in [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) (never skip `SHA256SUMS` verification).
 
 ## Build and Verification (Dev Source)
 

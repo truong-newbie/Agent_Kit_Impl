@@ -20,8 +20,8 @@
 | `N07` — Native OS edge cases & crash subprocess tests | `verified` | `feat/release-hardening` | F11 | CI skip inventory, NTFS junctions (`mklink /J`), Windows exclusive `CreateFile` locks & case collisions, BOM/CRLF/Unicode, `0555` parent confinement, malicious journal/corrupt state preservation, child-process `Kill` at 4 boundaries, 7-target fuzz smoke (`verify-docker.ps1`, CI `43905833459`) |
 | `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `verified` | `feat/release-hardening` | F08 | Isolated project/global/combined/4-runtime discovery & clean remove verified for `opencode 1.19.5` & `codex 0.169.0`; honest blockers (`codex` PS sandbox + `opencode` `0 credentials`; `gemini`/`cursor` CLI absent -> `unverified`) (`verify-docker.ps1`, CI `43908484139`) |
 | `N09` — Engineer Kit quality baseline evaluation | `verified` | `feat/release-hardening` | F09 | Rubric + 10-task `scenarios.json` (`docs/evaluation/`), cross-runtime `engineer_eval_test.go` invariant suite (8/8 pairs, 0 dangling refs/unrendered tags), honest host blockers for live A/B LLM runs (`verify-docker.ps1`, CI `43909951887`) |
-| `N10` — Release pipeline & terminal install UX | `verified` | `feat/release-hardening` | F09, F10 | Hardened `release.yml` (env-bound inputs, strict semver, 3-OS `native-smoke`, draft release), `validate-release-args.ps1` + `build.ps1`/`package.ps1`, `0.4.0-rc.1` build + SHA256 + Docker archive smoke, terminal install/uninstall docs |
-| `N11` — Final docs, CLI UX & `main` merge prep | `not-started` | `feat/release-hardening` | F09 | Final audit across docs/changelog/troubleshooting and PR diff review to `main` |
+| `N10` — Release pipeline & terminal install UX | `verified` | `feat/release-hardening` | F09, F10 | Hardened `release.yml` (env-bound inputs, strict semver, 3-OS `native-smoke`, draft release), `validate-release-args.ps1` + `build.ps1`/`package.ps1`, `0.4.0-rc.1` build + SHA256 + Docker archive smoke, terminal install/uninstall docs (CI `43910935931`) |
+| `N11` — Final docs, CLI UX & `main` merge prep | `verified` | `feat/release-hardening` | F09 | Full CLI reference (`docs/cli.md`), `README.md`, `0.4.0-rc.1` changelog & troubleshooting (`docs/release.md`), `git merge-tree origin/main HEAD` clean zero-conflict merge prep |
 | `N12` — Post-release diagnostics & support policy | `not-started` | `feat/release-hardening` | — | Issue templates, read-only/redacted diagnostics (`--redact`), support & incident guide |
 
 *(Post-release backlog `N13`–`N18` stays out of scope for this candidate wave.)*
@@ -179,6 +179,15 @@ Verification run: Negative `build.ps1` semver & `OutDir` traversal checks reject
 Remaining limitation / external blocker: Proposed RC version `0.4.0-rc.1` is staged as a candidate workflow default (`publish_draft: false` unless owner approves creating a tag/draft release). Native `darwin_arm64` binary requires macOS runner (`native-smoke` matrix in `release.yml`).
 Acceptance checklist result: Pass (shell injection fixed, strict semver/path validation enforced, clean RC archive & terminal checksum-verified install/uninstall flows documented and tested).
 Next task: N11 — Tài liệu cuối, UX và chuẩn bị merge (`README.md`, `docs/cli.md`, `docs/release.md` changelog/troubleshooting, CLI consistency audit, PR summary).
+
+Task: N11 — Tài liệu cuối, UX và chuẩn bị merge
+Status: verified
+Branch / Commit: `feat/release-hardening` (pending N11 push; N10 CI `43910935931` checked alongside)
+Artifact changed: `docs/cli.md`, `README.md`, `docs/release.md`, `docs/progress.md`
+Verification run: Verified live `go run ./cmd/dtkit help`, `help hooks`, `help doctor`, `internal/apperr/apperr.go` exit codes (`0/1/2/3/4/130`), git ancestry above `origin/main` (`f81ce6e`), and `git merge-tree --write-tree origin/main HEAD` (`6920268ae23c290f852d8f6df00866f996e9534f`, exit `0`, zero merge conflicts); synced `docs/cli.md`, `README.md`, and `docs/release.md` (changelog, troubleshooting, PR readiness).
+Remaining limitation / external blocker: Merge into `main`, tag creation (`v0.4.0-rc.1`), and public GitHub Release publication remain gated on explicit repository owner approval.
+Acceptance checklist result: Pass (docs, help text, exit codes, changelog, troubleshooting, and clean merge ancestry aligned).
+Next task: N12 — Theo dõi sau phát hành: issue templates, `doctor --redact` / diagnostic redaction, support policy và incident procedure.
 
 ---
 
