@@ -138,6 +138,18 @@ func ResolveProject(ctx context.Context, env Environment, explicitPath string) (
 	return res, nil
 }
 
+// ResolveUserHome resolves only user-home for global runtimes that do not use a runtime-specific home override.
+func ResolveUserHome(env Environment) (GlobalResolution, error) {
+	env = env.withDefaults()
+	var res GlobalResolution
+	absHome, err := resolveUserHome(env)
+	if err != nil {
+		return res, err
+	}
+	res.UserHome = absHome
+	return res, nil
+}
+
 // ResolveGlobal resolves user-home and codex-home for global Codex operations.
 func ResolveGlobal(env Environment) (GlobalResolution, error) {
 	env = env.withDefaults()

@@ -45,8 +45,45 @@ type SkillLocation struct {
 // InstructionLocation maps a scope to the root key and relative path of the instruction file.
 type InstructionLocation struct {
 	Root         string
-	Path         string
+	Path         string // static relative path
+	PathTemplate string // optional format pattern containing "%s" for kitID
+	Strategy     string // optional: defaults to "managed-block"
 	OverridePath string // optional file whose non-empty presence overrides Path
+}
+
+// EffectiveStrategy returns the instruction write strategy ("managed-block" or "whole-file").
+func (l InstructionLocation) EffectiveStrategy() string {
+	if l.Strategy != "" {
+		return l.Strategy
+	}
+	return "managed-block"
+}
+
+// RelPath resolves the relative path for kitID.
+func (l InstructionLocation) RelPath(kitID string) string {
+	if l.PathTemplate != "" {
+		return strings.Replace(l.PathTemplate, "%s", kitID, 1)
+	}
+	return l.Path
+}
+
+// MatchesWholeFile reports whether relPath matches this whole-file instruction rule pattern.
+func (l InstructionLocation) MatchesWholeFile(relPath string) bool {
+	if l.EffectiveStrategy() != "whole-file" {
+		return false
+	}
+	if l.PathTemplate == "" {
+		return relPath == l.Path
+	}
+	prefix, suffix, ok := strings.Cut(l.PathTemplate, "%s")
+	if !ok {
+		return relPath == l.PathTemplate
+	}
+	if !strings.HasPrefix(relPath, prefix) || !strings.HasSuffix(relPath, suffix) {
+		return false
+	}
+	mid := strings.TrimSuffix(strings.TrimPrefix(relPath, prefix), suffix)
+	return mid != "" && !strings.Contains(mid, "/")
 }
 
 // RuntimeProfile captures the validated path layout, state paths, and capability matrix of a runtime.
@@ -188,6 +225,40 @@ var profiles = map[string]RuntimeProfile{
 			},
 		},
 	},
+	"cursor": {
+		ID:             "cursor",
+		DisplayName:    "Cursor",
+		Revision:       "1",
+		Binary:         "cursor",
+		StateRelPath:   ".dtkit/runtimes/cursor/state.json",
+		OperationalDir: ".dtkit/local/runtimes/cursor",
+		Scopes:         []string{"project", "global"},
+		HooksSupported: false,
+		Instructions: map[string]InstructionLocation{
+			"project": {Root: "project", PathTemplate: ".cursor/rules/dtkit-%s.mdc", Strategy: "whole-file"},
+		},
+		Skills: map[string]SkillLocation{
+			"project": {Root: "project", Dir: ".cursor/skills", Prefix: "dtkit-cursor-project-"},
+			"global":  {Root: "user-home", Dir: ".cursor/skills", Prefix: "dtkit-cursor-global-"},
+		},
+		ContentRoot: map[string]string{
+			"project": "project",
+			"global":  "user-home",
+		},
+		ContentRelBase: ".dtkit/runtimes/cursor/content",
+		CapabilitiesMap: map[string]Capabilities{
+			"project": {
+				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: ".cursor/rules/dtkit-<kit>.mdc alwaysApply project rule"},
+				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: ".cursor/skills/dtkit-cursor-project-*"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Cursor supports hooks in .cursor/hooks.json; not managed by DTKit"},
+			},
+			"global": {
+				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Cursor global User Rules are configured in Cursor Settings UI; DTKit installs global skills (~/.cursor/skills/) and resources only"},
+				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.cursor/skills/dtkit-cursor-global-*"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Cursor supports hooks in ~/.cursor/hooks.json; not managed by DTKit"},
+			},
+		},
+	},
 }
 
 // NormalizeRuntime returns DefaultRuntime when runtime is empty.
@@ -200,7 +271,7 @@ func NormalizeRuntime(runtime string) string {
 
 // SupportedRuntimes returns implemented runtime identifiers in deterministic order.
 func SupportedRuntimes() []string {
-	return []string{"codex", "gemini", "opencode"}
+	return []string{"codex", "gemini", "opencode", "cursor"}
 }
 
 // BlockTag returns the DTKit managed-block marker tag for kitID and scope.
@@ -292,7 +363,7 @@ func (p RuntimeProfile) IsAllowedArtifactPath(scope, kitID, root, relPath, strat
 	switch strategy {
 	case "managed-block":
 		loc, ok := p.Instructions[scope]
-		return ok && root == loc.Root && relPath == loc.Path
+		return ok && loc.EffectiveStrategy() == "managed-block" && root == loc.Root && relPath == loc.RelPath(kitID)
 	case "hooks-json":
 		if !p.HooksSupported {
 			return false
@@ -302,6 +373,9 @@ func (p RuntimeProfile) IsAllowedArtifactPath(scope, kitID, root, relPath, strat
 		}
 		return root == p.HookGlobalRoot && relPath == p.HookGlobalPath
 	case "whole-file":
+		if loc, ok := p.Instructions[scope]; ok && loc.EffectiveStrategy() == "whole-file" && root == loc.Root && relPath == loc.RelPath(kitID) {
+			return true
+		}
 		skillLoc, hasSkills := p.Skills[scope]
 		if hasSkills && root == skillLoc.Root && p.IsSkillArtifact(scope, relPath) {
 			return true
@@ -320,7 +394,7 @@ func (p RuntimeProfile) IsAllowedArtifactPath(scope, kitID, root, relPath, strat
 // OverrideCheckPath returns the sibling override filename that blocks managed-block writes (if any).
 func (p RuntimeProfile) OverrideCheckPath(scope, relPath string) string {
 	loc, ok := p.Instructions[scope]
-	if !ok || relPath != loc.Path {
+	if !ok || loc.EffectiveStrategy() != "managed-block" || relPath != loc.Path {
 		return ""
 	}
 	return loc.OverridePath
@@ -340,6 +414,13 @@ func (p RuntimeProfile) IsAllowedCreatedDir(scope, kitID, root, rel string) bool
 	if root == stateRoot {
 		if isDirAncestorOf(rel, p.StateDir()) {
 			return true
+		}
+	}
+	if instrLoc, ok := p.Instructions[scope]; ok && instrLoc.EffectiveStrategy() == "whole-file" && root == instrLoc.Root {
+		if instrDir := path.Dir(instrLoc.RelPath(kitID)); instrDir != "." && instrDir != "" {
+			if isDirAncestorOf(rel, instrDir) {
+				return true
+			}
 		}
 	}
 	if contentRoot, ok := p.ContentRoot[scope]; ok && root == contentRoot {

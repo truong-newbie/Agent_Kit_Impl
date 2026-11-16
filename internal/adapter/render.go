@@ -50,8 +50,13 @@ func RenderKit(profile RuntimeProfile, p catalog.Package, source fs.FS, scope st
 	skillLoc, hasSkills := profile.Skills[scope]
 	instrLoc, hasInstr := profile.Instructions[scope]
 	contentRoot, hasContent := profile.ContentRoot[scope]
-	if !hasSkills || !hasInstr || !hasContent {
+	if !hasSkills || !hasContent {
 		return nil, apperr.Usage("unsupported_scope", fmt.Sprintf("runtime %q does not define complete %s layout", profile.ID, scope))
+	}
+	if !hasInstr {
+		if capSet, ok := profile.CapabilitiesMap[scope]; !ok || capSet.Instructions.DTKitSupported {
+			return nil, apperr.Usage("unsupported_scope", fmt.Sprintf("runtime %q missing instructions layout for %s scope", profile.ID, scope))
+		}
 	}
 
 	resourceDisplayPrefix := path.Join(profile.ContentRelBase, p.ID)
@@ -158,24 +163,33 @@ func RenderKit(profile RuntimeProfile, p catalog.Package, source fs.FS, scope st
 		})
 	}
 
-	preference := ""
-	if scope == "project" {
-		if projSkills, ok := profile.Skills["project"]; ok {
-			projGroup := strings.TrimSuffix(projSkills.Prefix, "-")
-			preference = fmt.Sprintf(" Prefer %s skills for this project when both scopes are installed.", projGroup)
+	if hasInstr {
+		preference := ""
+		if scope == "project" {
+			if projSkills, ok := profile.Skills["project"]; ok {
+				projGroup := strings.TrimSuffix(projSkills.Prefix, "-")
+				preference = fmt.Sprintf(" Prefer %s skills for this project when both scopes are installed.", projGroup)
+			}
 		}
+		skillGroup := strings.TrimSuffix(skillLoc.Prefix, "-")
+		body := fmt.Sprintf("# DTKit engineering guidance\n\nInspect relevant project instructions and code before changes. Respect the user's scope, preserve unrelated work, and report actual verification results. Use the %s skills when appropriate.%s For relevant tasks, consult workflows, rules and templates under %s.\n",
+			skillGroup, preference, resourceDisplayPrefix)
+		strategy := instrLoc.EffectiveStrategy()
+		var contentStr string
+		if strategy == "whole-file" {
+			contentStr = fmt.Sprintf("---\ndescription: DTKit %s %s engineering guidance\nalwaysApply: true\n---\n\n%s", p.ID, scope, body)
+		} else {
+			tag := profile.BlockTag(p.ID, scope)
+			contentStr = fmt.Sprintf("<!-- dtkit:begin %s -->\n%s<!-- dtkit:end %s -->\n", tag, body, tag)
+		}
+		artifacts = append(artifacts, Artifact{
+			Root:        instrLoc.Root,
+			Path:        instrLoc.RelPath(p.ID),
+			Strategy:    strategy,
+			ComponentID: "instructions",
+			Content:     []byte(contentStr),
+		})
 	}
-	skillGroup := strings.TrimSuffix(skillLoc.Prefix, "-")
-	tag := profile.BlockTag(p.ID, scope)
-	block := fmt.Sprintf("<!-- dtkit:begin %s -->\n# DTKit engineering guidance\n\nInspect relevant project instructions and code before changes. Respect the user's scope, preserve unrelated work, and report actual verification results. Use the %s skills when appropriate.%s For relevant tasks, consult workflows, rules and templates under %s.\n<!-- dtkit:end %s -->\n",
-		tag, skillGroup, preference, resourceDisplayPrefix, tag)
-	artifacts = append(artifacts, Artifact{
-		Root:        instrLoc.Root,
-		Path:        instrLoc.Path,
-		Strategy:    "managed-block",
-		ComponentID: "instructions",
-		Content:     []byte(block),
-	})
 
 	sort.Slice(artifacts, func(i, j int) bool {
 		if artifacts[i].Root != artifacts[j].Root {

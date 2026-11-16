@@ -53,20 +53,21 @@ func InstallPreviewForRuntime(runtime, scope string, roots map[string]string, ar
 		return plan, err
 	}
 	seen := map[string]bool{}
-	instrLoc := profile.Instructions[scope]
+	instrLoc, hasInstr := profile.Instructions[scope]
 	skillLoc := profile.Skills[scope]
 	contentRoot := profile.ContentRoot[scope]
 	for _, a := range artifacts {
 		if !profile.AllowedRootForScope(scope, a.Root) {
 			return plan, apperr.Usage("unexpected_artifact_root", "unexpected artifact root")
 		}
-		if a.Strategy == "managed-block" && (a.Path != instrLoc.Path || a.Root != instrLoc.Root) {
+		if a.Strategy == "managed-block" && (!hasInstr || instrLoc.EffectiveStrategy() != "managed-block" || a.Path != instrLoc.Path || a.Root != instrLoc.Root) {
 			return plan, apperr.Usage("invalid_instruction_artifact", "invalid instruction artifact")
 		}
 		if a.Strategy == "whole-file" {
 			isSkill := a.Root == skillLoc.Root && profile.IsSkillArtifact(scope, a.Path)
 			isContent := a.Root == contentRoot && strings.HasPrefix(a.Path, profile.ContentRelBase+"/")
-			if !isSkill && !isContent {
+			isInstrRule := hasInstr && a.Root == instrLoc.Root && instrLoc.MatchesWholeFile(a.Path)
+			if !isSkill && !isContent && !isInstrRule {
 				return plan, apperr.Usage("artifact_outside_allowlist", "artifact outside allowed paths")
 			}
 		}
