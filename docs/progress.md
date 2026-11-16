@@ -11,7 +11,7 @@
 | Task | Status | Branch / Lane | Finding(s) | Evidence / Notes |
 |---|---|---|---|---|
 | `N00` — Baseline sync & status tracking | `verified` | `feat/release-hardening` | Baseline sync | Recorded `936043f` / run `43849330462`, separated historical snapshots, aligned `README.md`, `compatibility.md`, `release.md` |
-| `N01` — Kit version bump & upgrade from `main` | `in-progress` | `feat/release-hardening` | F01 | Next: fixture from `main` (`f81ce6e`), bump `engineer` kit version, verify cross-version upgrade & state v1/v2 compatibility |
+| `N01` — Kit version bump & upgrade from `main` | `verified` | `feat/release-hardening` | F01 | Bumped `engineer` `0.1.0`->`0.2.0` + CLI `0.4.0-dev`; tested real `main` `f81ce6e`->HEAD upgrade (`verify-docker.ps1` + live binary smoke) |
 | `N02` — Source resolution read-only contract | `not-started` | `feat/release-hardening` | F02, F05 | Ensure `--dry-run`, `info`, `validate`, `--offline` never write/clean cache or state |
 | `N03` — Remote transport, index strictness, cache safety | `not-started` | `feat/release-hardening` | F03, F05, F06 | Bounded HTTP timeout/redirect hop checks, strict registry index, offline `minCliVersion`, concurrent cache `Put` |
 | `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `not-started` | `feat/release-hardening` | F04 | Barrier concurrency tests (`codex` + `opencode`), shared lock coordination, recovery conflict preservation |
@@ -37,6 +37,27 @@ Tests actually run: Docs-only check per N00 criteria (`git diff --check`, Markdo
 Remaining limitation / external blocker: N01–N12 engineering hardening and real runtime checks remain open before release.
 Acceptance checklist result: Pass (consistent status across README, progress, compatibility, release; branch created from full four-runtime baseline 936043f; CI URL and baseline SHA recorded).
 Next task: N01 — Version kit, upgrade từ bản cũ và compatibility state.
+
+---
+
+Task: N01 — Version kit, upgrade từ bản cũ và compatibility state
+Status: verified
+Baseline/branch/SHA: feat/release-hardening @ 2efef15 (upgrade baseline tested against main @ f81ce6e)
+Observed problem and reproduction: Between main (`f81ce6e`, `engineer@0.1.0`, digest `88bc2c800d3b610b932b65a8b551e9d3686506d17e7a9c6056a75042da42245b`) and `feat/runtime-cursor-v0.4` (`936043f`), `internal/catalog/engineer/package.json` added `gemini`, `opencode`, `cursor` to `runtimeTargets` without bumping `"version": "0.1.0"`. Upgrading an existing `main` installation hit `immutable_version` (`0.1.0` digest mismatch). Additionally, downgrade/immutable-version errors still carried stale `in v0.1` copy and needed explicit schema/revision error messages plus golden v1/v2 state & journal fixtures across all 4 runtimes.
+Changed files and behavior:
+- `internal/catalog/engineer/package.json`: bumped version `0.1.0` -> `0.2.0` (digest `db0b5aaf2d0e22b6278a09a91b28b63ad57d794980f3395d02fe3feeea8ae03c`).
+- `internal/buildinfo/buildinfo.go`: bumped dev version `"0.1.0-dev"` -> `"0.4.0-dev"`.
+- `internal/catalog/catalog.go`, `internal/state/state.go`: clarified explicit `schemaVersion` error messages (supported manifest v1; state v1/v2).
+- `internal/installer/update.go`: removed stale `in v0.1` text on downgrade errors and added actionable `apperr.WithHint` on `immutable_version` (bump kit version or clean `remove`+`install` for dev snapshots).
+- `internal/state/compat_test.go`, `internal/installer/compat_test.go`: added golden state v1/v2 (`codex` + hooks, `gemini`, `opencode`, `cursor`), unknown `schemaVersion` / future `adapterRevision`, legacy `v1` journal validation, real `main` (`0.1.0`) -> `0.2.0` upgrade preserving UTF-8 BOM/CRLF user `AGENTS.md`, `InstalledAt`, hooks, idempotent re-runs, and `immutable_version` enforcement tests.
+- `internal/cli/{cli_test,e2e_test}.go`, `internal/installer/runtime_test.go`: updated custom update test fixtures to `0.3.0`.
+- `docs/release.md`: checked off `N01` and documented upgrade notes for `0.1.0` -> `0.2.0` and dev snapshots.
+Tests actually run:
+- `docker run --rm -v "${PWD}:/src" -w /src golang:1.27.4 /usr/local/go/bin/gofmt -w cmd internal schemas; .\scripts\verify-docker.ps1` -> exit `0`, all Go packages passed under `go test -race ./...`, `go vet ./...`, and `go build`.
+- Live binary upgrade smoke inside Docker (`golang:1.27.4` with detached worktree of `main` `f81ce6e` -> current working tree): `dtkit-old install engineer --project|--global --yes --json` (`0.1.0`) -> `dtkit-new update engineer --project|--global --yes --json` (`0.2.0`, generation `2`, 14 files updated, BOM+CRLF user header preserved) -> `status --json` (`healthy: true`) -> repeat `install`/`update` (`noop: 15`) -> tampered `0.2.0` kit copy `--from /work/custom020` returned exit code `3` (`immutable_version` with hint).
+Remaining limitation / external blocker: Cross-OS CI (`windows-latest`, `macos-latest`) runs on push; N02–N12 remain open.
+Acceptance checklist result: Pass (upgrade from `main` `f81ce6e` `0.1.0` -> `0.2.0` preserves user BOM/CRLF content, hooks, and `InstalledAt`; tampered same-version blocked cleanly; golden state/journal v1/v2 + error paths tested across all 4 runtimes).
+Next task: N02 — Source resolution: tách read-only validation khỏi cache writes và cleanup.
 
 ---
 
