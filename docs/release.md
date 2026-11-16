@@ -22,7 +22,7 @@ See [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md) for detailed accepta
 - [x] `N07` — Document CI skip reasons and add native Windows lock/junction and child-process crash recovery tests.
 - [x] `N08` — Run full isolated runtime discovery + real task smoke checks across `codex`, `gemini`, `opencode`, and `cursor` (marking unverified integrations experimental).
 - [x] `N09` — Establish Engineer Kit evaluation rubric and baseline vs with-kit task results (`docs/evaluation/`).
-- [ ] `N10` — Sanitize release workflow/scripts inputs, add GitHub Release publishing flow, generate next RC candidate (e.g., `0.4.0-rc.1`), and verify clean-machine terminal install.
+- [x] `N10` — Sanitize release workflow/scripts inputs, add GitHub Release publishing flow, generate next RC candidate (e.g., `0.4.0-rc.1`), and verify clean-machine terminal install.
 - [ ] `N11` — Final CLI/doc/changelog/troubleshooting audit and PR merge readiness to `main`.
 - [ ] `N12` — Issue templates, redacted `--redact` diagnostic summary support, support policy, and incident handling procedure.
 
@@ -33,3 +33,71 @@ See [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md) for detailed accepta
   - DTKit preserves user content outside managed blocks (including UTF-8 BOM and CRLF/LF line endings), preserves registered v2 hooks and `installedAt` timestamps, and increments `generation`.
 - Replacing an unreleased dev snapshot installed at the same kit version (`immutable_version` conflict):
   - DTKit intentionally rejects silently overwriting a modified package sharing an already-recorded kit version. Never delete `.dtkit/state.json` manually; instead remove cleanly with ownership protection (`dtkit remove <kit> --project|--global --runtime <rt> --yes`) and re-run `dtkit install <kit> --project|--global --runtime <rt> --yes`.
+
+## Terminal Install & Checksum Verification (Pinned Version, No Admin)
+
+*(Applies once a tagged GitHub Release such as `v0.4.0-rc.1` is published, or after building archives locally with `.\scripts\package.ps1 -Version 0.4.0-rc.1`.)*
+
+### Linux / macOS (`bash` / `zsh`, user-local `~/.local/bin`)
+
+```bash
+VERSION="0.4.0-rc.1"
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"   # linux | darwin
+ARCH="amd64"
+[ "$OS" = "darwin" ] && ARCH="arm64"
+ARCHIVE="dtkit_${VERSION}_${OS}_${ARCH}.tar.gz"
+BASE_URL="https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v${VERSION}"
+
+TMP=$(mktemp -d)
+curl -fsSL "$BASE_URL/$ARCHIVE" -o "$TMP/$ARCHIVE"
+curl -fsSL "$BASE_URL/SHA256SUMS" -o "$TMP/SHA256SUMS"
+(cd "$TMP" && (sha256sum -c <(grep " ${ARCHIVE}\$" SHA256SUMS) || shasum -a 256 -c <(grep " ${ARCHIVE}\$" SHA256SUMS)))
+
+mkdir -p "$HOME/.local/bin"
+tar -xzf "$TMP/$ARCHIVE" -C "$TMP"
+install -m 0755 "$TMP/dtkit" "$HOME/.local/bin/dtkit"
+rm -rf "$TMP"
+
+export PATH="$HOME/.local/bin:$PATH"
+dtkit version --json
+dtkit doctor
+dtkit install engineer --project --dry-run
+```
+
+### Windows PowerShell (`%LOCALAPPDATA%\Programs\dtkit\bin`)
+
+```powershell
+$Version = "0.4.0-rc.1"
+$Archive = "dtkit_${Version}_windows_amd64.zip"
+$BaseUrl = "https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v$Version"
+$Tmp = Join-Path $env:TEMP "dtkit-install-$Version"
+New-Item -ItemType Directory -Force -Path $Tmp | Out-Null
+
+Invoke-WebRequest "$BaseUrl/$Archive" -OutFile (Join-Path $Tmp $Archive)
+Invoke-WebRequest "$BaseUrl/SHA256SUMS" -OutFile (Join-Path $Tmp "SHA256SUMS")
+
+$Actual = (Get-FileHash (Join-Path $Tmp $Archive) -Algorithm SHA256).Hash.ToLowerInvariant()
+$ExpectedLine = (Get-Content (Join-Path $Tmp "SHA256SUMS") | Where-Object { $_ -match "\s+$Archive$" })
+if (-not $ExpectedLine -or ($ExpectedLine.Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant() -ne $Actual)) {
+    throw "SHA256 checksum mismatch for $Archive; aborting installation."
+}
+
+$BinDir = Join-Path $env:LOCALAPPDATA "Programs\dtkit\bin"
+New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+Expand-Archive -Path (Join-Path $Tmp $Archive) -DestinationPath $Tmp -Force
+Copy-Item (Join-Path $Tmp "dtkit.exe") (Join-Path $BinDir "dtkit.exe") -Force
+Remove-Item -Recurse -Force $Tmp
+
+# Add $BinDir to user PATH (without admin):
+[Environment]::SetEnvironmentVariable("Path", "$BinDir;" + [Environment]::GetEnvironmentVariable("Path", "User"), "User")
+$env:Path = "$BinDir;$env:Path"
+dtkit version --json
+dtkit doctor
+dtkit install engineer --project --dry-run
+```
+
+- **Fail-closed checksum rule:** Never skip SHA256 verification or bypass OS security policies (`Device Guard` / Gatekeeper) to run an unverified binary.
+- **Uninstalling a kit vs. uninstalling the `dtkit` binary:**
+  1. Remove installed kit artifacts safely: `dtkit remove engineer --project --yes` (and `--global` / `--runtime <rt>` where installed).
+  2. If Codex hooks were enabled, disable them **before** deleting or moving the `dtkit` binary: `dtkit hooks disable session-context --project --yes` (or `--global`).
+  3. Only then delete `~/.local/bin/dtkit` or `%LOCALAPPDATA%\Programs\dtkit\bin\dtkit.exe`.

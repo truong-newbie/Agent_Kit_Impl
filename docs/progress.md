@@ -19,8 +19,8 @@
 | `N06` — Hook JSON strictness & executable lifecycle | `verified` | `feat/release-hardening` | F12 | Duplicate-key/oversize/schema rejection, ambiguous digest guard, real `sh`/PowerShell special-char quoting execution, zero-leak timeout/cancel, update/drift/chmod lifecycle (`verify-docker.ps1`, CI `43903546521`) |
 | `N07` — Native OS edge cases & crash subprocess tests | `verified` | `feat/release-hardening` | F11 | CI skip inventory, NTFS junctions (`mklink /J`), Windows exclusive `CreateFile` locks & case collisions, BOM/CRLF/Unicode, `0555` parent confinement, malicious journal/corrupt state preservation, child-process `Kill` at 4 boundaries, 7-target fuzz smoke (`verify-docker.ps1`, CI `43905833459`) |
 | `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `verified` | `feat/release-hardening` | F08 | Isolated project/global/combined/4-runtime discovery & clean remove verified for `opencode 1.19.5` & `codex 0.169.0`; honest blockers (`codex` PS sandbox + `opencode` `0 credentials`; `gemini`/`cursor` CLI absent -> `unverified`) (`verify-docker.ps1`, CI `43908484139`) |
-| `N09` — Engineer Kit quality baseline evaluation | `verified` | `feat/release-hardening` | F09 | Rubric + 10-task `scenarios.json` (`docs/evaluation/`), cross-runtime `engineer_eval_test.go` invariant suite (8/8 pairs, 0 dangling refs/unrendered tags), honest host blockers for live A/B LLM runs (`verify-docker.ps1`) |
-| `N10` — Release pipeline & terminal install UX | `not-started` | `feat/release-hardening` | F09, F10 | Sanitize workflow/PS inputs, add GitHub Release draft step, new RC candidate & terminal verify |
+| `N09` — Engineer Kit quality baseline evaluation | `verified` | `feat/release-hardening` | F09 | Rubric + 10-task `scenarios.json` (`docs/evaluation/`), cross-runtime `engineer_eval_test.go` invariant suite (8/8 pairs, 0 dangling refs/unrendered tags), honest host blockers for live A/B LLM runs (`verify-docker.ps1`, CI `43909951887`) |
+| `N10` — Release pipeline & terminal install UX | `verified` | `feat/release-hardening` | F09, F10 | Hardened `release.yml` (env-bound inputs, strict semver, 3-OS `native-smoke`, draft release), `validate-release-args.ps1` + `build.ps1`/`package.ps1`, `0.4.0-rc.1` build + SHA256 + Docker archive smoke, terminal install/uninstall docs |
 | `N11` — Final docs, CLI UX & `main` merge prep | `not-started` | `feat/release-hardening` | F09 | Final audit across docs/changelog/troubleshooting and PR diff review to `main` |
 | `N12` — Post-release diagnostics & support policy | `not-started` | `feat/release-hardening` | — | Issue templates, read-only/redacted diagnostics (`--redact`), support & incident guide |
 
@@ -170,6 +170,15 @@ Verification run: Added automated evaluation suite `TestEngineerKitEvaluationInv
 Remaining limitation / external blocker: Live baseline vs. with-kit repeated `T01`–`T10` LLM execution (`N >= 3`) requires an unblocked workspace shell sandbox (`codex` PS child execution allowed) and owner-approved LLM API credentials/budget. No speculative quality uplift percentages claimed.
 Acceptance checklist result: Pass (kit template integrity, progressive disclosure, guardrail checks, 10-task benchmark suite, and honest evaluation boundaries established).
 Next task: N10 — Cứng hóa release pipeline và trải nghiệm cài qua terminal (F09/F10).
+
+Task: N10 — Release pipeline & trải nghiệm cài qua terminal
+Status: verified (workflow/script hardening, `0.4.0-rc.1` archive build + checksum + Docker archive lifecycle smoke passed; native macOS/Windows `native-smoke` executes via GitHub Actions on dispatch/tag)
+Branch / Commit: `feat/release-hardening` (pending N10 push; N09 CI `43909951887` checked alongside)
+Artifact changed: `.github/workflows/release.yml`, `scripts/validate-release-args.ps1`, `scripts/build.ps1`, `scripts/package.ps1`, `internal/cli/release_workflow_test.go`, `docs/release.md`, `docs/progress.md`
+Verification run: Negative `build.ps1` semver & `OutDir` traversal checks rejected malicious inputs (`"0.4.0;calc"`, `"../bad"`, `"../outside"`, `".git/hooks"`); `.\scripts\package.ps1 -Version 0.4.0-rc.1 -OutDir dist` generated 3 archives + `SHA256SUMS`; Docker smoke verified `sha256sum -c SHA256SUMS`, `VERSION`/`README.md`/`LICENSE`, `dtkit version --json` (`0.4.0-rc.1`), `info`, `install --project --yes`, `status --json` (`"healthy":true`), and `remove --yes`, followed by `dist/` cleanup and `.\scripts\verify-docker.ps1`.
+Remaining limitation / external blocker: Proposed RC version `0.4.0-rc.1` is staged as a candidate workflow default (`publish_draft: false` unless owner approves creating a tag/draft release). Native `darwin_arm64` binary requires macOS runner (`native-smoke` matrix in `release.yml`).
+Acceptance checklist result: Pass (shell injection fixed, strict semver/path validation enforced, clean RC archive & terminal checksum-verified install/uninstall flows documented and tested).
+Next task: N11 — Tài liệu cuối, UX và chuẩn bị merge (`README.md`, `docs/cli.md`, `docs/release.md` changelog/troubleshooting, CLI consistency audit, PR summary).
 
 ---
 

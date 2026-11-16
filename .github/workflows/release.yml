@@ -4,9 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (without v prefix, e.g. 0.1.0)'
+        description: 'Release version (without v prefix, e.g. 0.4.0-rc.1)'
         required: true
-        default: '0.1.0-rc1'
+        default: '0.4.0-rc.1'
+      publish_draft:
+        description: 'Create a draft GitHub Release (requires tag ref or maintainer approval)'
+        required: true
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*'
@@ -17,43 +22,166 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      commit: ${{ steps.meta.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.4'
-      - name: Verify tests before packaging
+      - name: Check formatting, race tests, and vet before packaging
         run: |
+          unformatted=$(gofmt -l cmd internal schemas)
+          if [ -n "$unformatted" ]; then
+            echo "$unformatted"
+            exit 1
+          fi
           go test -race ./...
           go vet ./...
-      - name: Build release archives and SHA256SUMS
+      - name: Resolve and validate release version safely
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.version }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${REF_NAME#v}"
+          fi
+          SEMVER_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if ! printf '%s\n' "$VERSION" | grep -Eq "$SEMVER_RE"; then
+            echo "Invalid semver version: $VERSION" >&2
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Working tree is not clean; refusing release build" >&2
+            exit 1
           fi
           COMMIT=$(git rev-parse --short HEAD)
+          FULL_COMMIT=$(git rev-parse HEAD)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "full_commit=$FULL_COMMIT" >> "$GITHUB_OUTPUT"
+      - name: Build release archives and SHA256SUMS
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          FULL_COMMIT: ${{ steps.meta.outputs.full_commit }}
+        run: |
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           LDFLAGS="-s -w -X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Version=${VERSION} -X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Commit=${COMMIT} -X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Date=${DATE}"
           mkdir -p dist/stage
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "${LDFLAGS}" -o dist/stage/dtkit.exe ./cmd/dtkit
+          printf 'version=%s\ncommit=%s\nshortCommit=%s\ndate=%s\n' "$VERSION" "$FULL_COMMIT" "$COMMIT" "$DATE" > dist/stage/VERSION
           cp README.md LICENSE dist/stage/
-          (cd dist/stage && zip -q "../dtkit_${VERSION}_windows_amd64.zip" dtkit.exe README.md LICENSE)
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "${LDFLAGS}" -o dist/stage/dtkit.exe ./cmd/dtkit
+          (cd dist/stage && zip -q "../dtkit_${VERSION}_windows_amd64.zip" dtkit.exe README.md LICENSE VERSION)
           rm -f dist/stage/dtkit.exe
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "${LDFLAGS}" -o dist/stage/dtkit ./cmd/dtkit
-          tar -czf "dist/dtkit_${VERSION}_linux_amd64.tar.gz" -C dist/stage dtkit README.md LICENSE
+          tar -czf "dist/dtkit_${VERSION}_linux_amd64.tar.gz" -C dist/stage dtkit README.md LICENSE VERSION
           rm -f dist/stage/dtkit
           CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "${LDFLAGS}" -o dist/stage/dtkit ./cmd/dtkit
-          tar -czf "dist/dtkit_${VERSION}_darwin_arm64.tar.gz" -C dist/stage dtkit README.md LICENSE
+          tar -czf "dist/dtkit_${VERSION}_darwin_arm64.tar.gz" -C dist/stage dtkit README.md LICENSE VERSION
           rm -rf dist/stage
-          (cd dist && sha256sum dtkit_* > SHA256SUMS)
-      - name: Smoke test extracted Linux archive
-        run: |
-          mkdir -p /tmp/dtkit-smoke
-          tar -xzf dist/dtkit_*_linux_amd64.tar.gz -C /tmp/dtkit-smoke
-          /tmp/dtkit-smoke/dtkit version --json
+          (cd dist && sha256sum dtkit_*.zip dtkit_*.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
           name: dtkit-release-artifacts
           path: dist/
           retention-days: 14
+
+  native-smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            archive_suffix: linux_amd64.tar.gz
+            bin: dtkit
+          - os: windows-latest
+            archive_suffix: windows_amd64.zip
+            bin: dtkit.exe
+          - os: macos-latest
+            archive_suffix: darwin_arm64.tar.gz
+            bin: dtkit
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dtkit-release-artifacts
+          path: release-dist
+      - name: Verify SHA256SUMS and test extracted native binary lifecycle
+        env:
+          EXPECT_VERSION: ${{ needs.build.outputs.version }}
+          EXPECT_COMMIT: ${{ needs.build.outputs.commit }}
+          ARCHIVE_SUFFIX: ${{ matrix.archive_suffix }}
+          BIN_NAME: ${{ matrix.bin }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="dtkit_${EXPECT_VERSION}_${ARCHIVE_SUFFIX}"
+          cd release-dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            grep " ${ARCHIVE}\$" SHA256SUMS | sha256sum -c -
+          else
+            grep " ${ARCHIVE}\$" SHA256SUMS | shasum -a 256 -c -
+          fi
+          mkdir -p extracted repo
+          case "$ARCHIVE" in
+            *.zip) unzip -q "$ARCHIVE" -d extracted ;;
+            *.tar.gz) tar -xzf "$ARCHIVE" -C extracted ;;
+          esac
+          test -f extracted/VERSION
+          test -f extracted/README.md
+          test -f extracted/LICENSE
+          VER_JSON=$(./extracted/"$BIN_NAME" version --json)
+          echo "$VER_JSON"
+          printf '%s' "$VER_JSON" | grep -q "\"version\":\"${EXPECT_VERSION}\""
+          printf '%s' "$VER_JSON" | grep -q "\"commit\":\"${EXPECT_COMMIT}\""
+          ./extracted/"$BIN_NAME" info engineer --json >/dev/null
+          ./extracted/"$BIN_NAME" install engineer --project --path repo --yes --json >/dev/null
+          STATUS_JSON=$(./extracted/"$BIN_NAME" status --project --path repo --json)
+          printf '%s' "$STATUS_JSON" | grep -q '"healthy":true'
+          ./extracted/"$BIN_NAME" remove engineer --project --path repo --yes --json >/dev/null
+
+  draft-release:
+    needs: [build, native-smoke]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_draft == true)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dtkit-release-artifacts
+          path: dist
+      - name: Create draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          NOTES_FILE=$(mktemp)
+          {
+            printf '## DTKit %s (Draft Release Candidate)\n\n' "$VERSION"
+            printf 'Built from commit `%s` after passing formatting, `go test -race`, `go vet`, SHA256 verification, and native Windows/Linux/macOS extracted-binary lifecycle smoke tests.\n\n' "$COMMIT"
+            printf '### Runtime Support Boundary\n'
+            printf -- '- **Codex CLI (`codex`):** Partial (project discovery & isolated `CODEX_HOME` `AGENTS.md` verified; sandbox/hook trust caveats documented in `docs/compatibility.md`).\n'
+            printf -- '- **OpenCode (`opencode`):** Partial (project/global/coexistence discovery verified; live LLM turn unverified without credentials).\n'
+            printf -- '- **Gemini CLI (`gemini`) & Cursor (`cursor`):** Experimental / `unverified` (absent on verification host).\n\n'
+            printf '### Checksums\n```\n'
+            cat dist/SHA256SUMS
+            printf '```\n'
+          } > "$NOTES_FILE"
+          gh release create "$TAG" dist/dtkit_*.zip dist/dtkit_*.tar.gz dist/SHA256SUMS \
+            --draft \
+            --prerelease \
+            --title "DTKit ${VERSION}" \
+            --target "${GITHUB_SHA}" \
+            --notes-file "$NOTES_FILE"
