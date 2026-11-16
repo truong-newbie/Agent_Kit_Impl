@@ -166,8 +166,9 @@ func RenderKit(profile RuntimeProfile, p catalog.Package, source fs.FS, scope st
 		}
 	}
 	skillGroup := strings.TrimSuffix(skillLoc.Prefix, "-")
-	block := fmt.Sprintf("<!-- dtkit:begin %s %s -->\n# DTKit engineering guidance\n\nInspect relevant project instructions and code before changes. Respect the user's scope, preserve unrelated work, and report actual verification results. Use the %s skills when appropriate.%s For relevant tasks, consult workflows, rules and templates under %s.\n<!-- dtkit:end %s %s -->\n",
-		p.ID, scope, skillGroup, preference, resourceDisplayPrefix, p.ID, scope)
+	tag := profile.BlockTag(p.ID, scope)
+	block := fmt.Sprintf("<!-- dtkit:begin %s -->\n# DTKit engineering guidance\n\nInspect relevant project instructions and code before changes. Respect the user's scope, preserve unrelated work, and report actual verification results. Use the %s skills when appropriate.%s For relevant tasks, consult workflows, rules and templates under %s.\n<!-- dtkit:end %s -->\n",
+		tag, skillGroup, preference, resourceDisplayPrefix, tag)
 	artifacts = append(artifacts, Artifact{
 		Root:        instrLoc.Root,
 		Path:        instrLoc.Path,

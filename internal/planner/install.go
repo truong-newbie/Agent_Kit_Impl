@@ -114,7 +114,8 @@ func InstallPreviewForRuntime(runtime, scope string, roots map[string]string, ar
 				if err != nil {
 					return plan, err
 				}
-				if _, _, err := AppendBlock(content, true, a.Content, scope); err != nil {
+				kitID := extractKitFromBlock(a.Content)
+				if _, _, err := AppendBlockForRuntime(profile.ID, kitID, content, true, a.Content, scope); err != nil {
 					action.Kind, action.Reason = "conflict", "invalid_or_unowned_block"
 				} else {
 					action.Kind, action.Reason = "update", "append_managed_block"
@@ -154,4 +155,15 @@ func readLimited(path string, maxBytes int64) ([]byte, error) {
 // ResolveTarget delegates to paths.ResolveTarget.
 func ResolveTarget(root, relative string) (string, error) {
 	return paths.ResolveTarget(root, relative)
+}
+
+func extractKitFromBlock(block []byte) string {
+	first, _, _ := strings.Cut(string(block), "\n")
+	if kind, tag, isMarker, valid := parseMarkerLine(strings.TrimSuffix(first, "\r")); isMarker && valid && kind == "begin" {
+		parts := strings.Fields(tag)
+		if len(parts) >= 2 {
+			return parts[0]
+		}
+	}
+	return "engineer"
 }

@@ -139,7 +139,7 @@ func PlanDesiredForRuntime(runtimeName, scope, kitID string, roots map[string]st
 				if rErr != nil {
 					return plan, rErr
 				}
-				if _, _, bErr := AppendBlockForKit(kitID, content, true, want.Content, scope); bErr != nil {
+				if _, _, bErr := AppendBlockForRuntime(runtimeName, kitID, content, true, want.Content, scope); bErr != nil {
 					action.Kind, action.Reason = "conflict", "invalid_or_unowned_block"
 				} else {
 					action.Kind, action.Reason = "update", "append_managed_block"
@@ -172,13 +172,13 @@ func PlanDesiredForRuntime(runtimeName, scope, kitID string, roots map[string]st
 					action.Kind, action.Reason = "conflict", "invalid_block_state"
 					break
 				}
-				actualBlockDigest, bErr := BlockDigestForKit(existing.Kit.ID, content, scope)
+				actualBlockDigest, bErr := BlockDigestForRuntime(existing.Runtime, existing.Kit.ID, content, scope)
 				if bErr != nil || actualBlockDigest != recorded.Digest {
 					action.Kind, action.Reason = "conflict", "managed_block_modified"
 				} else if !hasDesired {
 					action.Kind, action.Reason = "remove", "removed_from_kit"
 				} else {
-					_, newState, repErr := ReplaceBlockForKit(kitID, content, want.Content, scope, *recorded.Block)
+					_, newState, repErr := ReplaceBlockForRuntime(runtimeName, kitID, content, want.Content, scope, *recorded.Block)
 					if repErr != nil {
 						action.Kind, action.Reason = "conflict", "invalid_or_unowned_block"
 					} else if newState.Digest == recorded.Digest {

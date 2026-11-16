@@ -168,3 +168,48 @@ func TestResolveGeminiGlobal(t *testing.T) {
 		t.Fatalf("expected relative GEMINI_CLI_HOME warning and abs path: %+v, err=%v", res, err)
 	}
 }
+
+func TestResolveOpenCodeGlobal(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "user")
+	xdg := filepath.Join(base, "xdg")
+	custom := filepath.Join(base, "oc-dir")
+	for _, d := range []string{home, xdg, custom} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	env := Environment{
+		UserHomeDir: func() (string, error) { return home, nil },
+		Getenv:      func(string) string { return "" },
+	}
+	res, err := ResolveOpenCodeGlobal(env)
+	if err != nil || res.OpenCodeHome != filepath.Join(home, ".config", "opencode") {
+		t.Fatalf("unexpected default OpenCodeHome: %+v err=%v", res, err)
+	}
+
+	env.Getenv = func(k string) string {
+		if k == "XDG_CONFIG_HOME" {
+			return xdg
+		}
+		return ""
+	}
+	res, err = ResolveOpenCodeGlobal(env)
+	if err != nil || res.OpenCodeHome != filepath.Join(xdg, "opencode") {
+		t.Fatalf("expected XDG_CONFIG_HOME/opencode, got %+v err=%v", res, err)
+	}
+
+	env.Getenv = func(k string) string {
+		if k == "XDG_CONFIG_HOME" {
+			return xdg
+		}
+		if k == "OPENCODE_CONFIG_DIR" {
+			return custom
+		}
+		return ""
+	}
+	res, err = ResolveOpenCodeGlobal(env)
+	if err != nil || res.OpenCodeHome != custom {
+		t.Fatalf("OPENCODE_CONFIG_DIR should take precedence over XDG_CONFIG_HOME, got %+v err=%v", res, err)
+	}
+}

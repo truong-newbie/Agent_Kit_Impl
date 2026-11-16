@@ -73,10 +73,11 @@ type ProjectResolution struct {
 
 // GlobalResolution contains the resolved global roots and diagnostics.
 type GlobalResolution struct {
-	UserHome   string
-	CodexHome  string
-	GeminiHome string
-	Warnings   []string
+	UserHome     string
+	CodexHome    string
+	GeminiHome   string
+	OpenCodeHome string
+	Warnings     []string
 }
 
 // ResolveProject resolves the project root using --path, Git root, or CWD.
@@ -175,6 +176,44 @@ func ResolveGeminiGlobal(env Environment) (GlobalResolution, error) {
 	res.UserHome = absHome
 	res.GeminiHome = geminiHome
 	res.Warnings = append(res.Warnings, warnings...)
+	return res, nil
+}
+
+// ResolveOpenCodeGlobal resolves user-home and opencode-home
+// ($OPENCODE_CONFIG_DIR, $XDG_CONFIG_HOME/opencode, or ~/.config/opencode).
+func ResolveOpenCodeGlobal(env Environment) (GlobalResolution, error) {
+	env = env.withDefaults()
+	var res GlobalResolution
+	absHome, err := resolveUserHome(env)
+	if err != nil {
+		return res, err
+	}
+	var ocHome string
+	if rawDir := env.Getenv("OPENCODE_CONFIG_DIR"); rawDir != "" {
+		dir, warnings, err := resolveEnvDirectory(env, "OPENCODE_CONFIG_DIR", "", "invalid_opencode_home")
+		if err != nil {
+			return res, err
+		}
+		ocHome = dir
+		res.Warnings = append(res.Warnings, warnings...)
+	} else if xdg := env.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		base, warnings, err := resolveEnvDirectory(env, "XDG_CONFIG_HOME", "", "invalid_opencode_home")
+		if err != nil {
+			return res, err
+		}
+		ocHome = filepath.Clean(filepath.Join(base, "opencode"))
+		if err := checkOptionalDirectory(ocHome, "invalid_opencode_home", "XDG_CONFIG_HOME/opencode"); err != nil {
+			return res, err
+		}
+		res.Warnings = append(res.Warnings, warnings...)
+	} else {
+		ocHome = filepath.Clean(filepath.Join(absHome, ".config", "opencode"))
+		if err := checkOptionalDirectory(ocHome, "invalid_opencode_home", "~/.config/opencode"); err != nil {
+			return res, err
+		}
+	}
+	res.UserHome = absHome
+	res.OpenCodeHome = ocHome
 	return res, nil
 }
 

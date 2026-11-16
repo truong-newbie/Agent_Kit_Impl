@@ -70,3 +70,39 @@ func TestInvalidBlockStateDoesNotRemoveUserBytes(t *testing.T) {
 		t.Fatal("accepted unsafe separator")
 	}
 }
+
+func TestMultipleRuntimeBlocksInSameFile(t *testing.T) {
+	ocBlock := []byte("<!-- dtkit:begin engineer opencode project -->\noc-v1\n<!-- dtkit:end engineer opencode project -->\n")
+	base := []byte("# Team Rules\n\nKeep code simple.\n")
+
+	doc, codexSt, err := AppendBlockForRuntime("codex", "engineer", base, true, projectBlock, "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, ocSt, err := AppendBlockForRuntime("opencode", "engineer", doc, true, ocBlock, "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ocUpdated := []byte("<!-- dtkit:begin engineer opencode project -->\noc-v2\n<!-- dtkit:end engineer opencode project -->\n")
+	doc, ocSt, err = ReplaceBlockForRuntime("opencode", "engineer", doc, ocUpdated, "project", ocSt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, delCodex, err := RemoveBlockForRuntime("codex", "engineer", doc, "project", codexSt)
+	if err != nil || delCodex {
+		t.Fatalf("unexpected codex removal: del=%v err=%v", delCodex, err)
+	}
+	if !bytes.Contains(doc, []byte("oc-v2")) || !bytes.Contains(doc, []byte("Keep code simple.")) {
+		t.Fatalf("opencode or user content lost after codex removal: %q", doc)
+	}
+
+	doc, delOC, err := RemoveBlockForRuntime("opencode", "engineer", doc, "project", ocSt)
+	if err != nil || delOC {
+		t.Fatalf("unexpected opencode removal: del=%v err=%v", delOC, err)
+	}
+	if !bytes.Equal(doc, base) {
+		t.Fatalf("final file differs from base: got %q want %q", doc, base)
+	}
+}

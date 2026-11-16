@@ -151,6 +151,43 @@ var profiles = map[string]RuntimeProfile{
 			},
 		},
 	},
+	"opencode": {
+		ID:             "opencode",
+		DisplayName:    "OpenCode",
+		Revision:       "1",
+		Binary:         "opencode",
+		StateRelPath:   ".dtkit/runtimes/opencode/state.json",
+		OperationalDir: ".dtkit/local/runtimes/opencode",
+		GlobalHomeKey:  "opencode-home",
+		GlobalHomeEnv:  "OPENCODE_CONFIG_DIR",
+		Scopes:         []string{"project", "global"},
+		HooksSupported: false,
+		Instructions: map[string]InstructionLocation{
+			"project": {Root: "project", Path: "AGENTS.md"},
+			"global":  {Root: "opencode-home", Path: "AGENTS.md"},
+		},
+		Skills: map[string]SkillLocation{
+			"project": {Root: "project", Dir: ".opencode/skills", Prefix: "dtkit-opencode-project-"},
+			"global":  {Root: "opencode-home", Dir: "skills", Prefix: "dtkit-opencode-global-"},
+		},
+		ContentRoot: map[string]string{
+			"project": "project",
+			"global":  "user-home",
+		},
+		ContentRelBase: ".dtkit/runtimes/opencode/content",
+		CapabilitiesMap: map[string]Capabilities{
+			"project": {
+				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "AGENTS.md runtime-namespaced managed block"},
+				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: ".opencode/skills/dtkit-opencode-project-*"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "OpenCode uses JS/TS plugins (.opencode/plugins/); shell hooks not managed by DTKit"},
+			},
+			"global": {
+				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.config/opencode/AGENTS.md managed block"},
+				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.config/opencode/skills/dtkit-opencode-global-*"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "OpenCode uses JS/TS plugins (~/.config/opencode/plugins/); shell hooks not managed by DTKit"},
+			},
+		},
+	},
 }
 
 // NormalizeRuntime returns DefaultRuntime when runtime is empty.
@@ -163,7 +200,15 @@ func NormalizeRuntime(runtime string) string {
 
 // SupportedRuntimes returns implemented runtime identifiers in deterministic order.
 func SupportedRuntimes() []string {
-	return []string{"codex", "gemini"}
+	return []string{"codex", "gemini", "opencode"}
+}
+
+// BlockTag returns the DTKit managed-block marker tag for kitID and scope.
+func (p RuntimeProfile) BlockTag(kitID, scope string) string {
+	if p.ID == "" || p.ID == "codex" || p.ID == "gemini" {
+		return kitID + " " + scope
+	}
+	return kitID + " " + p.ID + " " + scope
 }
 
 // Profile returns the RuntimeProfile for runtime if supported.
