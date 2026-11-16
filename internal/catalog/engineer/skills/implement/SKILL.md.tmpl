@@ -1,10 +1,38 @@
 ---
 name: {{.SkillName}}
-description: Implement an authorized software change in the existing repository. Use for features and behavior changes; respect the approved scope.
+description: Implement an authorized software change within the repository. Use for coding features or approved fixes; respect scope and verify changes with real checks.
 ---
 
 # Implement
 
-Inspect relevant implementation, tests and conventions. Confirm the requested scope and any approved plan. Make focused changes, preserving unrelated work. Do not silently change public interfaces, data or dependencies. Add behavior-focused tests, run checks appropriate to risk, inspect the diff and report actual results and remaining limitations.
+Execute an authorized change cleanly while adhering to `{{index .ResourcePaths "rule/engineering"}}` and existing codebase conventions.
 
-Examples: implement an approved endpoint; make a small requested validation change without creating a large design document. If a material design choice is missing, make progress on independent work and ask the user.
+## When to use
+- The user asks to write, modify, or wire code for an approved feature or change.
+- An implementation plan or clear requirement already exists.
+
+## When not to use
+- The user asked only for a plan (`{{index .SkillNames "plan"}}`), review (`{{index .SkillNames "review"}}`), or explanation (`{{index .SkillNames "explain"}}`).
+
+## Inputs
+- Approved requirement or plan, plus target files and test framework.
+
+## Steps
+1. Read the target implementation files, callers, and related tests before editing.
+2. Verify scope boundaries; do not alter unrelated files, public APIs, or major dependencies without approval.
+3. Implement focused, modular changes matching local idioms and error-handling patterns.
+4. Add or update behavior-focused tests covering normal and failure paths.
+5. Run relevant test, vet, lint, or build checks; inspect the diff and report using `{{index .ResourcePaths "template/completion-report"}}`.
+
+## Constraints
+- Never fabricate APIs, file paths, or passing check results.
+- Keep small tasks direct without forcing unnecessary design documents.
+- Protect secrets and validate untrusted inputs.
+
+## Output
+Summarize changes, modified files, exact verification commands/results, and remaining limitations per `{{index .ResourcePaths "template/completion-report"}}`.
+
+## Examples
+1. **Authorized endpoint:** User says "Implement validation for email length in POST /signup." -> Update validator and unit tests, run test suite, report diff and exit status.
+2. **Small fix:** User asks "Fix the typo in the CLI help message." -> Edit only the help string and verify tests pass without creating extra docs.
+3. **Missing information:** If implementing a billing webhook lacks the signature header scheme in the repo, pause that part, complete independent work, and ask the user.

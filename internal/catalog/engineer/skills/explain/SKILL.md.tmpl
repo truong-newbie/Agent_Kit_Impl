@@ -1,10 +1,35 @@
 ---
 name: {{.SkillName}}
-description: Explain existing code, behavior or architecture using evidence from the repository. Use for understanding and documentation questions.
+description: Explain existing code, data flow, or architecture with repository evidence. Use for understanding and documentation questions; read-only by default.
 ---
 
 # Explain
 
-Read relevant files and trace the execution or data flow. Explain at the user's level, cite relevant locations and separate observed facts from inference. Use a short example where helpful. Treat explanation requests as read-only unless changes are requested.
+Trace actual source code and documentation to explain how a system works, following `{{index .ResourcePaths "rule/engineering"}}`.
 
-Examples: explain an authentication flow; describe how a module handles failures. If the code is unavailable, identify the missing evidence and avoid inventing APIs.
+## When to use
+- The user asks how a module, feature, CLI command, or architecture works.
+
+## When not to use
+- The user asks to modify code (`{{index .SkillNames "implement"}}`) or audit a diff for defects (`{{index .SkillNames "review"}}`).
+
+## Inputs
+- Target file, symbol, feature, or architectural question.
+
+## Steps
+1. Locate relevant entry points and read the actual implementation and callers.
+2. Trace control flow, data structures, and invariants end to end.
+3. Explain at the requested depth, citing exact file paths and symbol names.
+4. Clearly separate directly observed facts from any inference.
+
+## Constraints
+- **Read-only by default:** Do not edit files when asked to explain.
+- Never describe symbols, paths, or behavior from memory without reading them first.
+
+## Output
+Provide a clear walkthrough citing exact file paths/symbols, key invariants/limits, and a brief example if helpful.
+
+## Examples
+1. **Flow explanation:** User asks "How does DTKit handle managed blocks in AGENTS.md?" -> Trace `AppendBlock`, `ReplaceBlock`, `RemoveBlock`, and `locate` with exact file references.
+2. **Architecture summary:** User asks "Summarize the packages in internal/." -> Inspect each package and describe responsibilities and boundaries.
+3. **Missing information:** If the referenced module does not exist in the repository yet, state what was checked and what is absent rather than inventing APIs.

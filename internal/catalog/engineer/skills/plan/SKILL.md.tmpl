@@ -1,10 +1,40 @@
 ---
 name: {{.SkillName}}
-description: Analyze a software task and produce an actionable implementation plan. Use for planning or design requests; do not implement when asked only to plan.
+description: Analyze a software task and produce an evidence-based implementation plan. Use for planning or design requests; do not edit implementation files when asked only to plan.
 ---
 
 # Plan
 
-Read the request, applicable instructions and relevant source. Identify current behavior, affected files, assumptions, edge cases and risks. Ask only about decisions that cannot safely be inferred. Propose steps, verification commands and acceptance criteria; adapt detail to task size. Explain unknowns and dependencies. If the user asks only for a plan, do not modify implementation files.
+Read the request, repository rules (`{{index .ResourcePaths "rule/engineering"}}`), and relevant source before proposing changes.
 
-Examples: plan a database migration without applying it; outline a focused change to an existing API. If the repository or requirements are missing, state what is unknown and ask for the minimum needed information.
+## When to use
+- The user asks for an implementation plan, architecture proposal, impact analysis, or step-by-step breakdown.
+- A task spans multiple modules, schemas, or risky invariants.
+
+## When not to use
+- The user explicitly asks to implement a trivial one-line change immediately.
+- The user only wants code explained (`{{index .SkillNames "explain"}}`) or reviewed (`{{index .SkillNames "review"}}`).
+
+## Inputs
+- User request and acceptance expectations.
+- Existing repository files, tests, and constraints.
+
+## Steps
+1. Inspect the directory layout and read the files directly involved in the change.
+2. Identify current behavior, entry points, callers, and existing test patterns.
+3. Separate observed facts from assumptions; list unknowns and edge cases.
+4. Define explicit in-scope and out-of-scope boundaries.
+5. Propose concrete steps, affected files, verification commands, and risks following `{{index .ResourcePaths "template/implementation-plan"}}`.
+
+## Constraints
+- **Read-only planning:** Do not modify implementation or configuration files when asked only to plan.
+- Only ask questions (`{{index .SkillNames "ask"}}`) when a missing decision materially affects architecture, data, or security.
+- Scale plan detail to task size.
+
+## Output
+Use the structure in `{{index .ResourcePaths "template/implementation-plan"}}`: requirements/assumptions, scope, affected files, ordered steps, tests/acceptance criteria, and risks.
+
+## Examples
+1. **Feature plan:** User asks "Plan adding pagination to GET /users." -> Inspect handler, service, repository, and tests; deliver file-level steps and pagination edge cases without editing code.
+2. **Migration plan:** User asks "Design a zero-downtime column rename." -> Propose expand/contract phases, rollback steps, and validation checks without touching migrations.
+3. **Missing information:** If the request omits whether cursor or offset pagination is required and existing endpoints use cursor, state the assumption or ask before locking in an incompatible API.

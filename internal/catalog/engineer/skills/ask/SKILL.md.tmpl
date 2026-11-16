@@ -1,10 +1,37 @@
 ---
 name: {{.SkillName}}
-description: Clarify essential missing information in a software task. Use when uncertainty changes architecture, security, data or user-visible behavior.
+description: Clarify essential missing requirements before making risky assumptions. Use when ambiguity changes architecture, security, data, or public APIs.
 ---
 
-# Clarify
+# Ask
 
-Identify the decision that cannot be safely inferred. Review available project evidence and prior instructions first. Ask a concise question with necessary context, while continuing independent work when possible. State reasonable assumptions rather than asking about routine implementation choices.
+Identify critical ambiguities that cannot be safely inferred from the codebase, while avoiding unnecessary interruptions.
 
-Examples: ask which data may be deleted; clarify incompatible requirements for an API. If an answer is already in the repository or conversation, use it and avoid asking again.
+## When to use
+- Missing requirements materially change architecture, data loss risk, security boundaries, or public interfaces.
+- Contradictory instructions cannot be resolved by repository precedence.
+
+## When not to use
+- The answer is already present in repository docs, existing conventions, or prior conversation.
+- The choice is a routine internal detail that can be safely documented as an assumption.
+
+## Inputs
+- User request and relevant repository context already inspected.
+
+## Steps
+1. Inspect relevant docs and code first so you never ask questions already answered in the repo.
+2. Isolate only the decisions that cannot be safely inferred.
+3. Frame concise questions with concrete options and trade-offs.
+4. Continue independent read-only or non-blocked work where possible.
+
+## Constraints
+- Do not block small, unambiguous tasks with unnecessary questionnaires.
+- Ask once with all critical questions grouped clearly.
+
+## Output
+Present the specific question(s), why the choice matters, sensible defaults/options, and what independent progress was already made.
+
+## Examples
+1. **Destructive scope ambiguity:** User says "Clean up old state files." -> Ask whether operational transaction backups should be kept or purged, while inspecting current retention logic.
+2. **Public API ambiguity:** User says "Add a remote source flag." -> Clarify expected archive format and trust policy before implementing.
+3. **Missing context resolved locally:** If a user asks to "add the standard exit code" without specifying a number, check `internal/apperr` first rather than asking.

@@ -1,10 +1,35 @@
 ---
 name: {{.SkillName}}
-description: Design, implement or run software tests for a specific change. Use for test engineering and verification requests.
+description: Design, write, or execute software tests for a change. Use for test engineering and verification; report only real executed results.
 ---
 
 # Test
 
-Inspect the project's test framework and existing conventions. Select tests covering important behavior and failure cases; avoid testing implementation details. Run appropriate commands where authorized, record actual exit status and describe skipped checks. Never claim a test passed without running it.
+Verify software behavior using the repository's existing test tools and conventions, following `{{index .ResourcePaths "rule/engineering"}}`.
 
-Examples: add a regression case for a bug; run targeted tests after a feature. If the framework cannot run, report the error and other evidence available.
+## When to use
+- The user asks to write unit/integration tests, add regression tests, or run verification suites.
+
+## When not to use
+- The user asks only for a plan (`{{index .SkillNames "plan"}}`) or read-only review (`{{index .SkillNames "review"}}`).
+
+## Inputs
+- Target behavior/module and available project test scripts or runners.
+
+## Steps
+1. Inspect existing test files, fixtures, and CI/verification scripts to match conventions.
+2. Design tests covering normal behavior, boundary conditions, and failure/security paths; avoid brittle implementation-detail assertions.
+3. Run the relevant test commands where authorized.
+4. Capture exact commands, exit codes, and pass/fail/skipped counts.
+
+## Constraints
+- Never claim tests passed without running them after the final edit.
+- Do not bypass failing checks, mock out the behavior under test improperly, or mutate real user configuration in tests.
+
+## Output
+Report exact commands executed, exit codes, test outcomes (passed/failed/skipped), and any untested environment gaps.
+
+## Examples
+1. **Regression test:** User asks "Add tests for invalid UTF-8 and duplicate keys in state loader." -> Add table-driven tests in `load_test.go` and run `go test`.
+2. **Targeted suite run:** User says "Run the installer tests via Docker script." -> Execute script, report exact package timings and exit status.
+3. **Missing information:** If a native OS test runner or external credential is unavailable, report the exact missing requirement and what could still be verified offline.

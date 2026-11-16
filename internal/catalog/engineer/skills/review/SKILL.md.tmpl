@@ -1,10 +1,36 @@
 ---
 name: {{.SkillName}}
-description: Review code changes for actionable defects, security issues and regressions. Use when asked for a code review.
+description: Review code or diffs for bugs, security risks, compatibility issues, and missing tests. Use for code reviews; do not modify code on review-only requests.
 ---
 
 # Review
 
-Determine the requested diff or review scope and inspect surrounding code and tests. Prioritize incorrect behavior, security, compatibility and missing test coverage. Report actionable findings with severity, exact location, evidence and impact; distinguish verified bugs from uncertainty. Mention remaining testing gaps. Do not modify files when only review is requested.
+Evaluate code changes with priority on correctness, security, compatibility, and test coverage, following `{{index .ResourcePaths "rule/engineering"}}`.
 
-Examples: review a pull request diff; inspect a new authorization check. If the base revision is ambiguous, identify the available diff and state the assumption.
+## When to use
+- The user asks for a review of a diff, branch, PR, or specific files.
+
+## When not to use
+- The user asks to implement changes directly (`{{index .SkillNames "implement"}}`) or only explain behavior (`{{index .SkillNames "explain"}}`).
+
+## Inputs
+- Target diff, commit range, or file set to inspect.
+
+## Steps
+1. Establish the exact review scope and base revision.
+2. Inspect changed files alongside surrounding callers, invariants, and tests.
+3. Prioritize findings: correctness/regressions, security/path/input safety, compatibility, and missing tests.
+4. Verify each finding directly against code; separate confirmed defects from open questions.
+5. Present findings using `{{index .ResourcePaths "template/review-report"}}`.
+
+## Constraints
+- **Read-only by default:** Do not edit source files when only a review is requested.
+- Avoid nitpicks over formatting when real behavioral or safety risks exist.
+
+## Output
+Format findings per `{{index .ResourcePaths "template/review-report"}}` with severity, file/line location, evidence, impact, remediation, and testing gaps.
+
+## Examples
+1. **PR diff review:** User says "Review my staged changes for security and edge cases." -> Inspect `git diff --cached` and callers, report prioritized findings with evidence.
+2. **Targeted module audit:** User asks "Review internal/auth for token validation bugs." -> Trace token parsing and expiry checks, report verified vulnerabilities and missing tests.
+3. **Missing information:** If the user says "Review recent changes" and the base branch is ambiguous, state the chosen diff base (e.g., `HEAD~1` or working tree) and list any uninspected areas.

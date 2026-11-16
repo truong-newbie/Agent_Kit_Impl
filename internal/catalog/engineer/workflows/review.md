@@ -1,3 +1,6 @@
 # Review workflow
 
-Establish the review scope and base, trace affected behavior and tests, then report prioritized findings with locations, evidence and impact. Do not edit code for a review-only request.
+1. Establish the exact diff, commit base, or target files (`review`).
+2. Inspect changed code alongside callers, tests, and security/compatibility invariants.
+3. Prioritize findings by severity (bugs, security/path risks, regressions, missing tests).
+4. Report evidence-backed findings and testing gaps (`review-report.md`) without editing code on review-only requests.
