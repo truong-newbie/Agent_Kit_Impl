@@ -17,8 +17,8 @@
 | `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `verified` | `feat/release-hardening` | F04 | Shared target locks (`.dtkit/locks`), atomic recover-under-lock, strict full-state check, barrier & multi-process tests (`verify-docker.ps1`) |
 | `N05` — Capability contract & status consistency | `verified` | `feat/release-hardening` | F07 | Added `optionalCapabilities`, pre-write `requiresCapabilities` enforcement, consistent warnings across commands, `integrationStatus` separation (`verify-docker.ps1`, CI `43901270341`) |
 | `N06` — Hook JSON strictness & executable lifecycle | `verified` | `feat/release-hardening` | F12 | Duplicate-key/oversize/schema rejection, ambiguous digest guard, real `sh`/PowerShell special-char quoting execution, zero-leak timeout/cancel, update/drift/chmod lifecycle (`verify-docker.ps1`, CI `43903546521`) |
-| `N07` — Native OS edge cases & crash subprocess tests | `verified` | `feat/release-hardening` | F11 | CI skip inventory, NTFS junctions (`mklink /J`), Windows exclusive `CreateFile` locks & case collisions, BOM/CRLF/Unicode, `0555` parent confinement, malicious journal/corrupt state preservation, child-process `Kill` at 4 boundaries, 7-target fuzz smoke (`verify-docker.ps1`) |
-| `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `not-started` | `feat/release-hardening` | F08 | Discover/task verification per runtime; unverified integrations stay experimental |
+| `N07` — Native OS edge cases & crash subprocess tests | `verified` | `feat/release-hardening` | F11 | CI skip inventory, NTFS junctions (`mklink /J`), Windows exclusive `CreateFile` locks & case collisions, BOM/CRLF/Unicode, `0555` parent confinement, malicious journal/corrupt state preservation, child-process `Kill` at 4 boundaries, 7-target fuzz smoke (`verify-docker.ps1`, CI `43905833459`) |
+| `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `verified` | `feat/release-hardening` | F08 | Isolated project/global/combined/4-runtime discovery & clean remove verified for `opencode 1.19.5` & `codex 0.169.0`; honest blockers (`codex` PS sandbox + `opencode` `0 credentials`; `gemini`/`cursor` CLI absent -> `unverified`) |
 | `N09` — Engineer Kit quality baseline evaluation | `not-started` | `feat/release-hardening` | F08 | 8–12 task rubric (`docs/evaluation/`), baseline vs with-kit verification |
 | `N10` — Release pipeline & terminal install UX | `not-started` | `feat/release-hardening` | F09, F10 | Sanitize workflow/PS inputs, add GitHub Release draft step, new RC candidate & terminal verify |
 | `N11` — Final docs, CLI UX & `main` merge prep | `not-started` | `feat/release-hardening` | F09 | Final audit across docs/changelog/troubleshooting and PR diff review to `main` |
@@ -152,6 +152,15 @@ Verification run: `gofmt -w`, `GOOS=windows go test -c -o /dev/null ./internal/p
 Remaining limitation / external blocker: Native `windows-latest` execution of `paths_windows_test.go` / `native_windows_test.go` and non-root `ubuntu-latest`/`macos-latest` `0555` parent confinement tests run on GitHub Actions CI upon push.
 Acceptance checklist result: Pass (all CI skips audited, native OS edge cases covered without bypassing security checks, 4 real OS child-process `Process.Kill()` crash boundaries + external-edit recovery tested, bounded CI fuzz smoke enabled).
 Next task: N08 — Kiểm thử thực tế với 4 runtimes (F08).
+
+Task: N08 — Kiểm thử thực tế với 4 runtimes (`codex`, `gemini`, `opencode`, `cursor`)
+Status: verified (honest integration boundaries updated; `codex`/`opencode` partial with documented host blockers, `gemini`/`cursor` unverified/experimental)
+Branch / Commit: `feat/release-hardening` (pending N08 CI push)
+Artifact changed: `internal/adapter/adapter.go`, `docs/compatibility.md`, `README.md`, `docs/verification/codex-0.169.0-2026-11-16.md`, `docs/verification/opencode-1.19.5-2026-11-16.md`, `docs/verification/gemini-cursor-external-blocker-2026-11-16.md`, `docs/progress.md`, `docs/release.md`
+Verification run: Executed isolated temp fixture verification matrix (`$env:TEMP\dtkit-n08-verify`, removed cleanly afterward) across `opencode 1.19.5` (project-only `7+1`, global-only `7`, combined 4-runtime coexistence `14+1`, `opencode providers list`, clean removal) and `codex-cli 0.169.0` (`codex debug prompt-input` combined/global `AGENTS.md` + `$CODEX_HOME/skills` probe, `codex exec` `$dtkit-project-implement` sandbox trace, clean 4-runtime remove preserving user `AGENTS.md`, `.codex/hooks.json`, and `.opencode/skills/user-local`); `.\scripts\verify-docker.ps1` passed after `adapter.go` integration note updates.
+Remaining limitation / external blocker: Host Windows sandbox blocks child `powershell.exe` subcommands inside `codex exec`; isolated OpenCode has `0 credentials` (`opencode run` not executed); `gemini` and `cursor` CLIs are absent on the verification host (honestly marked `unverified`/experimental in `adapter.go`, `compatibility.md`, `README.md`).
+Acceptance checklist result: Pass (all available runtime checks performed cleanly without touching real user state; unverified capabilities & blockers documented truthfully).
+Next task: N09 — Đánh giá bộ kit `engineer`: baseline vs with-kit (F09).
 
 ---
 

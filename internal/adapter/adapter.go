@@ -164,8 +164,8 @@ var profiles = map[string]RuntimeProfile{
 			},
 		},
 		IntegrationMap: map[string]IntegrationEvidence{
-			"project": {Status: IntegrationPartial, Note: "skill discovery verified on codex-cli 0.169.0; global, live tool execution, and hook trust pending verification"},
-			"global":  {Status: IntegrationUnverified, Note: "rendered and CLI-tested only; live Codex global verification pending"},
+			"project": {Status: IntegrationPartial, Note: "project skill discovery verified on codex-cli 0.169.0; live sandboxed tool execution and hook trust blocked/pending in host policy"},
+			"global":  {Status: IntegrationPartial, Note: "isolated CODEX_HOME AGENTS.md verified on codex-cli 0.169.0; Windows user-profile ~/.agents/skills and live task execution pending"},
 		},
 	},
 	"gemini": {
@@ -246,8 +246,8 @@ var profiles = map[string]RuntimeProfile{
 			},
 		},
 		IntegrationMap: map[string]IntegrationEvidence{
-			"project": {Status: IntegrationPartial, Note: "CLI discovery verified on opencode 1.19.5; live model task execution pending"},
-			"global":  {Status: IntegrationPartial, Note: "CLI discovery verified on opencode 1.19.5; live model task execution pending"},
+			"project": {Status: IntegrationPartial, Note: "project, coexistence, and removal verified on opencode 1.19.5; live LLM turn blocked (no isolated provider credentials)"},
+			"global":  {Status: IntegrationPartial, Note: "global and combined 14-skill discovery verified on opencode 1.19.5; live LLM turn blocked (no isolated provider credentials)"},
 		},
 	},
 	"cursor": {

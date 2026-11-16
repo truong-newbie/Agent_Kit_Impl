@@ -1,24 +1,30 @@
 # OpenCode Verification Report — 1.19.5 (2026-11-16)
 
-- **Date:** 2026-11-16
-- **OS:** Windows (isolated temp project + temp `HOME` / `USERPROFILE` with `.config\opencode`; artifacts created by Docker-built `dtkit` binary from branch `feat/runtime-opencode-v0.4`)
-- **OpenCode CLI:** `opencode 1.19.5` (`opencode.ps1`)
-- **Scopes tested:** `project`, `global` (isolated `$env:HOME` / `$env:USERPROFILE`), and project coexistence with `codex`
-- **Limitation note:** Native Windows execution of an un-signed `dtkit.exe` inside `$env:TEMP` is blocked by Windows Application Control on this host, so `dtkit` commands ran against the temp directories via Docker `golang:1.27.4` while native `opencode 1.19.5` inspected the generated files on Windows; live LLM turn execution (`opencode run`) was not invoked (no model credentials spent).
+- **Date:** 2026-11-16 (updated during N08 matrix verification on `feat/release-hardening`)
+- **OS:** Windows (`opencode 1.19.5` via `opencode.ps1`; artifacts generated into isolated temp dirs via Docker `dtkit` binary because unsigned binaries in `$env:TEMP` are restricted by Application Control on this host)
+- **OpenCode CLI:** `opencode 1.19.5`
+- **Scopes tested:** `project-only`, `global-only`, `combined (project + global)`, `4-runtime coexistence (codex + gemini + opencode + cursor)`, and clean uninstall preservation
+- **User-state safety:** Isolated `$env:HOME`, `$env:USERPROFILE`, `$env:XDG_CONFIG_HOME`, `$env:XDG_DATA_HOME`, `$env:XDG_STATE_HOME` targeting `$env:TEMP\dtkit-n08-verify\home`; real `%USERPROFILE%` never touched.
 
 ## Commands Executed
 
-1. Inside Docker container targeting temp workspace `/smoke/repo` and isolated temp `/smoke/home`:
-   - `dtkit install engineer --project --path /smoke/repo --runtime codex --yes` -> exit `0` (`15 artifacts`)
-   - `dtkit install engineer --project --path /smoke/repo --runtime opencode --yes` -> exit `0` (`15 artifacts`, appended runtime-namespaced block `<!-- dtkit:begin engineer opencode project -->` into shared `AGENTS.md`)
-   - `dtkit install engineer --global --runtime opencode --yes` -> exit `0` (`15 artifacts` under `~/.config/opencode/` and `~/.dtkit/runtimes/opencode/`)
-   - `dtkit status --path /smoke/repo --json` -> exit `0`, reported `codex` (project) and `opencode` (project + global) all `healthy`
-2. On native Windows targeting the exact same isolated `$homeDir` and `$proj`:
-   - `opencode debug paths` -> resolved `config` to `<isolated-home>\.config\opencode`
-   - `opencode debug config` -> exit `0`, valid config state
-   - `opencode debug skill` -> discovered and parsed all 7 `dtkit-opencode-project-*` skills (`.opencode\skills\dtkit-opencode-project-*\SKILL.md`) and all 7 `dtkit-opencode-global-*` skills (`<isolated-home>\.config\opencode\skills\dtkit-opencode-global-*\SKILL.md`) without name collisions against Codex's `.agents\skills\dtkit-project-*`
+1. **Project-only (`--runtime opencode --project`):**
+   - `opencode debug paths` -> resolved `config` to `<tmpHome>\.config\opencode`.
+   - `opencode debug config` -> exit `0` (`https://opencode.ai/config.json` valid schema).
+   - `opencode debug skill` -> discovered all **7** `dtkit-opencode-project-*` skills + pre-existing `user-local` skill (`count=7` + `1`).
+2. **Global-only (removed project OpenCode, installed `--runtime opencode --global`, ran from empty sibling cwd):**
+   - `opencode debug skill` -> discovered all **7** `dtkit-opencode-global-*` skills (`count=7`).
+3. **Combined + 4-runtime coexistence (`codex`, `gemini`, `opencode`, `cursor` project + `opencode`, `codex` global):**
+   - `dtkit status --path /work/repo --json` -> exit `0`, all 4 runtimes reported `healthy`.
+   - `opencode debug skill` -> discovered all **7** `dtkit-opencode-project-*` + **7** `dtkit-opencode-global-*` + **1** `user-local` simultaneously with zero collisions against `.agents/skills`, `.gemini/skills`, or `.cursor/skills`.
+   - `AGENTS.md` contained user lines + `<!-- dtkit:begin engineer project -->` + `<!-- dtkit:begin engineer opencode project -->` cleanly.
+4. **Clean removal & preservation:**
+   - Removed OpenCode `project` and `global` -> `opencode debug skill` dropped cleanly to `dtkit-opencode-*=0`, `user-local=1`; user `AGENTS.md` lines and sibling Codex block remained completely intact.
+5. **Model provider check (`opencode providers list` in isolated `HOME`):**
+   - Returned `0 credentials` (`~/.local/share/opencode/auth.json` unconfigured in isolated home), preventing live LLM turn execution (`opencode run`) without configured credentials.
 
 ## Conclusion
 
-- **OpenCode `1.19.5` project, global, and Codex-coexistence skill/instruction layout & config discovery:** verified empirically on `opencode 1.19.5`.
-- **Hooks capability parity:** OpenCode uses JS/TS plugins (`.opencode/plugins/`, `~/.config/opencode/plugins/`) rather than DTKit v0.2 Codex shell hooks; `capabilities.hooks` explicitly reports `runtimeSupported: true, dtkitSupported: false`.
+- **OpenCode `1.19.5` project-only, global-only, combined, 4-runtime coexistence, and clean removal:** empirically verified on `opencode 1.19.5` (Status: **Partial**).
+- **Remaining blocker:** Live LLM session (`opencode run`) requires isolated model provider credentials (`0 credentials` in clean verification profile).
+- **Hooks parity note:** OpenCode uses JS/TS plugins rather than DTKit v0.2 Codex shell hooks (`capabilities.hooks`: `runtimeSupported: true, dtkitSupported: false`).
