@@ -11,7 +11,7 @@ New-Item -ItemType Directory -Force -Path $outPath | Out-Null
 $commit = (git -C $workspace rev-parse --short HEAD 2>$null)
 if (-not $commit) { $commit = "unknown" }
 $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-$ldflags = "-s -w -X dtkit.local/dtkit/internal/buildinfo.Version=$Version -X dtkit.local/dtkit/internal/buildinfo.Commit=$commit -X dtkit.local/dtkit/internal/buildinfo.Date=$date"
+$ldflags = "-s -w -X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Version=$Version -X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Commit=$commit -X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Date=$date"
 
 $targets = @(
     @{ GOOS = "windows"; GOARCH = "amd64"; Out = "dtkit_windows_amd64.exe" },

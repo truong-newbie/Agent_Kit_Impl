@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"dtkit.local/dtkit/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 )
 
 var reservedDevicePattern = regexp.MustCompile(`^(COM|LPT)[1-9]$`)

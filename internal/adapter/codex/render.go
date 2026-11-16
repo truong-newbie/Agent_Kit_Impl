@@ -10,8 +10,8 @@ import (
 	"strings"
 	"text/template"
 
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 )
 
 const AdapterRevision = "1"

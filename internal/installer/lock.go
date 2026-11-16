@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 type lockMetadata struct {

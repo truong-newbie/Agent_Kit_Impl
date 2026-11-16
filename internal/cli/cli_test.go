@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 func testDeps(stdin string, interactive bool, home string, codexHome string, cwd string, codexExists bool) (Deps, *bytes.Buffer, *bytes.Buffer) {

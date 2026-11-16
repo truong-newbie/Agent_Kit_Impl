@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"dtkit.local/dtkit/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 // Deps holds injected runtime boundaries for CLI commands.

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"dtkit.local/dtkit/internal/adapter/codex"
-	"dtkit.local/dtkit/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 )
 
 func TestInstallPreviewDoesNotWriteAndDetectsConflicts(t *testing.T) {

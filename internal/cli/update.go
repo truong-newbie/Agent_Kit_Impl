@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io/fs"
 
-	"dtkit.local/dtkit/internal/adapter/codex"
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/catalog"
-	"dtkit.local/dtkit/internal/installer"
-	"dtkit.local/dtkit/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 func runUpdate(ctx context.Context, args []string, deps Deps) error {

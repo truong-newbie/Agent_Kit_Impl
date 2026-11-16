@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"dtkit.local/dtkit/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 )
 
 func TestRenderScopeAndDeterminism(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/installer"
-	"dtkit.local/dtkit/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 func runRecover(ctx context.Context, args []string, deps Deps) error {

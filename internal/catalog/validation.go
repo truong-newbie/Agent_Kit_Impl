@@ -11,8 +11,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 const (

@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"strings"
 
-	"dtkit.local/dtkit/internal/adapter/codex"
-	"dtkit.local/dtkit/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 // BlockState records only the bytes DTKit owns, not the whole shared file.

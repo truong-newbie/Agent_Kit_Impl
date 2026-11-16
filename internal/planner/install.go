@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"dtkit.local/dtkit/internal/adapter/codex"
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 const MaxInstructionBytes = 8 * 1024 * 1024

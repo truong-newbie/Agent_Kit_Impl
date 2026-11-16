@@ -10,9 +10,9 @@ import (
 	"testing/fstest"
 	"time"
 
-	"dtkit.local/dtkit/internal/adapter/codex"
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 )
 
 func fixtureKit(version, ruleBody string, includeExtraSkill, includeAskSkill bool) (catalog.Package, fstest.MapFS) {

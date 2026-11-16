@@ -8,7 +8,7 @@ import (
 	"io"
 	"io/fs"
 
-	"dtkit.local/dtkit/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 )
 
 // Digest hashes ordered relative paths and contents using length prefixes.

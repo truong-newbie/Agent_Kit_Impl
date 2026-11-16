@@ -5,10 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	"dtkit.local/dtkit/internal/adapter/codex"
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/paths"
-	"dtkit.local/dtkit/internal/state"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
 )
 
 // PlanDesired reconciles existing state, on-disk files, and desired artifacts

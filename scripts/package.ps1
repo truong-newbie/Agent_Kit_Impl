@@ -19,6 +19,7 @@ $winStage = Join-Path $stageRoot "win"
 New-Item -ItemType Directory -Force -Path $winStage | Out-Null
 Copy-Item (Join-Path $distDir "dtkit_windows_amd64.exe") (Join-Path $winStage "dtkit.exe")
 Copy-Item (Join-Path $workspace "README.md") (Join-Path $winStage "README.md")
+Copy-Item (Join-Path $workspace "LICENSE") (Join-Path $winStage "LICENSE")
 $winZip = Join-Path $distDir "dtkit_${Version}_windows_amd64.zip"
 if (Test-Path $winZip) { Remove-Item -Force $winZip }
 Compress-Archive -Path (Join-Path $winStage "*") -DestinationPath $winZip
@@ -33,9 +34,10 @@ foreach ($pair in @(
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
     Copy-Item (Join-Path $distDir $pair.Bin) (Join-Path $stage "dtkit")
     Copy-Item (Join-Path $workspace "README.md") (Join-Path $stage "README.md")
+    Copy-Item (Join-Path $workspace "LICENSE") (Join-Path $stage "LICENSE")
     $archPath = Join-Path $distDir $pair.Archive
     if (Test-Path $archPath) { Remove-Item -Force $archPath }
-    docker run --rm -v "${workspace}:/src" -w "/src/$OutDir/stage/$($pair.Bin)" golang:1.27.4 tar -czf "/src/$OutDir/$($pair.Archive)" dtkit README.md
+    docker run --rm -v "${workspace}:/src" -w "/src/$OutDir/stage/$($pair.Bin)" golang:1.27.4 tar -czf "/src/$OutDir/$($pair.Archive)" dtkit README.md LICENSE
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $archives += $archPath
 }

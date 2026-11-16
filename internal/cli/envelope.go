@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"io"
 
-	"dtkit.local/dtkit/internal/apperr"
-	"dtkit.local/dtkit/internal/buildinfo"
-	"dtkit.local/dtkit/internal/catalog"
-	"dtkit.local/dtkit/internal/installer"
-	"dtkit.local/dtkit/internal/planner"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
 )
 
 type KitSummary struct {

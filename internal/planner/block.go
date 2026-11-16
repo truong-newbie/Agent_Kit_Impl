@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"dtkit.local/dtkit/internal/state"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
 )
 
 // BlockState records only the bytes DTKit owns, not the whole shared file.

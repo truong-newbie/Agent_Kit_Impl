@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"dtkit.local/dtkit/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 )
 
 func TestResolveProjectModes(t *testing.T) {

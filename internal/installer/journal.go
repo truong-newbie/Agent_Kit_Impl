@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"dtkit.local/dtkit/internal/paths"
-	"dtkit.local/dtkit/internal/state"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
 )
 
 const (
