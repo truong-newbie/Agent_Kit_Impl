@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | `N00` — Baseline sync & status tracking | `verified` | `feat/release-hardening` | Baseline sync | Recorded `936043f` / run `43849330462`, separated historical snapshots, aligned `README.md`, `compatibility.md`, `release.md` |
 | `N01` — Kit version bump & upgrade from `main` | `verified` | `feat/release-hardening` | F01 | Bumped `engineer` `0.1.0`->`0.2.0` + CLI `0.4.0-dev`; tested real `main` `f81ce6e`->HEAD upgrade (`verify-docker.ps1` + live binary smoke) |
-| `N02` — Source resolution read-only contract | `not-started` | `feat/release-hardening` | F02, F05 | Ensure `--dry-run`, `info`, `validate`, `--offline` never write/clean cache or state |
+| `N02` — Source resolution read-only contract | `verified` | `feat/release-hardening` | F02, F05 | Separated `CacheReadOnly`/`CachePersist`; in-memory `FetchRemoteBytes`; no preview/offline cache writes or `.part` cleanup (`verify-docker.ps1`) |
 | `N03` — Remote transport, index strictness, cache safety | `not-started` | `feat/release-hardening` | F03, F05, F06 | Bounded HTTP timeout/redirect hop checks, strict registry index, offline `minCliVersion`, concurrent cache `Put` |
 | `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `not-started` | `feat/release-hardening` | F04 | Barrier concurrency tests (`codex` + `opencode`), shared lock coordination, recovery conflict preservation |
 | `N05` — Capability contract & status consistency | `not-started` | `feat/release-hardening` | F07 | Formalize required vs fallback capability checks (e.g., Cursor global) consistently in preview & apply |
@@ -58,6 +58,24 @@ Tests actually run:
 Remaining limitation / external blocker: Cross-OS CI (`windows-latest`, `macos-latest`) runs on push; N02–N12 remain open.
 Acceptance checklist result: Pass (upgrade from `main` `f81ce6e` `0.1.0` -> `0.2.0` preserves user BOM/CRLF content, hooks, and `InstalledAt`; tampered same-version blocked cleanly; golden state/journal v1/v2 + error paths tested across all 4 runtimes).
 Next task: N02 — Source resolution: tách read-only validation khỏi cache writes và cleanup.
+
+---
+
+Task: N02 — Source resolution không ghi khi preview/read-only
+Status: verified
+Baseline/branch/SHA: feat/release-hardening @ 8e201ad (N01 CI run 43852808507 green on all 4 jobs)
+Observed problem and reproduction: Previously `resolveKitSource` called `cache.CleanStaleDownloads()` unconditionally (deleting any `.part` files even during `--dry-run` or `--offline`), `Cache.DownloadBytes` created `cache/tmp` and temp `.part` files even for preview reads, and `ResolveRemote` called `cache.Put` unconditionally before plan confirmation or no-op detection. `info` and `validate` also lacked read-only `--source`/`--offline` support.
+Changed files and behavior:
+- `internal/paths/process_{unix,windows}.go`, `internal/installer/lock_liveness.go`: extracted shared `paths.ProcessLiveness` helper so both installer and cache GC check live PIDs without duplicating OS code.
+- `internal/dist/cache.go`: replaced disk-touching `DownloadBytes` with pure in-memory `FetchRemoteBytes`; made `Cache.putChecked` no-op cleanly without rewriting/touching timestamps on verified cache hits; added `CacheHooks` boundary observer; protected active downloads via `<part>.lock` PID sidecars and `DefaultStalePartAge` (15m) in `CleanStaleDownloadsOlderThan`.
+- `internal/dist/remote.go`: introduced explicit `CacheMode` (`CacheReadOnly` vs `CachePersist`) and `ResolvedPackage.HasPendingCacheWrite()`/`PersistCache(cache)`; `ResolveRemote` reads cache strictly read-only in `CacheReadOnly` mode and retains validated archive bytes for single-snapshot apply.
+- `internal/cli/{source,install,update,cli}.go`: removed unconditional `CleanStaleDownloads()` from `resolveKitSource`; passed explicit `dist.CacheReadOnly` for preview, `info`, `validate`, no-op, missing `--yes`, and cancelled prompts; persisted cache via `persistResolvedCache` only on confirmed non-noop mutations using the exact planned `fs.FS` snapshot; added `--source`/`--sha256`/`--offline` support to `info` and `validate`.
+- `internal/dist/readonly_test.go`, `internal/cli/source_readonly_test.go`, `internal/dist/dist_test.go`: added full before/after filesystem tree + nanosecond mtime snapshot tests across `--dry-run` (cache miss/hit), `info`/`validate`, `--offline` (with HTTP trap transport), cancelled prompt, missing `--yes`, invalid remote sources, confirmed remote `install`/`update` + `noop` mtime preservation, and active-vs-stale `.part` cleanup.
+Tests actually run:
+- `docker run --rm -v "${PWD}:/src" -w /src golang:1.27.4 /usr/local/go/bin/gofmt -w cmd internal schemas; .\scripts\verify-docker.ps1` -> exit `0`, all packages passed under `go test -race ./...`, `go vet ./...`, and `go build`.
+Remaining limitation / external blocker: Cross-OS CI (`windows-latest`, `macos-latest`) runs on push; N03 HTTP transport/index strictness & parallel cache stress follow next.
+Acceptance checklist result: Pass (zero filesystem/mtime mutations on `--dry-run`, `info`, `validate`, `--offline`, cancel, no-`--yes`, and no-op; zero HTTP requests on offline/cache-hit; active `.part` files preserved).
+Next task: N03 — Remote transport, registry strictness, `minCliVersion` offline/cached parity, and concurrent cache idempotency.
 
 ---
 
