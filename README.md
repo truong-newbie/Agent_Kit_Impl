@@ -80,3 +80,5 @@ In Codex, invoke project or global skills explicitly with `$dtkit-project-plan`,
 ```
 
 More documentation: [docs/cli.md](docs/cli.md), [docs/development.md](docs/development.md), [docs/compatibility.md](docs/compatibility.md), [docs/release.md](docs/release.md), [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md).
+
+For continued implementation after the four runtime adapters, start with [DTKIT-NEXT-PHASE-PLAN.md](DTKIT-NEXT-PHASE-PLAN.md): remaining gaps, hardening tasks, runtime verification, and release acceptance criteria.

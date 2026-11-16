@@ -1,5 +1,7 @@
 # DTKit — kế hoạch hoàn thiện sản phẩm và bàn giao triển khai
 
+> Snapshot lịch sử trước khi hoàn thành các milestone P0–P6/H1/D1/R1–R3. Để tiếp tục từ code có bốn runtime, đọc [DTKIT-NEXT-PHASE-PLAN.md](DTKIT-NEXT-PHASE-PLAN.md) trước; không dùng danh sách chưa triển khai trong snapshot này làm trạng thái hiện tại.
+
 > Tài liệu vận hành cho AI/maintainer tiếp theo. Đọc cùng [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md) (contract chi tiết), [ai-agent-toolkit-spec.md](ai-agent-toolkit-spec.md), [AI-Engineering-Kit-Global.md](AI-Engineering-Kit-Global.md) (ý tưởng gốc), và [docs/progress.md](docs/progress.md) (nhật ký thực thi). Nếu tài liệu và code bất đồng, kiểm tra code/test, nêu khác biệt rồi cập nhật tài liệu; không tự tuyên bố tính năng đã hoàn thành.
 
 ## 1. Đích sản phẩm và ranh giới phát hành
