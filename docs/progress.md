@@ -16,8 +16,8 @@
 | `N03` — Remote transport, index strictness, cache safety | `verified` | `feat/release-hardening` | F03, F05, F06 | HTTP timeout/redirect/redaction, strict index, offline `minCliVersion` meta, concurrent cache `Put`, flood cap + fuzz (`verify-docker.ps1`) |
 | `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `verified` | `feat/release-hardening` | F04 | Shared target locks (`.dtkit/locks`), atomic recover-under-lock, strict full-state check, barrier & multi-process tests (`verify-docker.ps1`) |
 | `N05` — Capability contract & status consistency | `verified` | `feat/release-hardening` | F07 | Added `optionalCapabilities`, pre-write `requiresCapabilities` enforcement, consistent warnings across commands, `integrationStatus` separation (`verify-docker.ps1`, CI `43901270341`) |
-| `N06` — Hook JSON strictness & executable lifecycle | `verified` | `feat/release-hardening` | F12 | Duplicate-key/oversize/schema rejection, ambiguous digest guard, real `sh`/PowerShell special-char quoting execution, zero-leak timeout/cancel, update/drift/chmod lifecycle (`verify-docker.ps1`) |
-| `N07` — Native OS edge cases & crash subprocess tests | `not-started` | `feat/release-hardening` | F11 | CI skip inventory, Windows locks/junctions, child-process crash recovery |
+| `N06` — Hook JSON strictness & executable lifecycle | `verified` | `feat/release-hardening` | F12 | Duplicate-key/oversize/schema rejection, ambiguous digest guard, real `sh`/PowerShell special-char quoting execution, zero-leak timeout/cancel, update/drift/chmod lifecycle (`verify-docker.ps1`, CI `43903546521`) |
+| `N07` — Native OS edge cases & crash subprocess tests | `verified` | `feat/release-hardening` | F11 | CI skip inventory, NTFS junctions (`mklink /J`), Windows exclusive `CreateFile` locks & case collisions, BOM/CRLF/Unicode, `0555` parent confinement, malicious journal/corrupt state preservation, child-process `Kill` at 4 boundaries, 7-target fuzz smoke (`verify-docker.ps1`) |
 | `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `not-started` | `feat/release-hardening` | F08 | Discover/task verification per runtime; unverified integrations stay experimental |
 | `N09` — Engineer Kit quality baseline evaluation | `not-started` | `feat/release-hardening` | F08 | 8–12 task rubric (`docs/evaluation/`), baseline vs with-kit verification |
 | `N10` — Release pipeline & terminal install UX | `not-started` | `feat/release-hardening` | F09, F10 | Sanitize workflow/PS inputs, add GitHub Release draft step, new RC candidate & terminal verify |
@@ -143,6 +143,15 @@ Verification run: `gofmt -w internal/hooks internal/installer` + `.\scripts\veri
 Remaining limitation / external blocker: Windows native `powershell` quoting execution test will run natively on `windows-latest` CI upon push (POSIX `sh -c` passed locally in Docker).
 Acceptance checklist result: Pass (hooks parser, ownership, shell quoting, timeout/leak isolation, and lifecycle verified).
 Next task: N07 — OS-native edge cases, CI skip audit và crash recovery (F11).
+
+Task: N07 — OS-native edge cases, CI skip audit và crash recovery
+Status: verified (local Docker + `GOOS=windows` compile/vet + 7 fuzz targets passed; native `windows-latest` & `macos-latest` CI pending push)
+Branch / Commit: `feat/release-hardening` (pending N07 CI push; N06 CI `43903546521` all 4 jobs `completed/success`)
+Artifact changed: `internal/paths/paths_windows_test.go`, `internal/installer/native_windows_test.go`, `internal/installer/native_test.go`, `internal/installer/crash_test.go`, `internal/hooks/fuzz_test.go`, `.github/workflows/ci.yml`, `docs/compatibility.md`, `docs/progress.md`, `docs/release.md`
+Verification run: `gofmt -w`, `GOOS=windows go test -c -o /dev/null ./internal/paths ./internal/installer && go vet ./...`, `.\scripts\verify-docker.ps1` (`Command exited with code 0`), plus 2s fuzz smoke on all 7 fuzz targets (`FuzzValidateRelativePath` 142,732 execs, `FuzzParseAndValidateState` 89,183 execs, `FuzzCheckJSON` 108,051 execs, `FuzzParseRegistryIndex` 26,525 execs, `FuzzReadArchiveBytes` 13,200 execs, `FuzzBlockOperations` 86,932 execs, `FuzzHooksJSON` 53,973 execs) and added `fuzz-smoke` job to CI.
+Remaining limitation / external blocker: Native `windows-latest` execution of `paths_windows_test.go` / `native_windows_test.go` and non-root `ubuntu-latest`/`macos-latest` `0555` parent confinement tests run on GitHub Actions CI upon push.
+Acceptance checklist result: Pass (all CI skips audited, native OS edge cases covered without bypassing security checks, 4 real OS child-process `Process.Kill()` crash boundaries + external-edit recovery tested, bounded CI fuzz smoke enabled).
+Next task: N08 — Kiểm thử thực tế với 4 runtimes (F08).
 
 ---
 

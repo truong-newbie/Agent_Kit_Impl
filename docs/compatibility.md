@@ -24,3 +24,16 @@
 | Project & global skills | DTKit-managed (`.agents/skills`) | DTKit-managed (`.gemini/skills`, `~/.gemini/skills`) | DTKit-managed (`.opencode/skills`, `<opencode-home>/skills`) | DTKit-managed (`.cursor/skills`, `~/.cursor/skills`) | Non-Codex runtimes namespace skill IDs (`dtkit-<runtime>-<scope>-*`) to avoid collisions |
 | Hooks / plugins | **DTKit opt-in `SessionStart`** (`.codex/hooks.json` / `$CODEX_HOME/hooks.json`) | Native `.gemini/settings.json` hooks (**not DTKit-managed**) | Native JS/TS `.opencode/plugins/` (**not DTKit-managed**) | Native `.cursor/hooks.json` (**not DTKit-managed**) | `dtkit hooks` explicitly targets `--runtime codex` only; cross-runtime hook management is post-release (`N16`) |
 | Authoring / pack / remote / offline | Yes | Yes | Yes | Yes | Policy hardening (`dry-run` no-write, HTTP timeouts/redirects, strict index validation) tracked in `N02`–`N03` |
+
+## 3. CI Skip Audit
+
+Every conditional `t.Skip` / `t.Skipf` in the test suite has an explicit, documented boundary condition:
+
+| Location | Skip Condition | Covered Elsewhere / Why Safe |
+|---|---|---|
+| `internal/cli/e2e_test.go` | `testing.Short()` | Full CI & `verify-docker.ps1` run without `-short`, executing built-binary E2E |
+| `internal/cli/e2e_test.go` | Missing `go` binary on `PATH` | Only triggers for standalone precompiled test binaries; CI & Docker always provide Go |
+| `internal/hooks/hardening_test.go` | Missing `powershell` on `PATH` on Windows | `windows-latest` CI runner provides `powershell.exe`; POSIX tests `sh -c` directly |
+| `internal/installer/recover_test.go` | Helper exit command fails to launch | Standard OS fallback guard (`true` / `cmd /c exit 0`) |
+| `internal/paths/paths_test.go` | Unprivileged `os.Symlink` denied on Windows | Compensated by `internal/paths/paths_windows_test.go` using unprivileged `cmd /c mklink /J` NTFS junctions, plus POSIX CI coverage |
+| `internal/installer/native_test.go` | `os.Geteuid() == 0` in POSIX `0555` parent test | Containerized Linux runs as `uid=0` (bypasses DAC); non-root `ubuntu-latest` and `macos-latest` CI runners execute `0555` confinement live |

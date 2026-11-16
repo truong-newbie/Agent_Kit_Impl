@@ -39,3 +39,20 @@ jobs:
         with:
           go-version: '1.27.4'
       - run: go test -race ./...
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Bounded fuzz smoke
+        run: |
+          go test -run='^$' -fuzz=^FuzzValidateRelativePath$ -fuzztime=3s ./internal/paths
+          go test -run='^$' -fuzz=^FuzzParseAndValidateState$ -fuzztime=3s ./internal/state
+          go test -run='^$' -fuzz=^FuzzCheckJSON$ -fuzztime=3s ./internal/catalog
+          go test -run='^$' -fuzz=^FuzzParseRegistryIndex$ -fuzztime=3s ./internal/dist
+          go test -run='^$' -fuzz=^FuzzReadArchiveBytes$ -fuzztime=3s ./internal/dist
+          go test -run='^$' -fuzz=^FuzzBlockOperations$ -fuzztime=3s ./internal/planner
+          go test -run='^$' -fuzz=^FuzzHooksJSON$ -fuzztime=3s ./internal/hooks
