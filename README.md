@@ -1,84 +1,87 @@
 # DTKit
 
-DTKit is a single-binary Go CLI toolkit for packaging, validating, and safely installing reusable AI engineering skills, rules, workflows, and templates. The v0.1 target runtime is **Codex CLI**, supporting both **project** and **global** scopes.
+DTKit is a single-binary Go CLI toolkit for packaging, validating, and safely installing reusable AI engineering skills, rules, workflows, and templates across coding-agent runtimes (`codex`, `gemini`, `opencode`, `cursor`).
 
-## Status (v0.1 Release Candidate)
+## Current Status
 
-- **Implemented & automated-tested:** `version`, `help`, `list`, `info`, `validate`, `doctor`, `install` (fresh + idempotent no-op), `status`, `update`, `remove`, and `recover`, with `--dry-run`, `--yes`, `--json`, `--from <dir>`, managed blocks in `AGENTS.md`, exclusive locks, transaction journals, and conditional rollback.
-- **Runtime verification:** Project skill & instruction discovery tested against `codex-cli 0.169.0` (see [docs/verification/codex-0.169.0-2026-11-16.md](docs/verification/codex-0.169.0-2026-11-16.md)). Global isolation smoke and unblocked Codex file-read verification remain pending.
-- **Deferred beyond v0.1:** Native hooks (v0.2), remote registries / `pack` (v0.3), and Gemini CLI / OpenCode / Cursor adapters (v0.4+).
+- **Branches:** `main` (`f81ce6e`) holds the Codex v0.1 baseline with zero published GitHub Releases or tags. Active multi-runtime hardening (`N00`–`N12`) lives on `feat/release-hardening` (branched from `feat/runtime-cursor-v0.4` `936043f`).
+- **Implemented (automated-tested in Go / Docker + 3-OS CI):**
+  - Core CLI & safety engine (`version`, `help`, `list`, `info`, `validate`, `doctor`, `install`, `status`, `update`, `remove`, `recover`) with `--dry-run`, `--yes`, `--json`, managed blocks, PID/token locks, transaction journals, and conditional rollback.
+  - Opt-in Codex hooks (`dtkit hooks list|status|enable|disable`, `dtkit hook run session-context`).
+  - Independent authoring & packaging (`dtkit create kit|skill`, `dtkit pack`, `--from <dir|archive>`, `--source <url>`, `--sha256`, `--offline`, digest cache).
+  - Four runtime adapters (`codex`, `gemini`, `opencode`, `cursor`) — multi-runtime CLI, coexistence, and state separation tested in automation.
+- **Runtime Verification Status (Truthfulness Boundary):**
+  - **Codex CLI (`0.169.0`, `project`):** Partial — skill & instruction discovery observed in [docs/verification/codex-0.169.0-2026-11-16.md](docs/verification/codex-0.169.0-2026-11-16.md); sandboxed PS read blocked by host policy; global & hook trust smoke pending.
+  - **OpenCode (`1.19.5`, `project` + `global`):** Partial — `opencode debug skill` discovered all 14 project/global skills alongside Codex in [docs/verification/opencode-1.19.5-2026-11-16.md](docs/verification/opencode-1.19.5-2026-11-16.md); live LLM task execution pending.
+  - **Gemini CLI & Cursor:** Experimental — automated adapter/CLI tests pass; real runtime discovery and task smoke remain pending (`gemini` and `cursor` CLIs not present on verification host).
+- **Open Release Gates:** Hardening tasks `N01`–`N12` in [DTKIT-NEXT-PHASE-PLAN.md](DTKIT-NEXT-PHASE-PLAN.md) (including kit version bump for `main`->candidate upgrades, remote dry-run/policy fixes, shared `AGENTS.md` concurrency proofs, runtime smoke tests, and release candidate packaging) remain open before tagging a public release.
 
-## Build and Install Locally
+See [docs/compatibility.md](docs/compatibility.md) for the per-runtime 4-layer evidence matrix and [docs/progress.md](docs/progress.md) for current task tracking.
 
-Requires Go `1.27.4` or newer (or Docker Desktop if Windows Application Control / Device Guard blocks unsigned `go.exe`).
+## Build and Verification (Dev Source)
 
-```powershell
-# Build Windows, Linux, and macOS binaries + release archives + SHA256SUMS
-.\scripts\package.ps1 -Version 0.1.0-rc1
-
-# Verify checksum and install dtkit.exe into a user directory on PATH
-Get-FileHash .\dist\dtkit_0.1.0-rc1_windows_amd64.zip -Algorithm SHA256
-Get-Content .\dist\SHA256SUMS
-New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\dtkit\bin" | Out-Null
-Expand-Archive -Path .\dist\dtkit_0.1.0-rc1_windows_amd64.zip -DestinationPath "$env:LOCALAPPDATA\dtkit\bin" -Force
-$env:Path += ";$env:LOCALAPPDATA\dtkit\bin"
-dtkit version --json
-```
-
-If you have an approved native Go toolchain:
+Requires Go `1.27.4` or newer (or Docker Desktop if Windows Application Control / Device Guard blocks unsigned `go.exe`). No published release archive is tagged yet; build from source on `feat/release-hardening`:
 
 ```powershell
-go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@latest
-# or build locally:
-go build -trimpath -o .\dist\dtkit.exe ./cmd/dtkit
+# Docker-based formatting, race tests, vet, and Linux binary build:
+.\scripts\verify-docker.ps1
 ```
+
+With an approved native Go `1.27.4+` toolchain:
+
+```powershell
+gofmt -l cmd internal schemas
+go test -race ./...
+go vet ./...
+go build -trimpath -o .\dist\dtkit ./cmd/dtkit
+```
+
+*(Note: `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@latest` resolves `main` (`f81ce6e`, Codex v0.1 only) until multi-runtime changes are merged and tagged.)*
 
 ## Quick Start
 
 ```powershell
-# Check environment and runtime readiness
+# Check environment and runtime readiness (--runtime defaults to codex)
 dtkit doctor
+dtkit doctor --runtime gemini
+dtkit doctor --runtime opencode
+dtkit doctor --runtime cursor
+
 dtkit list
 dtkit info engineer
 
-# Project installation (preview first, then apply)
-dtkit install engineer --project --dry-run
-dtkit install engineer --project --yes
+# Preview then install for a runtime
+dtkit install engineer --project --runtime codex --dry-run
+dtkit install engineer --project --runtime codex --yes
 dtkit status --project
 
-# Global installation (user-level ~/.agents/skills and $CODEX_HOME/AGENTS.md)
-dtkit install engineer --global --dry-run
-dtkit install engineer --global --yes
-dtkit status
+# Install / co-exist with other runtimes
+dtkit install engineer --project --runtime opencode --yes
+dtkit install engineer --project --runtime gemini --yes
+dtkit install engineer --project --runtime cursor --yes
 
-# Update from bundled catalog or a local package directory
-dtkit update engineer --project --dry-run
+# Global installation
+dtkit install engineer --global --runtime codex --yes
+
+# Opt-in Codex SessionStart hook
+dtkit hooks enable session-context --project --dry-run
+
+# Authoring, packing, updating, removing, and recovery
+dtkit create kit my-kit
+dtkit pack .\my-kit
 dtkit update engineer --project --from .\path\to\kit --yes
-
-# Remove DTKit-managed files/blocks while keeping personal content
-dtkit remove engineer --project --dry-run
-dtkit remove engineer --project --yes
-
-# Inspect or recover an interrupted transaction
+dtkit remove engineer --project --runtime codex --dry-run
 dtkit recover --project --dry-run
-dtkit recover --project --yes
 ```
-
-In Codex, invoke project or global skills explicitly with `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-review`, `$dtkit-global-plan`, etc.
 
 ## Scopes, Shared Files, and Safety
 
-- **Project scope** writes `<project>/AGENTS.md` (managed block `<!-- dtkit:begin engineer project -->`), `<project>/.agents/skills/dtkit-project-*/SKILL.md`, `<project>/.dtkit/content/engineer/...`, and `<project>/.dtkit/state.json`. Add `.dtkit/local/` to `.gitignore` so local transaction backups are not committed.
-- **Global scope** writes `<codex-home>/AGENTS.md` (`CODEX_HOME` or `~/.codex`), `~/.agents/skills/dtkit-global-*/SKILL.md`, `~/.dtkit/content/engineer/...`, and `~/.dtkit/state.json` (with `codexHome` binding).
-- **Conflict protection:** Existing `AGENTS.md` content outside the DTKit managed block is preserved byte-for-byte (including BOM and CRLF/LF). Modified managed files, unowned files at skill destinations, or non-empty `AGENTS.override.md` halt mutations with exit code `3`. `--yes` only skips interactive prompts; it never overrides conflicts.
+- **Per-runtime layout & state isolation:**
+  - **Codex (`codex`):** `<project>/AGENTS.md` / `$CODEX_HOME/AGENTS.md` (managed block), `.agents/skills/dtkit-<scope>-*/SKILL.md`, `.dtkit/content/<kit>/...`, `.dtkit/state.json`, optional `.codex/hooks.json` or `$CODEX_HOME/hooks.json`.
+  - **Gemini CLI (`gemini`):** `<project>/GEMINI.md` / `$GEMINI_CLI_HOME/.gemini/GEMINI.md` (managed block), `.gemini/skills/dtkit-gemini-project-*` / `$GEMINI_CLI_HOME/.gemini/skills/dtkit-gemini-global-*`, `.dtkit/runtimes/gemini/content/<kit>/...`, `.dtkit/runtimes/gemini/state.json`.
+  - **OpenCode (`opencode`):** Shared `AGENTS.md` (runtime-namespaced block `<!-- dtkit:begin <kit> opencode <scope> -->`) / `$OPENCODE_CONFIG_DIR/AGENTS.md` (or `~/.config/opencode/AGENTS.md`), `.opencode/skills/dtkit-opencode-project-*` / `<opencode-home>/skills/dtkit-opencode-global-*`, `.dtkit/runtimes/opencode/content/<kit>/...`, `.dtkit/runtimes/opencode/state.json`.
+  - **Cursor (`cursor`):** Project rule `.cursor/rules/dtkit-<kit>.mdc` (`alwaysApply: true`), `.cursor/skills/dtkit-cursor-<scope>-*`, `.dtkit/runtimes/cursor/content/<kit>/...`, `.dtkit/runtimes/cursor/state.json`. Global User Rules live in Cursor Settings UI and are not managed on disk (`--global` installs skills + resources only).
+- **Operational data:** Add `.dtkit/local/` to `.gitignore` so local lock files, journals, and transaction backups across all runtimes are not committed.
+- **Conflict protection:** Unowned content outside DTKit managed blocks is preserved byte-for-byte (including BOM and CRLF/LF). Modified managed files, unowned targets at whole-file paths, or blocking overrides halt mutations with exit code `3`. `--yes` only skips confirmation prompts; it never overrides conflicts.
 
-## Verification
-
-```powershell
-# Run formatting, race tests, vet, and build via Docker
-.\scripts\verify-docker.ps1
-```
-
-More documentation: [docs/cli.md](docs/cli.md), [docs/development.md](docs/development.md), [docs/compatibility.md](docs/compatibility.md), [docs/release.md](docs/release.md), [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md).
-
-For continued implementation after the four runtime adapters, start with [DTKIT-NEXT-PHASE-PLAN.md](DTKIT-NEXT-PHASE-PLAN.md): remaining gaps, hardening tasks, runtime verification, and release acceptance criteria.
+More documentation: [docs/cli.md](docs/cli.md), [docs/development.md](docs/development.md), [docs/compatibility.md](docs/compatibility.md), [docs/release.md](docs/release.md), [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md), [DTKIT-NEXT-PHASE-PLAN.md](DTKIT-NEXT-PHASE-PLAN.md).

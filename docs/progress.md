@@ -1,4 +1,48 @@
-# DTKit implementation progress
+# DTKit Implementation Progress
+
+## Current Status
+
+- **Active Branch:** `feat/release-hardening` (branched from `feat/runtime-cursor-v0.4` `936043f`; `main` currently sits at v0.1 `f81ce6e` with zero tags and zero published GitHub Releases).
+- **Latest Code CI Baseline:** SHA `be9e0bd` passed all 4 GitHub Actions jobs (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`) in [Run 43849330462](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/43849330462). (`936043f` added documentation planning commits on top.)
+- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), and R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor) are implemented as dev code and covered by Go automated tests. Remaining stabilization, real-runtime verification, and release-candidate gates are tracked in [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md).
+
+### Hardening & Release Backlog Tracker (`N00`–`N12`)
+
+| Task | Status | Branch / Lane | Finding(s) | Evidence / Notes |
+|---|---|---|---|---|
+| `N00` — Baseline sync & status tracking | `verified` | `feat/release-hardening` | Baseline sync | Recorded `936043f` / run `43849330462`, separated historical snapshots, aligned `README.md`, `compatibility.md`, `release.md` |
+| `N01` — Kit version bump & upgrade from `main` | `in-progress` | `feat/release-hardening` | F01 | Next: fixture from `main` (`f81ce6e`), bump `engineer` kit version, verify cross-version upgrade & state v1/v2 compatibility |
+| `N02` — Source resolution read-only contract | `not-started` | `feat/release-hardening` | F02, F05 | Ensure `--dry-run`, `info`, `validate`, `--offline` never write/clean cache or state |
+| `N03` — Remote transport, index strictness, cache safety | `not-started` | `feat/release-hardening` | F03, F05, F06 | Bounded HTTP timeout/redirect hop checks, strict registry index, offline `minCliVersion`, concurrent cache `Put` |
+| `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `not-started` | `feat/release-hardening` | F04 | Barrier concurrency tests (`codex` + `opencode`), shared lock coordination, recovery conflict preservation |
+| `N05` — Capability contract & status consistency | `not-started` | `feat/release-hardening` | F07 | Formalize required vs fallback capability checks (e.g., Cursor global) consistently in preview & apply |
+| `N06` — Hook JSON strictness & executable lifecycle | `not-started` | `feat/release-hardening` | F12 | Duplicate-key rejection, ambiguous digest guard, special-char quoting, timeout/leak checks |
+| `N07` — Native OS edge cases & crash subprocess tests | `not-started` | `feat/release-hardening` | F11 | CI skip inventory, Windows locks/junctions, child-process crash recovery |
+| `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `not-started` | `feat/release-hardening` | F08 | Discover/task verification per runtime; unverified integrations stay experimental |
+| `N09` — Engineer Kit quality baseline evaluation | `not-started` | `feat/release-hardening` | F08 | 8–12 task rubric (`docs/evaluation/`), baseline vs with-kit verification |
+| `N10` — Release pipeline & terminal install UX | `not-started` | `feat/release-hardening` | F09, F10 | Sanitize workflow/PS inputs, add GitHub Release draft step, new RC candidate & terminal verify |
+| `N11` — Final docs, CLI UX & `main` merge prep | `not-started` | `feat/release-hardening` | F09 | Final audit across docs/changelog/troubleshooting and PR diff review to `main` |
+| `N12` — Post-release diagnostics & support policy | `not-started` | `feat/release-hardening` | — | Issue templates, read-only/redacted diagnostics (`--redact`), support & incident guide |
+
+*(Post-release backlog `N13`–`N18` stays out of scope for this candidate wave.)*
+
+---
+
+Task: N00 — Đồng bộ baseline và hồ sơ tiến độ
+Status: verified
+Baseline/branch/SHA: feat/release-hardening branched from feat/runtime-cursor-v0.4 @ 936043f (code CI baseline be9e0bd @ run 43849330462); main @ f81ce6e
+Observed problem and reproduction: README.md still described only v0.1 Codex with hooks/distribution/multi-runtime deferred; docs/compatibility.md was out of sync in working tree; docs/progress.md lacked a top Current Status summary distinguishing historical point-in-time logs from N00–N12 hardening gates; docs/release.md reflected only v0.1 prep. Also confirmed zero tags/releases exist on origin (`git tag --list` empty, GitHub releases API Count=0).
+Changed files and behavior: Restored docs/compatibility.md from 936043f and rewrote it with a 4-layer evidence matrix + Feature×Runtime table separating Rendered/CLI/Discovery/Live Task status; updated README.md with accurate implemented vs partial/experimental/unverified status and four-runtime documentation; added Current Status, N00–N12 tracker table, and Historical Snapshots boundary in docs/progress.md; updated docs/release.md to point to feat/release-hardening N00–N12 gates.
+Tests actually run: Docs-only check per N00 criteria (`git diff --check`, Markdown link existence check across all relative links in updated docs).
+Remaining limitation / external blocker: N01–N12 engineering hardening and real runtime checks remain open before release.
+Acceptance checklist result: Pass (consistent status across README, progress, compatibility, release; branch created from full four-runtime baseline 936043f; CI URL and baseline SHA recorded).
+Next task: N01 — Version kit, upgrade từ bản cũ và compatibility state.
+
+---
+
+## Historical Implementation Log (Point-in-Time Snapshots)
+
+> The entries below were recorded at the time each dev milestone completed and are kept intact for historical context; refer to **Current Status** above for live release-gate truth.
 
 ## M0 — Audit
 
