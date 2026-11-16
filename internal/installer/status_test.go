@@ -99,3 +99,36 @@ func TestInspectIgnoresUnownedInstructionChanges(t *testing.T) {
 		t.Fatalf("unowned instructions should not be drift: %+v", report)
 	}
 }
+
+func TestInspectDetectsGlobalProfileMismatch(t *testing.T) {
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := filepath.Join(base, "home")
+	codexA := filepath.Join(base, "codex-a")
+	codexB := filepath.Join(base, "codex-b")
+	for _, d := range []string{home, codexA, codexB} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pkg, source, err := catalog.Engineer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts, err := codex.Render(pkg, source, "global")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := FreshInstall("global", map[string]string{"user-home": home, "codex-home": codexA}, pkg, source, artifacts, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	report, err := Inspect("global", map[string]string{"user-home": home, "codex-home": codexB}, artifacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Installed || report.Healthy || !report.ProfileMismatch {
+		t.Fatalf("expected profile mismatch, got %+v", report)
+	}
+}
