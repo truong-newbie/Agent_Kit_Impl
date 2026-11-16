@@ -133,6 +133,18 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 		})
 
 		checks = append(checks, doctorRuntimeSpecificChecks(profile, sc, roots)...)
+		checks = append(checks, runtimeIntegrationDoctorCheck(profile, sc))
+		if capPlan, cErr := adapter.EvaluateCapabilities(profile, sc, nil); cErr == nil {
+			for _, w := range capPlan.Warnings {
+				appendUniqueWarning(&env.Warnings, w)
+			}
+			if len(scopesToCheck) == 1 {
+				capCopy := capPlan.Capabilities
+				integCopy := capPlan.Integration
+				env.Capabilities = &capCopy
+				env.Integration = &integCopy
+			}
+		}
 
 		if sc == "project" {
 			if _, gitStatErr := os.Lstat(filepath.Join(roots["project"], ".git")); gitStatErr == nil {

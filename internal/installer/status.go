@@ -43,6 +43,8 @@ type StatusReport struct {
 	Scope               string                `json:"scope"`
 	Roots               map[string]string     `json:"roots,omitempty"`
 	Capabilities        *adapter.Capabilities `json:"capabilities,omitempty"`
+	IntegrationStatus   string                `json:"integrationStatus,omitempty"` // verified | partial | unverified
+	IntegrationNote     string                `json:"integrationNote,omitempty"`
 	KitID               string                `json:"kitId,omitempty"`
 	KitVersion          string                `json:"kitVersion,omitempty"`
 	KitDigest           string                `json:"kitDigest,omitempty"`
@@ -67,9 +69,13 @@ func InspectRuntime(runtimeName, scope string, roots map[string]string, _ []adap
 		return report, pErr
 	}
 	report.Runtime = profile.ID
-	if capSet, ok := profile.CapabilitiesMap[scope]; ok {
-		capCopy := capSet
+	if capPlan, err := adapter.EvaluateCapabilities(profile, scope, nil); err == nil {
+		capCopy := capPlan.Capabilities
 		report.Capabilities = &capCopy
+		report.IntegrationStatus = capPlan.Integration.Status
+		report.IntegrationNote = capPlan.Integration.Note
+	} else {
+		report.IntegrationStatus = adapter.IntegrationUnverified
 	}
 	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {

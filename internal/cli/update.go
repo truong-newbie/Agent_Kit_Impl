@@ -107,6 +107,9 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 		Digest:        pkgDigest,
 		ArchiveSHA256: resolved.ArchiveSHA256,
 	}
+	if err := applyScopeCapabilitiesAndBinaryWarnings(deps, profile, scope, &pkg, &env); err != nil {
+		return fail(err)
+	}
 
 	artifacts, err := adapter.RenderForRuntime(profile.ID, pkg, source, scope)
 	if err != nil {

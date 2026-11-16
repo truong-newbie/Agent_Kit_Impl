@@ -112,6 +112,9 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		Digest:        pkgDigest,
 		ArchiveSHA256: resolved.ArchiveSHA256,
 	}
+	if err := applyScopeCapabilitiesAndBinaryWarnings(deps, profile, scope, &pkg, &env); err != nil {
+		return fail(err)
+	}
 
 	artifacts, err := adapter.RenderForRuntime(profile.ID, pkg, source, scope)
 	if err != nil {
@@ -218,13 +221,6 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 
 	if ctx.Err() != nil {
 		return fail(apperr.Cancelled("installation cancelled"))
-	}
-
-	if _, lookErr := deps.LookPath(profile.Binary); lookErr != nil {
-		env.Warnings = append(env.Warnings, fmt.Sprintf("%s executable not found on PATH; files will still be installed", profile.Binary))
-	}
-	if capSet, ok := profile.CapabilitiesMap[scope]; ok && !capSet.Instructions.DTKitSupported && capSet.Instructions.Note != "" {
-		env.Warnings = append(env.Warnings, capSet.Instructions.Note)
 	}
 
 	if err := persistResolvedCache(deps.Env, resolved); err != nil {

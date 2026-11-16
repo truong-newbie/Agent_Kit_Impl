@@ -12,6 +12,7 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/gemini"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/opencode"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
 )
@@ -185,4 +186,56 @@ func doctorRuntimeSpecificChecks(profile adapter.RuntimeProfile, scope string, r
 		}
 	}
 	return checks
+}
+
+func appendUniqueWarning(warnings *[]string, msg string) {
+	if msg == "" {
+		return
+	}
+	for _, existing := range *warnings {
+		if existing == msg {
+			return
+		}
+	}
+	*warnings = append(*warnings, msg)
+}
+
+// applyScopeCapabilitiesAndBinaryWarnings populates consistent capability metadata, integration status,
+// missing-binary warnings, and capability fallback warnings across preview, apply, noop, info, and status.
+func applyScopeCapabilitiesAndBinaryWarnings(deps Deps, profile adapter.RuntimeProfile, scope string, pkg *catalog.Package, env *Envelope) error {
+	capPlan, err := adapter.EvaluateCapabilities(profile, scope, pkg)
+	if err != nil {
+		return err
+	}
+	capCopy := capPlan.Capabilities
+	integCopy := capPlan.Integration
+	env.Capabilities = &capCopy
+	env.Integration = &integCopy
+	for _, w := range capPlan.Warnings {
+		appendUniqueWarning(&env.Warnings, w)
+	}
+	if !capPlan.Capabilities.Instructions.DTKitSupported && capPlan.Capabilities.Instructions.Note != "" {
+		appendUniqueWarning(&env.Warnings, capPlan.Capabilities.Instructions.Note)
+	}
+	if _, lookErr := deps.LookPath(profile.Binary); lookErr != nil {
+		appendUniqueWarning(&env.Warnings, fmt.Sprintf("%s executable not found on PATH; files will still be installed", profile.Binary))
+	}
+	return nil
+}
+
+func runtimeIntegrationDoctorCheck(profile adapter.RuntimeProfile, scope string) DoctorCheck {
+	integ := adapter.IntegrationEvidence{Status: adapter.IntegrationUnverified, Note: "runtime integration unverified"}
+	if ev, ok := profile.IntegrationMap[scope]; ok {
+		integ = ev
+	}
+	status := "warn"
+	if integ.Status == adapter.IntegrationVerified {
+		status = "pass"
+	}
+	return DoctorCheck{
+		Name:    "runtime_integration",
+		Scope:   scope,
+		Status:  status,
+		Message: fmt.Sprintf("%s (%s): %s", integ.Status, profile.ID, integ.Note),
+	}
 }

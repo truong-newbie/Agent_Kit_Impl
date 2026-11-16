@@ -124,6 +124,14 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 			if !isPrimary && !report.Installed && !report.RecoveryNeeded {
 				continue
 			}
+			if runtimeArg == rtProfile.ID || report.Installed {
+				if report.Capabilities != nil && !report.Capabilities.Instructions.DTKitSupported && report.Capabilities.Instructions.Note != "" {
+					appendUniqueWarning(&env.Warnings, report.Capabilities.Instructions.Note)
+				}
+				if _, lookErr := deps.LookPath(rtProfile.Binary); lookErr != nil {
+					appendUniqueWarning(&env.Warnings, fmt.Sprintf("%s executable not found on PATH; files will still be installed", rtProfile.Binary))
+				}
+			}
 			if report.RecoveryNeeded || (report.Installed && (!report.Healthy || report.ProfileMismatch)) {
 				hasDrift = true
 			}
@@ -139,6 +147,10 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 		installed := reports[0].Installed
 		env.Installed = &installed
 		env.Roots = reports[0].Roots
+		env.Capabilities = reports[0].Capabilities
+		if reports[0].IntegrationStatus != "" {
+			env.Integration = &adapter.IntegrationEvidence{Status: reports[0].IntegrationStatus, Note: reports[0].IntegrationNote}
+		}
 	}
 
 	if jsonOutput {
@@ -169,7 +181,11 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 			continue
 		}
 		if report.Healthy {
-			fmt.Fprintf(deps.Stdout, "DTKit %s%s installation is healthy (%s %s, %d artifacts).\n", report.Scope, rtLabel, report.KitID, report.KitVersion, len(report.Artifacts))
+			integ := report.IntegrationStatus
+			if integ == "" {
+				integ = adapter.IntegrationUnverified
+			}
+			fmt.Fprintf(deps.Stdout, "DTKit %s%s artifact files are healthy (%s %s, %d artifacts; integration: %s).\n", report.Scope, rtLabel, report.KitID, report.KitVersion, len(report.Artifacts), integ)
 			for _, u := range report.UnknownFiles {
 				fmt.Fprintf(deps.Stdout, "info\tunowned file in skill dir: %s\n", u)
 			}

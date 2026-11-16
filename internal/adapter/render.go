@@ -31,6 +31,85 @@ func RenderForRuntime(runtime string, p catalog.Package, source fs.FS, scope str
 	return RenderKit(profile, p, source, scope)
 }
 
+// CapabilityPlan summarizes DTKit's actual managed capabilities, runtime integration evidence,
+// and deterministic fallback warnings for a given runtime profile, scope, and optional package.
+type CapabilityPlan struct {
+	Capabilities Capabilities
+	Integration  IntegrationEvidence
+	Warnings     []string
+}
+
+// EvaluateCapabilities strictly validates required package capabilities against what DTKit manages
+// in (profile, scope) and collects deterministic optional-fallback warnings without filesystem access.
+func EvaluateCapabilities(profile RuntimeProfile, scope string, pkg *catalog.Package) (CapabilityPlan, error) {
+	var out CapabilityPlan
+	if !profile.SupportsScope(scope) {
+		return out, apperr.Usage("invalid_scope", fmt.Sprintf("unsupported scope %q for runtime %q", scope, profile.ID))
+	}
+	capSet, hasCaps := profile.CapabilitiesMap[scope]
+	if !hasCaps {
+		return out, apperr.Usage("unsupported_scope", fmt.Sprintf("runtime %q does not declare capabilities for %s scope", profile.ID, scope))
+	}
+	out.Capabilities = capSet
+	if integ, ok := profile.IntegrationMap[scope]; ok {
+		out.Integration = integ
+	} else {
+		out.Integration = IntegrationEvidence{Status: IntegrationUnverified, Note: "runtime integration unverified"}
+	}
+
+	_, hasInstr := profile.Instructions[scope]
+	_, hasSkills := profile.Skills[scope]
+
+	checkCap := func(name string) (supported bool, note string, known bool) {
+		switch name {
+		case "instructions":
+			return hasInstr && capSet.Instructions.DTKitSupported, capSet.Instructions.Note, true
+		case "skills":
+			return hasSkills && capSet.Skills.DTKitSupported, capSet.Skills.Note, true
+		case "hooks":
+			return false, capSet.Hooks.Note, true
+		default:
+			return false, "", false
+		}
+	}
+
+	if pkg != nil {
+		for _, reqCap := range pkg.RequiresCapabilities {
+			ok, note, known := checkCap(reqCap)
+			if !known {
+				return out, apperr.Usage("unsupported_capability", fmt.Sprintf("package %q requires unknown capability %q", pkg.ID, reqCap))
+			}
+			if !ok {
+				detail := fmt.Sprintf("runtime %s %s scope does not support DTKit-managed required capability %q", profile.ID, scope, reqCap)
+				if note != "" {
+					detail += " (" + note + ")"
+				}
+				hint := fmt.Sprintf("choose a supported runtime/scope, or declare %q in optionalCapabilities if fallback is intended", reqCap)
+				if reqCap == "hooks" {
+					hint = "kit packages cannot auto-install hooks; remove \"hooks\" from requiresCapabilities (for Codex, enable opt-in hooks via 'dtkit hooks enable session-context')"
+				}
+				return out, apperr.WithHint(apperr.Usage("unsupported_capability", detail), hint)
+			}
+		}
+		for _, optCap := range pkg.OptionalCapabilities {
+			ok, note, known := checkCap(optCap)
+			if !known {
+				return out, apperr.Usage("unsupported_capability", fmt.Sprintf("package %q declares unknown optional capability %q", pkg.ID, optCap))
+			}
+			if !ok {
+				msg := note
+				if msg == "" {
+					msg = fmt.Sprintf("runtime %s %s scope does not support optional capability %q; skipping", profile.ID, scope, optCap)
+				}
+				out.Warnings = append(out.Warnings, msg)
+			}
+		}
+	} else if !capSet.Instructions.DTKitSupported && capSet.Instructions.Note != "" {
+		out.Warnings = append(out.Warnings, capSet.Instructions.Note)
+	}
+	return out, nil
+}
+
 // RenderKit deterministically renders a validated kit package for a specific RuntimeProfile and scope
 // without touching the filesystem.
 func RenderKit(profile RuntimeProfile, p catalog.Package, source fs.FS, scope string) ([]Artifact, error) {
@@ -45,6 +124,9 @@ func RenderKit(profile RuntimeProfile, p catalog.Package, source fs.FS, scope st
 	}
 	if !contains(p.Scopes, scope) {
 		return nil, apperr.Usage("unsupported_scope", fmt.Sprintf("package %q does not support scope %q", p.ID, scope))
+	}
+	if _, err := EvaluateCapabilities(profile, scope, &p); err != nil {
+		return nil, err
 	}
 
 	skillLoc, hasSkills := profile.Skills[scope]

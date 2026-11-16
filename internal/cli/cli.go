@@ -21,7 +21,7 @@ Usage:
   dtkit version [--json]
   dtkit help [command]
   dtkit list [--json]
-  dtkit info <kit>[@<ver>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]
+  dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]
   dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]
   dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor>] [--json]
   dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
@@ -126,7 +126,7 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]\n       dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor>] [--json]\n")
 		return err
 	case "info":
-		_, err := io.WriteString(out, "Usage: dtkit info <kit>[@<ver>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]\n")
 		return err
 	case "create":
 		_, err := io.WriteString(out, "Usage: dtkit create <kit|skill> [options]\n")
@@ -220,7 +220,7 @@ func runList(args []string, deps Deps) error {
 }
 
 func runInfo(ctx context.Context, args []string, deps Deps) error {
-	var kitID, fromPath, sourceURL, sha256Hex string
+	var kitID, fromPath, sourceURL, sha256Hex, runtimeArg, scope string
 	var offline bool
 	jsonOutput := hasJSONFlag(args)
 	env := newEnvelope("info")
@@ -238,13 +238,25 @@ func runInfo(ctx context.Context, args []string, deps Deps) error {
 			deps.Verbose = true
 		case "--offline":
 			offline = true
-		case "--from", "--source", "--sha256":
+		case "--project":
+			if scope != "" {
+				return fail(apperr.Usage("conflicting_scope", "choose at most one of --project or --global"))
+			}
+			scope = "project"
+		case "--global":
+			if scope != "" {
+				return fail(apperr.Usage("conflicting_scope", "choose at most one of --project or --global"))
+			}
+			scope = "global"
+		case "--runtime", "--from", "--source", "--sha256":
 			flag := args[i]
 			i++
 			if i >= len(args) {
 				return fail(apperr.Usage("missing_flag_value", fmt.Sprintf("%s requires a value", flag)))
 			}
 			switch flag {
+			case "--runtime":
+				runtimeArg = args[i]
 			case "--from":
 				fromPath = args[i]
 			case "--source":
@@ -254,28 +266,60 @@ func runInfo(ctx context.Context, args []string, deps Deps) error {
 			}
 		default:
 			if strings.HasPrefix(args[i], "-") || kitID != "" {
-				return fail(apperr.Usage("invalid_usage", "usage: dtkit info <kit>[@<ver>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]"))
+				return fail(apperr.Usage("invalid_usage", "usage: dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]"))
 			}
 			kitID = args[i]
 		}
 	}
 	if kitID == "" {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit info <kit>[@<ver>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]"))
+		return fail(apperr.Usage("missing_kit", "usage: dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]"))
+	}
+	var targetProfile *adapter.RuntimeProfile
+	if runtimeArg != "" || scope != "" {
+		p, pErr := resolveRuntimeProfile(runtimeArg)
+		if pErr != nil {
+			return fail(pErr)
+		}
+		targetProfile = &p
+		env.Runtime = p.ID
+		if scope != "" {
+			env.Scope = scope
+		}
 	}
 	res, err := resolveKitSource(ctx, deps, kitID, fromPath, sourceURL, sha256Hex, offline, dist.CacheReadOnly)
 	if err != nil {
 		return fail(err)
 	}
 	p, digest, archiveSHA := res.Package, res.PackageDigest, res.ArchiveSHA256
+	if targetProfile != nil {
+		evalScopes := p.Scopes
+		if scope != "" {
+			evalScopes = []string{scope}
+		}
+		for _, sc := range evalScopes {
+			if err := applyScopeCapabilitiesAndBinaryWarnings(deps, *targetProfile, sc, &p, &env); err != nil {
+				return fail(err)
+			}
+		}
+	}
 	if jsonOutput {
 		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest, ArchiveSHA256: archiveSHA}
 		env.Package = &p
 		return writeEnvelope(deps.Stdout, env)
 	}
-	_, err = fmt.Fprintf(deps.Stdout, "%s %s (%s)\n%s\nRuntimes: %s\nScopes: %s\nComponents: %d\nDigest: %s\n",
+	for _, w := range env.Warnings {
+		fmt.Fprintf(deps.Stderr, "warning: %s\n", w)
+	}
+	optCaps := "none"
+	if len(p.OptionalCapabilities) > 0 {
+		optCaps = strings.Join(p.OptionalCapabilities, ", ")
+	}
+	_, err = fmt.Fprintf(deps.Stdout, "%s %s (%s)\n%s\nRuntimes: %s\nScopes: %s\nRequired capabilities: %s\nOptional capabilities: %s\nComponents: %d\nDigest: %s\n",
 		p.ID, p.Version, p.Name, p.Description,
 		strings.Join(p.RuntimeTargets, ", "),
 		strings.Join(p.Scopes, ", "),
+		strings.Join(p.RequiresCapabilities, ", "),
+		optCaps,
 		len(p.Components), digest)
 	return err
 }
@@ -373,9 +417,17 @@ func runValidate(ctx context.Context, args []string, deps Deps) error {
 		targets = []string{env.Runtime}
 	}
 	for _, rt := range targets {
+		prof, ok := adapter.Profile(rt)
 		for _, scope := range p.Scopes {
 			if _, err := adapter.RenderForRuntime(rt, p, memFS, scope); err != nil {
 				return fail(err)
+			}
+			if ok {
+				if capPlan, cErr := adapter.EvaluateCapabilities(prof, scope, &p); cErr == nil {
+					for _, w := range capPlan.Warnings {
+						appendUniqueWarning(&env.Warnings, w)
+					}
+				}
 			}
 		}
 	}

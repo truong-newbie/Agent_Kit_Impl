@@ -35,6 +35,18 @@ type Capabilities struct {
 	Hooks        CapabilityStatus `json:"hooks"`
 }
 
+const (
+	IntegrationVerified   = "verified"
+	IntegrationPartial    = "partial"
+	IntegrationUnverified = "unverified"
+)
+
+// IntegrationEvidence tracks static verified runtime integration status for a runtime and scope.
+type IntegrationEvidence struct {
+	Status string `json:"status"` // verified | partial | unverified
+	Note   string `json:"note,omitempty"`
+}
+
 // SkillLocation maps a scope to the root key and directory prefix holding rendered skills.
 type SkillLocation struct {
 	Root   string
@@ -107,6 +119,7 @@ type RuntimeProfile struct {
 	ContentRoot     map[string]string // scope -> root key ("project" or "user-home")
 	ContentRelBase  string            // e.g. ".dtkit/content" or ".dtkit/runtimes/gemini/content"
 	CapabilitiesMap map[string]Capabilities
+	IntegrationMap  map[string]IntegrationEvidence
 }
 
 var profiles = map[string]RuntimeProfile{
@@ -150,6 +163,10 @@ var profiles = map[string]RuntimeProfile{
 				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "opt-in $CODEX_HOME/hooks.json SessionStart"},
 			},
 		},
+		IntegrationMap: map[string]IntegrationEvidence{
+			"project": {Status: IntegrationPartial, Note: "skill discovery verified on codex-cli 0.169.0; global, live tool execution, and hook trust pending verification"},
+			"global":  {Status: IntegrationUnverified, Note: "rendered and CLI-tested only; live Codex global verification pending"},
+		},
 	},
 	"gemini": {
 		ID:             "gemini",
@@ -186,6 +203,10 @@ var profiles = map[string]RuntimeProfile{
 				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.gemini/skills/dtkit-gemini-global-*"},
 				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Gemini CLI supports hooks in ~/.gemini/settings.json; not managed by DTKit"},
 			},
+		},
+		IntegrationMap: map[string]IntegrationEvidence{
+			"project": {Status: IntegrationUnverified, Note: "rendered and schema-checked only; live Gemini CLI verification pending"},
+			"global":  {Status: IntegrationUnverified, Note: "rendered and schema-checked only; live Gemini CLI verification pending"},
 		},
 	},
 	"opencode": {
@@ -224,6 +245,10 @@ var profiles = map[string]RuntimeProfile{
 				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "OpenCode uses JS/TS plugins (~/.config/opencode/plugins/); shell hooks not managed by DTKit"},
 			},
 		},
+		IntegrationMap: map[string]IntegrationEvidence{
+			"project": {Status: IntegrationPartial, Note: "CLI discovery verified on opencode 1.19.5; live model task execution pending"},
+			"global":  {Status: IntegrationPartial, Note: "CLI discovery verified on opencode 1.19.5; live model task execution pending"},
+		},
 	},
 	"cursor": {
 		ID:             "cursor",
@@ -257,6 +282,10 @@ var profiles = map[string]RuntimeProfile{
 				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.cursor/skills/dtkit-cursor-global-*"},
 				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Cursor supports hooks in ~/.cursor/hooks.json; not managed by DTKit"},
 			},
+		},
+		IntegrationMap: map[string]IntegrationEvidence{
+			"project": {Status: IntegrationUnverified, Note: "rendered and schema-checked only; live Cursor verification pending"},
+			"global":  {Status: IntegrationUnverified, Note: "rendered and schema-checked only (skills-only fallback; global User Rules managed in Cursor Settings UI); live Cursor verification pending"},
 		},
 	},
 }
