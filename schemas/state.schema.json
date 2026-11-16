@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DTKit Installation State v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "managedBy",
+    "generation",
+    "scope",
+    "runtime",
+    "adapterRevision",
+    "kit",
+    "artifacts",
+    "installedAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "managedBy": { "const": "dtkit" },
+    "generation": { "type": "integer", "minimum": 1 },
+    "scope": { "enum": ["project", "global"] },
+    "runtime": { "const": "codex" },
+    "adapterRevision": { "const": "1" },
+    "codexHome": { "type": "string" },
+    "kit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "digest"],
+      "properties": {
+        "id": { "type": "string" },
+        "version": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sourceKind": { "enum": ["bundled", "local"] }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["root", "path", "strategy", "digest"],
+        "properties": {
+          "root": { "enum": ["project", "user-home", "codex-home"] },
+          "path": { "type": "string", "minLength": 1 },
+          "strategy": { "enum": ["whole-file", "managed-block"] },
+          "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "block": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["digest", "separator", "createdFile"],
+            "properties": {
+              "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "separator": { "enum": ["", "\n", "\r\n"] },
+              "createdFile": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "lastTransactionID": { "type": "string" },
+    "installedAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}

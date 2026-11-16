@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DTKit CLI JSON Output v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "command", "ok", "warnings", "errors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "command": { "type": "string" },
+    "ok": { "type": "boolean" },
+    "dryRun": { "type": "boolean" },
+    "runtime": { "type": "string" },
+    "scope": { "type": "string" },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "path": { "type": "string" },
+          "hint": { "type": "string" }
+        }
+      }
+    }
+  }
+}
