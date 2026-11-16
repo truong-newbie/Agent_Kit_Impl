@@ -15,4 +15,11 @@ go run ./cmd/dtkit info engineer
 go run ./cmd/dtkit install engineer --project --dry-run
 ```
 
+If Windows Device Guard blocks the Go executable, keep the policy enabled and
+run the same checks through Docker Desktop:
+
+```powershell
+.\\scripts\\verify-docker.ps1
+```
+
 The development roadmap and safety requirements are in [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md). Original product notes are in [ai-agent-toolkit-spec.md](ai-agent-toolkit-spec.md) and [AI-Engineering-Kit-Global.md](AI-Engineering-Kit-Global.md).
