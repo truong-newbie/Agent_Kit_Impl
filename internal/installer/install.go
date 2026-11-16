@@ -125,7 +125,7 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 		var block *planner.BlockState
 		if artifact.Strategy == "managed-block" {
 			var blockState planner.BlockState
-			after, blockState, err = planner.AppendBlockForKit(pkg.ID, before, existed, artifact.Content, scope)
+			after, blockState, err = planner.AppendBlockForRuntime(profile.ID, pkg.ID, before, existed, artifact.Content, scope)
 			if err != nil {
 				return result, apperr.WithPath(apperr.Conflict("managed_block_conflict", err.Error()), action.Path)
 			}

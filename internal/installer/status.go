@@ -150,7 +150,7 @@ func InspectRuntime(runtimeName, scope string, roots map[string]string, _ []adap
 			return report, err
 		}
 		if artifact.Strategy == "managed-block" {
-			actual, bErr := planner.BlockDigestForKit(installed.Kit.ID, content, scope)
+			actual, bErr := planner.BlockDigestForRuntime(installed.Runtime, installed.Kit.ID, content, scope)
 			if bErr != nil {
 				item.Status, item.Detail, report.Healthy = "conflicted", bErr.Error(), false
 				hasConflict = true

@@ -170,7 +170,7 @@ func Remove(scope, kitID string, roots map[string]string, now time.Time, opts Re
 		if sa.Block == nil {
 			return res, apperr.WithPath(apperr.Conflict("invalid_block_state", "missing managed block metadata"), act.Path)
 		}
-		after, deleteFile, bErr := planner.RemoveBlockForKit(existing.Kit.ID, before, scope, *sa.Block)
+		after, deleteFile, bErr := planner.RemoveBlockForRuntime(existing.Runtime, existing.Kit.ID, before, scope, *sa.Block)
 		if bErr != nil {
 			return res, apperr.WithPath(apperr.Conflict("managed_block_conflict", bErr.Error()), act.Path)
 		}

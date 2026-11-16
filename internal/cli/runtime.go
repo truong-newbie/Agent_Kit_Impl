@@ -10,6 +10,7 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/gemini"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/opencode"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
@@ -56,6 +57,14 @@ func resolveScopeRoots(ctx context.Context, deps Deps, profile adapter.RuntimePr
 		}
 		roots["user-home"] = res.UserHome
 		roots["gemini-home"] = res.GeminiHome
+		return roots, res.Warnings, nil
+	case "opencode":
+		res, err := paths.ResolveOpenCodeGlobal(deps.Env)
+		if err != nil {
+			return nil, nil, err
+		}
+		roots["user-home"] = res.UserHome
+		roots["opencode-home"] = res.OpenCodeHome
 		return roots, res.Warnings, nil
 	default:
 		return nil, nil, apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", profile.ID))
@@ -127,6 +136,27 @@ func doctorRuntimeSpecificChecks(profile adapter.RuntimeProfile, scope string, r
 				Status:  "warn",
 				Message: warn,
 				Hint:    "include \"GEMINI.md\" in context.fileName so Gemini CLI loads DTKit managed instructions",
+			})
+		}
+	}
+	if profile.ID == "opencode" {
+		var candidates []string
+		if scope == "project" {
+			candidates = []string{
+				filepath.Join(roots["project"], "opencode.json"),
+				filepath.Join(roots["project"], ".opencode", "opencode.json"),
+			}
+		} else {
+			candidates = []string{
+				filepath.Join(roots["opencode-home"], "opencode.json"),
+			}
+		}
+		for _, warn := range opencode.InspectConfigWarnings(candidates) {
+			checks = append(checks, DoctorCheck{
+				Name:    "opencode_config",
+				Scope:   scope,
+				Status:  "warn",
+				Message: warn,
 			})
 		}
 	}

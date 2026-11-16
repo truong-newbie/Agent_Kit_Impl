@@ -243,14 +243,14 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 					return res, apperr.WithPath(apperr.Conflict("invalid_block_state", "missing managed block state"), act.Path)
 				}
 				var bs planner.BlockState
-				after, bs, err = planner.ReplaceBlockForKit(pkg.ID, before, want.Content, scope, *recorded.Block)
+				after, bs, err = planner.ReplaceBlockForRuntime(profile.ID, pkg.ID, before, want.Content, scope, *recorded.Block)
 				if err != nil {
 					return res, apperr.WithPath(apperr.Conflict("managed_block_conflict", err.Error()), act.Path)
 				}
 				nextBlock = &bs
 			} else {
 				var bs planner.BlockState
-				after, bs, err = planner.AppendBlockForKit(pkg.ID, before, existed, want.Content, scope)
+				after, bs, err = planner.AppendBlockForRuntime(profile.ID, pkg.ID, before, existed, want.Content, scope)
 				if err != nil {
 					return res, apperr.WithPath(apperr.Conflict("managed_block_conflict", err.Error()), act.Path)
 				}

@@ -25,7 +25,7 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": { "enum": ["codex", "gemini"] }
+      "items": { "enum": ["codex", "gemini", "opencode"] }
     },
     "scopes": {
       "type": "array",
