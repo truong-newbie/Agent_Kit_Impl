@@ -1,13 +1,14 @@
 //go:build !windows
 
-package installer
+package paths
 
 import (
 	"errors"
 	"syscall"
 )
 
-func processLiveness(pid int) string {
+// ProcessLiveness checks whether pid is alive on POSIX systems ("alive", "dead", or "unknown").
+func ProcessLiveness(pid int) string {
 	if pid <= 0 {
 		return "unknown"
 	}

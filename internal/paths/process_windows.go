@@ -1,6 +1,6 @@
 //go:build windows
 
-package installer
+package paths
 
 import (
 	"errors"
@@ -14,7 +14,8 @@ const (
 	errAccessDenied         = syscall.Errno(5)
 )
 
-func processLiveness(pid int) string {
+// ProcessLiveness checks whether pid is alive on Windows ("alive", "dead", or "unknown").
+func ProcessLiveness(pid int) string {
 	if pid <= 0 {
 		return "unknown"
 	}
