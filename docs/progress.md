@@ -104,3 +104,16 @@ Status: implemented and local-container verified (CI & real Codex `/hooks` trust
 - Upgraded state schema (`internal/state`, `schemas/state.schema.json`) to support v1 -> v2 migration with `Hooks` registrations; integrated `hooks enable/disable/status/list` with `ExecuteTx`, cross-scope duplicate guard, `dtkit remove` cleanup, and `dtkit update` preservation.
 - Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`), including `internal/hooks/hooks_test.go`, `internal/installer/hooks_test.go`, `internal/cli/hooks_test.go`, and built-binary `sh -c` hook execution in `internal/cli/e2e_test.go`.
 - Next: Push `feat/hooks-v0.2` and verify Windows/Linux/macOS + `-race` CI (including PowerShell `commandWindows` execution in `e2e_test.go`), test interactive `/hooks` trust review in Codex CLI, then move to D1 (v0.3 packaging/remote).
+
+## D1 — v0.3 Authoring, deterministic archives, digest cache, and remote sources
+
+Status: implemented and local-container verified (CI pending)
+
+- Added `internal/dist` (`scaffold.go`, `archive.go`, `cache.go`, `remote.go`):
+  - `dtkit create kit` & `dtkit create skill` scaffolding standalone kits validated by `catalog.LoadDir` + Codex render.
+  - `dtkit pack` generating deterministic reproducible `.tar.gz` archives + `.sha256` files, and `ReadArchiveBytes` / `ReadArchiveFile` validating archives purely in memory (rejecting traversal, symlinks, hardlinks, FIFOs/devices, case collisions, scripts/executables, and >1 MiB/10 MiB payloads).
+  - Digest-keyed cache (`Cache`) with atomic `.part` download cleanup, cache corruption detection on read, HTTPS-only enforcement (plus loopback HTTP for test servers), `<id>@<version>` resolution, registry index JSON support, `minCliVersion` check, and `--offline --sha256` reinstall.
+- Extended `state.Kit` (`archiveSha256`, `archive`/`remote` source kinds) and `paths.Environment.UserCacheDir`, and updated `install`, `update`, `info`, `validate` to share `resolveKitSource`.
+- Added unit/integration tests in `internal/dist/dist_test.go` and `internal/cli/dist_test.go` covering deterministic pack, hostile archives, partial download `.part` cleanup, cache corruption, `minCliVersion`, offline reinstall, and end-to-end authoring -> remote install -> update -> remove -> offline cache reinstall.
+- Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`).
+- Next: Push `feat/distribution-v0.3` for 3-OS + `-race` CI, then proceed to R1–R3 (v0.4+ Gemini CLI, OpenCode, Cursor adapters).

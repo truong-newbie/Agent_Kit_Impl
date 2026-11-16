@@ -5,12 +5,15 @@
 - `dtkit version [--json]` — Print CLI version, commit, and build date.
 - `dtkit help [command]` — Show general or command-specific usage.
 - `dtkit list [--json]` — List kits in the bundled catalog.
-- `dtkit info <kit> [--from <dir>] [--json]` — Show kit metadata, components, and deterministic digest.
-- `dtkit validate <dir> [--json]` — Strictly validate a local kit directory (schema, paths, DAG, and Codex rendering for supported scopes).
-- `dtkit doctor [--runtime codex] [--project|--global] [--path <dir>] [--json]` — Read-only environment, root, `AGENTS.override.md`, `.gitignore`, and state checks.
-- `dtkit install <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]` — Fresh install or idempotent no-op if already installed and healthy.
+- `dtkit info <kit> [--from <dir|archive>] [--json]` — Show kit metadata, components, and deterministic digest.
+- `dtkit validate <dir|archive> [--json]` — Strictly validate a local kit directory or `.tar.gz` archive (schema, paths, DAG, and Codex rendering for supported scopes).
+- `dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]` — Scaffold a new standalone kit package passing `dtkit validate`.
+- `dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]` — Add a templated skill to an existing kit package and re-validate.
+- `dtkit pack <dir> [--out <file.tar.gz>] [--json]` — Build a deterministic `.tar.gz` package archive and `.sha256` checksum file.
+- `dtkit doctor [--runtime codex] [--project|--global] [--path <dir>] [--json]` — Read-only environment, root, `AGENTS.override.md`, `.gitignore`, and state checks (never accesses network).
+- `dtkit install <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]` — Fresh install or idempotent no-op from bundled catalog, local dir/archive, HTTPS source, or offline digest cache.
 - `dtkit status [--project|--global] [--path <dir>] [--json]` — Inspect installed state and report drift (`healthy`, `modified`, `missing`, `conflicted`, `recovery_required`, `profile_mismatch`, `not_installed`).
-- `dtkit update <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]` — Upgrade kit version (semver increasing) or migrate adapter revision while preserving user content outside managed blocks.
+- `dtkit update <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]` — Upgrade kit version (semver increasing) or migrate adapter revision while preserving user content outside managed blocks.
 - `dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]` — Remove DTKit-owned files and managed blocks based on `state.json`.
 - `dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]` — Inspect and resolve interrupted transactions or stale dead-PID locks.
 - `dtkit hooks <list|status|enable|disable> [options]` — Manage opt-in `session-context` (`SessionStart`) Codex hooks (schema v2, structural JSON merge in `.codex/hooks.json` or `$CODEX_HOME/hooks.json`, cross-scope duplicate check, and `configured_pending_trust` guidance).
