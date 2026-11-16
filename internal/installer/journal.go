@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
 )
@@ -58,8 +59,10 @@ type Journal struct {
 	ID            string          `json:"id"`
 	Operation     string          `json:"operation"` // install | update | remove
 	Scope         string          `json:"scope"`
+	Runtime       string          `json:"runtime,omitempty"`
 	KitID         string          `json:"kitId"`
 	CodexHome     string          `json:"codexHome,omitempty"`
+	RuntimeHome   string          `json:"runtimeHome,omitempty"`
 	Phase         string          `json:"phase"`
 	CreatedAt     string          `json:"createdAt"`
 	UpdatedAt     string          `json:"updatedAt"`
@@ -69,11 +72,26 @@ type Journal struct {
 	CreatedDirs   []JournalDir    `json:"createdDirs,omitempty"`
 }
 
+func (j Journal) EffectiveRuntime() string {
+	return adapter.NormalizeRuntime(j.Runtime)
+}
+
+func (j Journal) GlobalHome() string {
+	if j.CodexHome != "" {
+		return j.CodexHome
+	}
+	return j.RuntimeHome
+}
+
 func (j Journal) IsTerminal() bool {
 	return j.Phase == phaseCommitted || j.Phase == phaseRolledBack
 }
 
 func validateJournal(j Journal, expectedScope string) error {
+	return validateJournalForRuntime(j, expectedScope, "")
+}
+
+func validateJournalForRuntime(j Journal, expectedScope, expectedRuntime string) error {
 	if j.SchemaVersion != journalSchemaVer {
 		return fmt.Errorf("unsupported journal schemaVersion %d", j.SchemaVersion)
 	}
@@ -91,11 +109,28 @@ func validateJournal(j Journal, expectedScope string) error {
 	if expectedScope != "" && j.Scope != expectedScope {
 		return fmt.Errorf("journal scope %q does not match requested %q", j.Scope, expectedScope)
 	}
-	if j.Scope == "global" && j.CodexHome == "" {
-		return fmt.Errorf("global journal missing codexHome binding")
+	rt := j.EffectiveRuntime()
+	if expectedRuntime != "" && rt != adapter.NormalizeRuntime(expectedRuntime) {
+		return fmt.Errorf("journal runtime %q does not match requested %q", rt, expectedRuntime)
 	}
-	if j.Scope == "project" && j.CodexHome != "" {
-		return fmt.Errorf("project journal cannot specify codexHome")
+	profile, ok := adapter.Profile(rt)
+	if !ok {
+		return fmt.Errorf("unsupported journal runtime %q", rt)
+	}
+	if profile.UsesCodexHome {
+		if j.Scope == "global" && j.CodexHome == "" {
+			return fmt.Errorf("global journal missing codexHome binding")
+		}
+		if j.Scope == "project" && j.CodexHome != "" {
+			return fmt.Errorf("project journal cannot specify codexHome")
+		}
+	} else if profile.GlobalHomeKey != "" {
+		if j.Scope == "global" && j.RuntimeHome == "" {
+			return fmt.Errorf("global journal missing runtimeHome binding")
+		}
+		if j.Scope == "project" && j.RuntimeHome != "" {
+			return fmt.Errorf("project journal cannot specify runtimeHome")
+		}
 	}
 	if j.KitID == "" || strings.ContainsAny(j.KitID, "/\\ \t\r\n") {
 		return fmt.Errorf("invalid journal kit id %q", j.KitID)
@@ -113,7 +148,7 @@ func validateJournal(j Journal, expectedScope string) error {
 	}
 	seen := map[string]bool{}
 	for _, a := range j.Actions {
-		if !state.IsAllowedArtifactPath(j.Scope, j.KitID, a.Root, a.Path, a.Strategy) {
+		if !state.IsAllowedRuntimeArtifactPath(rt, j.Scope, j.KitID, a.Root, a.Path, a.Strategy) {
 			return fmt.Errorf("journal action path %q outside allowlist", a.Path)
 		}
 		key := strings.ToLower(a.Root + "\x00" + a.Path)
@@ -145,7 +180,7 @@ func validateJournal(j Journal, expectedScope string) error {
 		}
 	}
 	for _, d := range j.CreatedDirs {
-		if !isAllowedCreatedDir(j.Scope, j.KitID, d.Root, d.Path) {
+		if !isAllowedCreatedDir(rt, j.Scope, j.KitID, d.Root, d.Path) {
 			return fmt.Errorf("journal createdDir %q outside allowlist", d.Path)
 		}
 	}
@@ -171,26 +206,12 @@ func validSHA256Hex(v string) bool {
 	return err == nil && len(b) == 32 && v == strings.ToLower(v)
 }
 
-func isAllowedCreatedDir(scope, kitID, root, rel string) bool {
-	if !paths.ValidateRelativePath(rel) {
+func isAllowedCreatedDir(runtimeName, scope, kitID, root, rel string) bool {
+	profile, ok := adapter.Profile(runtimeName)
+	if !ok {
 		return false
 	}
-	if scope == "project" && root != "project" {
-		return false
-	}
-	if scope == "global" && root != "user-home" {
-		return false
-	}
-	if rel == ".dtkit" || rel == ".dtkit/content" || rel == ".agents/skills" {
-		return true
-	}
-	if strings.HasPrefix(rel, ".dtkit/content/"+kitID) {
-		return true
-	}
-	if strings.HasPrefix(rel, ".agents/skills/dtkit-"+scope+"-") {
-		return true
-	}
-	return false
+	return profile.IsAllowedCreatedDir(scope, kitID, root, rel)
 }
 
 func resolveBackupFile(txDir, name string) (string, error) {

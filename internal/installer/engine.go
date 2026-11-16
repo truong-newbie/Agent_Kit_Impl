@@ -42,6 +42,7 @@ type TxAction struct {
 }
 
 type TxRequest struct {
+	Runtime   string // optional; defaults to codex
 	Operation string // install | update | remove
 	Scope     string // project | global
 	KitID     string
@@ -62,10 +63,14 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 	if req.Scope != "project" && req.Scope != "global" {
 		return res, apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", req.Scope))
 	}
+	profile, pErr := runtimeProfile(req.Runtime)
+	if pErr != nil {
+		return res, pErr
+	}
 	if req.Now.IsZero() {
 		req.Now = time.Now()
 	}
-	operational, err := paths.ResolveTarget(req.Roots[scopeRoot(req.Scope)], ".dtkit/local")
+	operational, err := runtimeOperationalTarget(profile.ID, req.Scope, req.Roots)
 	if err != nil {
 		return res, err
 	}
@@ -101,20 +106,25 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 		ID:            txID,
 		Operation:     req.Operation,
 		Scope:         req.Scope,
+		Runtime:       profile.ID,
 		KitID:         req.KitID,
 		Phase:         phasePreparing,
 		CreatedAt:     nowStr,
 		UpdatedAt:     nowStr,
 	}
 	if req.Scope == "global" {
-		j.CodexHome = filepath.Clean(req.Roots["codex-home"])
+		if profile.UsesCodexHome {
+			j.CodexHome = resolveGlobalHomeFromRoots(profile, req.Scope, req.Roots)
+		} else {
+			j.RuntimeHome = resolveGlobalHomeFromRoots(profile, req.Scope, req.Roots)
+		}
 	}
 	journalPath := filepath.Join(txDir, "journal.json")
 	if err := writeJSON(journalPath, j, 0600); err != nil {
 		return res, err
 	}
 
-	statePath, err := paths.ResolveTarget(req.Roots[scopeRoot(req.Scope)], ".dtkit/state.json")
+	statePath, err := runtimeStateTarget(profile.ID, req.Scope, req.Roots)
 	if err != nil {
 		return res, err
 	}
@@ -293,7 +303,7 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 				return res, err
 			}
 		} else {
-			if dirErr := ensureTrackedDirs(req.Scope, req.KitID, req.Roots[item.action.Root], item.action.Root, path.Dir(item.action.Path), &j.CreatedDirs, seenDirs); dirErr != nil {
+			if dirErr := ensureTrackedDirs(profile.ID, req.Scope, req.KitID, req.Roots[item.action.Root], item.action.Root, path.Dir(item.action.Path), &j.CreatedDirs, seenDirs); dirErr != nil {
 				err = dirErr
 				return res, err
 			}
@@ -325,7 +335,7 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 		}
 	}
 
-	if err = ensureTrackedDirs(req.Scope, req.KitID, req.Roots[scopeRoot(req.Scope)], scopeRoot(req.Scope), ".dtkit", &j.CreatedDirs, seenDirs); err != nil {
+	if err = ensureTrackedDirs(profile.ID, req.Scope, req.KitID, req.Roots[scopeRoot(req.Scope)], scopeRoot(req.Scope), profile.StateDir(), &j.CreatedDirs, seenDirs); err != nil {
 		return res, err
 	}
 	if req.NextState != nil {
@@ -341,7 +351,7 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 	stateCommitted = true
 
 	if req.Operation == "remove" || req.Operation == "update" {
-		pruneCreatedDirsForRemove(req.Scope, req.KitID, req.Roots, j.Actions)
+		pruneCreatedDirsForRemove(profile.ID, req.Scope, req.KitID, req.Roots, j.Actions)
 	}
 
 	if req.Hooks != nil && req.Hooks.BeforeCommitted != nil {
@@ -495,7 +505,7 @@ func rollbackTx(roots map[string]string, txDir string, j *Journal, statePath str
 	return nil
 }
 
-func ensureTrackedDirs(scope, kitID, absRoot, rootKey, relDir string, created *[]JournalDir, seen map[string]bool) error {
+func ensureTrackedDirs(runtimeName, scope, kitID, absRoot, rootKey, relDir string, created *[]JournalDir, seen map[string]bool) error {
 	if relDir == "" || relDir == "." {
 		return nil
 	}
@@ -525,7 +535,7 @@ func ensureTrackedDirs(scope, kitID, absRoot, rootKey, relDir string, created *[
 			return mkErr
 		}
 		key := rootKey + "\x00" + curRel
-		if isAllowedCreatedDir(scope, kitID, rootKey, curRel) && !seen[key] {
+		if isAllowedCreatedDir(runtimeName, scope, kitID, rootKey, curRel) && !seen[key] {
 			seen[key] = true
 			*created = append(*created, JournalDir{Root: rootKey, Path: curRel})
 		}
@@ -547,7 +557,7 @@ func pruneCreatedDirs(roots map[string]string, dirs []JournalDir) {
 	}
 }
 
-func pruneCreatedDirsForRemove(scope, kitID string, roots map[string]string, actions []JournalAction) {
+func pruneCreatedDirsForRemove(runtimeName, scope, kitID string, roots map[string]string, actions []JournalAction) {
 	seen := map[string]bool{}
 	var candidates []JournalDir
 	for _, act := range actions {
@@ -556,7 +566,7 @@ func pruneCreatedDirsForRemove(scope, kitID string, roots map[string]string, act
 		}
 		dir := path.Dir(act.Path)
 		for dir != "." && dir != "" {
-			if isAllowedCreatedDir(scope, kitID, act.Root, dir) {
+			if isAllowedCreatedDir(runtimeName, scope, kitID, act.Root, dir) {
 				key := act.Root + "\x00" + dir
 				if !seen[key] {
 					seen[key] = true

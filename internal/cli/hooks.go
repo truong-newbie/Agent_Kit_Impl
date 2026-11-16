@@ -40,7 +40,7 @@ func runHooks(ctx context.Context, args []string, deps Deps) error {
 }
 
 func runHooksInspect(ctx context.Context, sub string, args []string, deps Deps, env Envelope, jsonOutput bool, fail func(error) error) error {
-	var scope, projectPath string
+	var scope, projectPath, runtimeArg string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--project":
@@ -57,6 +57,12 @@ func runHooksInspect(ctx context.Context, sub string, args []string, deps Deps, 
 			jsonOutput = true
 		case "--verbose":
 			deps.Verbose = true
+		case "--runtime":
+			i++
+			if i >= len(args) {
+				return fail(apperr.Usage("missing_flag_value", "--runtime requires a value"))
+			}
+			runtimeArg = args[i]
 		case "--path":
 			i++
 			if i >= len(args) {
@@ -66,6 +72,9 @@ func runHooksInspect(ctx context.Context, sub string, args []string, deps Deps, 
 		default:
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown hooks %s option %q", sub, args[i])))
 		}
+	}
+	if err := checkHooksRuntime(runtimeArg); err != nil {
+		return fail(err)
 	}
 	if scope == "global" && projectPath != "" {
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
@@ -143,7 +152,7 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 		return fail(apperr.Usage("missing_hook", "usage: dtkit hooks enable <id> --project|--global [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]"))
 	}
 	hookID := args[0]
-	var scope, projectPath, exeOverride string
+	var scope, projectPath, exeOverride, runtimeArg string
 	var dryRun, yes bool
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
@@ -165,6 +174,12 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 			jsonOutput = true
 		case "--verbose":
 			deps.Verbose = true
+		case "--runtime":
+			i++
+			if i >= len(args) {
+				return fail(apperr.Usage("missing_flag_value", "--runtime requires a value"))
+			}
+			runtimeArg = args[i]
 		case "--path", "--executable":
 			flag := args[i]
 			i++
@@ -179,6 +194,9 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 		default:
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown hooks enable option %q", args[i])))
 		}
+	}
+	if err := checkHooksRuntime(runtimeArg); err != nil {
+		return fail(err)
 	}
 	env.DryRun = dryRun
 	env.Scope = scope
@@ -262,7 +280,7 @@ func runHooksDisable(ctx context.Context, args []string, deps Deps, env Envelope
 		return fail(apperr.Usage("missing_hook", "usage: dtkit hooks disable <id> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]"))
 	}
 	hookID := args[0]
-	var scope, projectPath string
+	var scope, projectPath, runtimeArg string
 	var dryRun, yes bool
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
@@ -284,6 +302,12 @@ func runHooksDisable(ctx context.Context, args []string, deps Deps, env Envelope
 			jsonOutput = true
 		case "--verbose":
 			deps.Verbose = true
+		case "--runtime":
+			i++
+			if i >= len(args) {
+				return fail(apperr.Usage("missing_flag_value", "--runtime requires a value"))
+			}
+			runtimeArg = args[i]
 		case "--path":
 			i++
 			if i >= len(args) {
@@ -293,6 +317,9 @@ func runHooksDisable(ctx context.Context, args []string, deps Deps, env Envelope
 		default:
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown hooks disable option %q", args[i])))
 		}
+	}
+	if err := checkHooksRuntime(runtimeArg); err != nil {
+		return fail(err)
 	}
 	env.DryRun = dryRun
 	env.Scope = scope
@@ -384,6 +411,20 @@ func resolveHookAndSiblingRoots(ctx context.Context, deps Deps, scope, projectPa
 		sibling = map[string]string{"project": pRes.Root}
 	}
 	return roots, sibling, warnings, nil
+}
+
+func checkHooksRuntime(runtimeArg string) error {
+	profile, err := resolveRuntimeProfile(runtimeArg)
+	if err != nil {
+		return err
+	}
+	if !profile.HooksSupported {
+		return apperr.WithHint(
+			apperr.Usage("hooks_not_supported", fmt.Sprintf("DTKit does not manage hooks for %s", profile.DisplayName)),
+			"DTKit hooks currently support Codex CLI (--runtime codex) only",
+		)
+	}
+	return nil
 }
 
 func runHookExec(ctx context.Context, args []string, deps Deps) error {

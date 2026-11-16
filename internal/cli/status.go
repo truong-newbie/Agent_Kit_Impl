@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
@@ -15,7 +15,6 @@ import (
 
 func runStatus(ctx context.Context, args []string, deps Deps) error {
 	env := newEnvelope("status")
-	env.Runtime = "codex"
 	jsonOutput := hasJSONFlag(args)
 	fail := func(err error) error {
 		if jsonOutput {
@@ -24,7 +23,7 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 		return err
 	}
 
-	var scope, projectPath string
+	var scope, projectPath, runtimeArg string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--project":
@@ -41,6 +40,12 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 			jsonOutput = true
 		case "--verbose":
 			deps.Verbose = true
+		case "--runtime":
+			i++
+			if i >= len(args) {
+				return fail(apperr.Usage("missing_flag_value", "--runtime requires a value"))
+			}
+			runtimeArg = args[i]
 		case "--path":
 			i++
 			if i >= len(args) {
@@ -57,6 +62,12 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 	if scope == "" && projectPath != "" {
 		scope = "project"
 	}
+
+	primaryProfile, rtErr := resolveRuntimeProfile(runtimeArg)
+	if rtErr != nil {
+		return fail(rtErr)
+	}
+	env.Runtime = primaryProfile.ID
 	env.Scope = scope
 
 	pkg, source, err := catalog.Engineer()
@@ -69,46 +80,59 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 		scopesToCheck = []string{"project", "global"}
 	}
 
+	var targetRuntimes []adapter.RuntimeProfile
+	if runtimeArg != "" {
+		targetRuntimes = []adapter.RuntimeProfile{primaryProfile}
+	} else {
+		for _, rtID := range adapter.SupportedRuntimes() {
+			if p, ok := adapter.Profile(rtID); ok {
+				targetRuntimes = append(targetRuntimes, p)
+			}
+		}
+	}
+
 	reports := make([]installer.StatusReport, 0, len(scopesToCheck))
 	hasDrift := false
-	for _, sc := range scopesToCheck {
-		var roots map[string]string
-		if sc == "project" {
-			res, err := paths.ResolveProject(ctx, deps.Env, projectPath)
-			if err != nil {
-				if scope == "" {
+	for _, rtProfile := range targetRuntimes {
+		isPrimary := rtProfile.ID == primaryProfile.ID
+		for _, sc := range scopesToCheck {
+			roots, rootWarnings, rErr := resolveScopeRoots(ctx, deps, rtProfile, sc, projectPath)
+			if rErr != nil {
+				if !isPrimary {
+					continue
+				}
+				if scope == "" && sc == "project" {
 					var appErr *apperr.Error
-					if errors.As(err, &appErr) && (appErr.Code == "home_as_project" || appErr.Code == "filesystem_root") {
+					if errors.As(rErr, &appErr) && (appErr.Code == "home_as_project" || appErr.Code == "filesystem_root") {
 						env.Warnings = append(env.Warnings, fmt.Sprintf("project status skipped: %s", appErr.Message))
 						continue
 					}
 				}
-				return fail(err)
+				return fail(rErr)
 			}
-			roots = map[string]string{"project": res.Root}
-			env.Warnings = append(env.Warnings, res.Warnings...)
-		} else {
-			res, err := paths.ResolveGlobal(deps.Env)
-			if err != nil {
-				return fail(err)
+			if isPrimary {
+				env.Warnings = append(env.Warnings, rootWarnings...)
 			}
-			roots = map[string]string{"user-home": res.UserHome, "codex-home": res.CodexHome}
-			env.Warnings = append(env.Warnings, res.Warnings...)
+			artifacts, rRenderErr := adapter.RenderForRuntime(rtProfile.ID, pkg, source, sc)
+			if rRenderErr != nil {
+				return fail(rRenderErr)
+			}
+			report, inspectErr := installer.InspectRuntime(rtProfile.ID, sc, roots, artifacts)
+			if inspectErr != nil {
+				return fail(inspectErr)
+			}
+			if !isPrimary && !report.Installed && !report.RecoveryNeeded {
+				continue
+			}
+			if report.RecoveryNeeded || (report.Installed && (!report.Healthy || report.ProfileMismatch)) {
+				hasDrift = true
+			}
+			reports = append(reports, report)
 		}
-
-		artifacts, err := codex.Render(pkg, source, sc)
-		if err != nil {
-			return fail(err)
-		}
-		report, err := installer.Inspect(sc, roots, artifacts)
-		if err != nil {
-			return fail(err)
-		}
-		if report.RecoveryNeeded || (report.Installed && (!report.Healthy || report.ProfileMismatch)) {
-			hasDrift = true
-		}
-		reports = append(reports, report)
 	}
+
+	// Ensure paths remains used if needed or let Go check clean imports.
+	_ = paths.DefaultEnvironment
 
 	env.Installations = reports
 	if len(reports) == 1 {
@@ -128,26 +152,30 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 		fmt.Fprintf(deps.Stderr, "warning: %s\n", w)
 	}
 	for _, report := range reports {
+		rtLabel := ""
+		if report.Runtime != "" && (report.Runtime != "codex" || len(reports) > len(scopesToCheck)) {
+			rtLabel = " (" + report.Runtime + ")"
+		}
 		if report.RecoveryNeeded {
-			fmt.Fprintf(deps.Stdout, "DTKit %s installation requires recovery: %s\n", report.Scope, report.Detail)
+			fmt.Fprintf(deps.Stdout, "DTKit %s%s installation requires recovery: %s\n", report.Scope, rtLabel, report.Detail)
 			continue
 		}
 		if !report.Installed {
-			fmt.Fprintf(deps.Stdout, "DTKit is not installed for %s.\n", report.Scope)
+			fmt.Fprintf(deps.Stdout, "DTKit%s is not installed for %s.\n", rtLabel, report.Scope)
 			continue
 		}
 		if report.ProfileMismatch {
-			fmt.Fprintf(deps.Stdout, "DTKit %s installation has profile mismatch: %s\n", report.Scope, report.Detail)
+			fmt.Fprintf(deps.Stdout, "DTKit %s%s installation has profile mismatch: %s\n", report.Scope, rtLabel, report.Detail)
 			continue
 		}
 		if report.Healthy {
-			fmt.Fprintf(deps.Stdout, "DTKit %s installation is healthy (%s %s, %d artifacts).\n", report.Scope, report.KitID, report.KitVersion, len(report.Artifacts))
+			fmt.Fprintf(deps.Stdout, "DTKit %s%s installation is healthy (%s %s, %d artifacts).\n", report.Scope, rtLabel, report.KitID, report.KitVersion, len(report.Artifacts))
 			for _, u := range report.UnknownFiles {
 				fmt.Fprintf(deps.Stdout, "info\tunowned file in skill dir: %s\n", u)
 			}
 			continue
 		}
-		fmt.Fprintf(deps.Stdout, "DTKit %s installation has drift (%s):\n", report.Scope, report.Classification)
+		fmt.Fprintf(deps.Stdout, "DTKit %s%s installation has drift (%s):\n", report.Scope, rtLabel, report.Classification)
 		for _, artifact := range report.Artifacts {
 			if artifact.Status != "healthy" {
 				fmt.Fprintf(deps.Stdout, "%s\t%s:%s\t%s\n", artifact.Status, artifact.Root, artifact.Path, artifact.Detail)

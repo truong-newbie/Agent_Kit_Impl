@@ -8,16 +8,14 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 func runDoctor(ctx context.Context, args []string, deps Deps) error {
 	env := newEnvelope("doctor")
-	env.Runtime = "codex"
 	jsonOutput := hasJSONFlag(args)
 	fail := func(err error) error {
 		if jsonOutput {
@@ -26,7 +24,7 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 		return err
 	}
 
-	var scope, runtime, projectPath string
+	var scope, runtimeArg, projectPath string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--project":
@@ -48,7 +46,7 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 			if i >= len(args) {
 				return fail(apperr.Usage("missing_flag_value", "--runtime requires a value"))
 			}
-			runtime = args[i]
+			runtimeArg = args[i]
 		case "--path":
 			i++
 			if i >= len(args) {
@@ -59,9 +57,11 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown doctor option %q", args[i])))
 		}
 	}
-	if runtime != "" && runtime != "codex" {
-		return fail(apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", runtime)))
+	profile, rtErr := resolveRuntimeProfile(runtimeArg)
+	if rtErr != nil {
+		return fail(rtErr)
 	}
+	env.Runtime = profile.ID
 	if scope == "global" && projectPath != "" {
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
 	}
@@ -70,23 +70,23 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 	}
 	env.Scope = scope
 
-	checks := make([]DoctorCheck, 0, 6)
+	checks := make([]DoctorCheck, 0, 8)
 	runtimeFailed := false
 
-	codexPath, lookErr := deps.LookPath("codex")
+	rtPath, lookErr := deps.LookPath(profile.Binary)
 	if lookErr != nil {
 		runtimeFailed = true
 		checks = append(checks, DoctorCheck{
 			Name:    "runtime_executable",
 			Status:  "fail",
-			Message: "Codex CLI not found on PATH",
-			Hint:    "install Codex CLI and ensure 'codex' is on PATH",
+			Message: fmt.Sprintf("%s not found on PATH", profile.DisplayName),
+			Hint:    fmt.Sprintf("install %s and ensure '%s' is on PATH", profile.DisplayName, profile.Binary),
 		})
 	} else {
 		checks = append(checks, DoctorCheck{
 			Name:    "runtime_executable",
 			Status:  "pass",
-			Message: fmt.Sprintf("Codex CLI found at %s", codexPath),
+			Message: fmt.Sprintf("%s found at %s", profile.DisplayName, rtPath),
 		})
 	}
 
@@ -101,76 +101,38 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 	}
 	stateFailed := false
 	for _, sc := range scopesToCheck {
-		var roots map[string]string
-		if sc == "project" {
-			res, err := paths.ResolveProject(ctx, deps.Env, projectPath)
-			if err != nil {
-				if scope == "" {
-					var appErr *apperr.Error
-					if errors.As(err, &appErr) && (appErr.Code == "home_as_project" || appErr.Code == "filesystem_root") {
-						checks = append(checks, DoctorCheck{
-							Name:    "root_resolution",
-							Scope:   sc,
-							Status:  "warn",
-							Message: appErr.Message,
-						})
-						continue
-					}
+		roots, rootWarnings, rErr := resolveScopeRoots(ctx, deps, profile, sc, projectPath)
+		if rErr != nil {
+			if scope == "" && sc == "project" {
+				var appErr *apperr.Error
+				if errors.As(rErr, &appErr) && (appErr.Code == "home_as_project" || appErr.Code == "filesystem_root") {
+					checks = append(checks, DoctorCheck{
+						Name:    "root_resolution",
+						Scope:   sc,
+						Status:  "warn",
+						Message: appErr.Message,
+					})
+					continue
 				}
-				checks = append(checks, DoctorCheck{
-					Name:    "root_resolution",
-					Scope:   sc,
-					Status:  "fail",
-					Message: err.Error(),
-				})
-				stateFailed = true
-				continue
 			}
-			roots = map[string]string{"project": res.Root}
-			env.Warnings = append(env.Warnings, res.Warnings...)
 			checks = append(checks, DoctorCheck{
 				Name:    "root_resolution",
 				Scope:   sc,
-				Status:  "pass",
-				Message: fmt.Sprintf("project root: %s", res.Root),
+				Status:  "fail",
+				Message: rErr.Error(),
 			})
-		} else {
-			res, err := paths.ResolveGlobal(deps.Env)
-			if err != nil {
-				checks = append(checks, DoctorCheck{
-					Name:    "root_resolution",
-					Scope:   sc,
-					Status:  "fail",
-					Message: err.Error(),
-				})
-				stateFailed = true
-				continue
-			}
-			roots = map[string]string{"user-home": res.UserHome, "codex-home": res.CodexHome}
-			env.Warnings = append(env.Warnings, res.Warnings...)
-			checks = append(checks, DoctorCheck{
-				Name:    "root_resolution",
-				Scope:   sc,
-				Status:  "pass",
-				Message: fmt.Sprintf("user-home: %s, codex-home: %s", res.UserHome, res.CodexHome),
-			})
+			stateFailed = true
+			continue
 		}
+		env.Warnings = append(env.Warnings, rootWarnings...)
+		checks = append(checks, DoctorCheck{
+			Name:    "root_resolution",
+			Scope:   sc,
+			Status:  "pass",
+			Message: describeRoots(roots),
+		})
 
-		instrRoot := roots["project"]
-		if sc == "global" {
-			instrRoot = roots["codex-home"]
-		}
-		if overridePath, err := paths.ResolveTarget(instrRoot, "AGENTS.override.md"); err == nil {
-			if info, statErr := os.Lstat(overridePath); statErr == nil && info.Size() > 0 {
-				checks = append(checks, DoctorCheck{
-					Name:    "instruction_override",
-					Scope:   sc,
-					Status:  "warn",
-					Message: fmt.Sprintf("non-empty AGENTS.override.md present at %s", overridePath),
-					Hint:    "AGENTS.override.md takes precedence over AGENTS.md in Codex",
-				})
-			}
-		}
+		checks = append(checks, doctorRuntimeSpecificChecks(profile, sc, roots)...)
 
 		if sc == "project" {
 			if _, gitStatErr := os.Lstat(filepath.Join(roots["project"], ".git")); gitStatErr == nil {
@@ -187,11 +149,11 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 			}
 		}
 
-		artifacts, err := codex.Render(pkg, source, sc)
+		artifacts, err := adapter.RenderForRuntime(profile.ID, pkg, source, sc)
 		if err != nil {
 			return fail(err)
 		}
-		report, err := installer.Inspect(sc, roots, artifacts)
+		report, err := installer.InspectRuntime(profile.ID, sc, roots, artifacts)
 		if err != nil {
 			stateFailed = true
 			checks = append(checks, DoctorCheck{
@@ -209,7 +171,7 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 				Scope:   sc,
 				Status:  "fail",
 				Message: report.Detail,
-				Hint:    fmt.Sprintf("run dtkit recover --%s --dry-run", sc),
+				Hint:    fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", sc, profile.ID),
 			})
 		} else if !report.Installed {
 			checks = append(checks, DoctorCheck{
@@ -242,7 +204,7 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 			return failJSON(deps.Stdout, env, apperr.Conflict("doctor_state_failed", "doctor found installation or root issues"))
 		}
 		if runtimeFailed {
-			return failJSON(deps.Stdout, env, apperr.Runtime("runtime_not_ready", "Codex runtime is not ready"))
+			return failJSON(deps.Stdout, env, apperr.Runtime("runtime_not_ready", fmt.Sprintf("%s runtime is not ready", profile.DisplayName)))
 		}
 		return writeEnvelope(deps.Stdout, env)
 	}
@@ -261,7 +223,7 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 		return apperr.Conflict("doctor_state_failed", "doctor found installation or root issues")
 	}
 	if runtimeFailed {
-		return apperr.Runtime("runtime_not_ready", "Codex runtime is not ready")
+		return apperr.Runtime("runtime_not_ready", fmt.Sprintf("%s runtime is not ready", profile.DisplayName))
 	}
 	return nil
 }

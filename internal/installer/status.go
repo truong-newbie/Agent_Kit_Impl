@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
@@ -32,30 +32,46 @@ type ArtifactStatus struct {
 }
 
 type StatusReport struct {
-	Installed           bool              `json:"installed"`
-	Healthy             bool              `json:"healthy"`
-	Classification      string            `json:"classification"` // not_installed | healthy | modified | missing | conflicted | recovery_required | profile_mismatch
-	ProfileMismatch     bool              `json:"profileMismatch,omitempty"`
-	RecoveryNeeded      bool              `json:"recoveryNeeded,omitempty"`
-	PendingTransactions []PendingTx       `json:"pendingTransactions,omitempty"`
-	UnknownFiles        []string          `json:"unknownFiles,omitempty"`
-	Scope               string            `json:"scope"`
-	Roots               map[string]string `json:"roots,omitempty"`
-	KitID               string            `json:"kitId,omitempty"`
-	KitVersion          string            `json:"kitVersion,omitempty"`
-	KitDigest           string            `json:"kitDigest,omitempty"`
-	BundledVersion      string            `json:"bundledVersion,omitempty"`
-	AdapterRevision     string            `json:"adapterRevision,omitempty"`
-	Artifacts           []ArtifactStatus  `json:"artifacts,omitempty"`
-	Hooks               []HookStatusInfo  `json:"hooks,omitempty"`
-	Detail              string            `json:"detail,omitempty"`
+	Installed           bool                  `json:"installed"`
+	Healthy             bool                  `json:"healthy"`
+	Classification      string                `json:"classification"` // not_installed | healthy | modified | missing | conflicted | recovery_required | profile_mismatch
+	ProfileMismatch     bool                  `json:"profileMismatch,omitempty"`
+	RecoveryNeeded      bool                  `json:"recoveryNeeded,omitempty"`
+	PendingTransactions []PendingTx           `json:"pendingTransactions,omitempty"`
+	UnknownFiles        []string              `json:"unknownFiles,omitempty"`
+	Runtime             string                `json:"runtime,omitempty"`
+	Scope               string                `json:"scope"`
+	Roots               map[string]string     `json:"roots,omitempty"`
+	Capabilities        *adapter.Capabilities `json:"capabilities,omitempty"`
+	KitID               string                `json:"kitId,omitempty"`
+	KitVersion          string                `json:"kitVersion,omitempty"`
+	KitDigest           string                `json:"kitDigest,omitempty"`
+	BundledVersion      string                `json:"bundledVersion,omitempty"`
+	AdapterRevision     string                `json:"adapterRevision,omitempty"`
+	Artifacts           []ArtifactStatus      `json:"artifacts,omitempty"`
+	Hooks               []HookStatusInfo      `json:"hooks,omitempty"`
+	Detail              string                `json:"detail,omitempty"`
 }
 
-// Inspect reads DTKit state and compares its owned bytes with disk. It never
-// repairs, removes, or creates anything.
-func Inspect(scope string, roots map[string]string, _ []codex.Artifact) (StatusReport, error) {
-	report := StatusReport{Scope: scope, Roots: roots, Classification: "not_installed"}
-	pending, lockStatus, err := InspectTransactions(scope, roots)
+// Inspect reads Codex DTKit state and compares its owned bytes with disk.
+func Inspect(scope string, roots map[string]string, expected []adapter.Artifact) (StatusReport, error) {
+	return InspectRuntime(adapter.DefaultRuntime, scope, roots, expected)
+}
+
+// InspectRuntime reads DTKit state for runtimeName and compares its owned bytes with disk.
+// It never repairs, removes, or creates anything.
+func InspectRuntime(runtimeName, scope string, roots map[string]string, _ []adapter.Artifact) (StatusReport, error) {
+	profile, pErr := runtimeProfile(runtimeName)
+	report := StatusReport{Runtime: adapter.NormalizeRuntime(runtimeName), Scope: scope, Roots: roots, Classification: "not_installed"}
+	if pErr != nil {
+		return report, pErr
+	}
+	report.Runtime = profile.ID
+	if capSet, ok := profile.CapabilitiesMap[scope]; ok {
+		capCopy := capSet
+		report.Capabilities = &capCopy
+	}
+	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
 		return report, err
 	}
@@ -66,11 +82,11 @@ func Inspect(scope string, roots map[string]string, _ []codex.Artifact) (StatusR
 		report.Detail = "unfinished transaction or lock detected; run dtkit recover"
 	}
 
-	statePath, err := planner.ResolveTarget(roots[scopeRoot(scope)], ".dtkit/state.json")
+	statePath, err := runtimeStateTarget(profile.ID, scope, roots)
 	if err != nil {
 		return report, err
 	}
-	installed, exists, err := state.LoadFile(statePath, scope)
+	installed, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
 	if err != nil {
 		return report, err
 	}
@@ -88,11 +104,11 @@ func Inspect(scope string, roots map[string]string, _ []codex.Artifact) (StatusR
 	report.KitDigest = installed.Kit.Digest
 	report.AdapterRevision = installed.AdapterRevision
 
-	if scope == "global" && !samePath(installed.CodexHome, roots["codex-home"]) {
+	if err := checkGlobalHomeBinding(profile, scope, installed.GlobalHome(), roots); err != nil {
 		report.Healthy = false
 		report.ProfileMismatch = true
 		report.Classification = "profile_mismatch"
-		report.Detail = fmt.Sprintf("installed Codex home %q does not match current %q", installed.CodexHome, roots["codex-home"])
+		report.Detail = err.Error()
 		return report, nil
 	}
 
@@ -147,7 +163,7 @@ func Inspect(scope string, roots map[string]string, _ []codex.Artifact) (StatusR
 				item.Status, item.Detail, report.Healthy = "modified", "owned content differs from recorded state", false
 				hasModified = true
 			}
-			if strings.HasPrefix(artifact.Path, ".agents/skills/dtkit-"+scope+"-") {
+			if profile.IsSkillArtifact(scope, artifact.Path) {
 				skillDirRel := path.Dir(artifact.Path)
 				if !seenSkillDirs[skillDirRel] {
 					seenSkillDirs[skillDirRel] = true

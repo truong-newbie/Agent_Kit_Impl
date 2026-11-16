@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
@@ -19,9 +18,10 @@ import (
 )
 
 type UpdateOptions struct {
+	Runtime         string // optional; defaults to codex
 	SourceKind      string
 	ArchiveSHA256   string
-	AdapterRevision string // optional override for adapter migration testing; defaults to codex.AdapterRevision
+	AdapterRevision string // optional override for adapter migration testing; defaults to runtime profile revision
 	Hooks           *TxHooks
 }
 
@@ -34,38 +34,47 @@ type UpdateResult struct {
 	Plan             planner.InstallPlan `json:"plan"`
 }
 
-// PlanUpdate checks version/digest/adapter rules and reconciles state, disk, and desired artifacts.
-func PlanUpdate(scope string, roots map[string]string, pkg catalog.Package, pkgDigest string, desired []codex.Artifact, adapterRev string) (planner.InstallPlan, *state.Installation, bool, error) {
-	if adapterRev == "" {
-		adapterRev = codex.AdapterRevision
+// PlanUpdate checks Codex version/digest/adapter rules and reconciles state, disk, and desired artifacts.
+func PlanUpdate(scope string, roots map[string]string, pkg catalog.Package, pkgDigest string, desired []adapter.Artifact, adapterRev string) (planner.InstallPlan, *state.Installation, bool, error) {
+	return PlanUpdateForRuntime(adapter.DefaultRuntime, scope, roots, pkg, pkgDigest, desired, adapterRev)
+}
+
+// PlanUpdateForRuntime checks version/digest/adapter rules for runtimeName and reconciles state, disk, and desired artifacts.
+func PlanUpdateForRuntime(runtimeName, scope string, roots map[string]string, pkg catalog.Package, pkgDigest string, desired []adapter.Artifact, adapterRev string) (planner.InstallPlan, *state.Installation, bool, error) {
+	profile, pErr := runtimeProfile(runtimeName)
+	if pErr != nil {
+		return planner.InstallPlan{}, nil, false, pErr
 	}
-	if scope != "project" && scope != "global" {
+	if adapterRev == "" {
+		adapterRev = profile.Revision
+	}
+	if !profile.SupportsScope(scope) {
 		return planner.InstallPlan{}, nil, false, apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", scope))
 	}
-	pending, lockStatus, err := InspectTransactions(scope, roots)
+	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
 		return planner.InstallPlan{}, nil, false, err
 	}
 	if len(pending) > 0 || lockStatus.Present {
-		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --dry-run", scope))
+		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", scope, profile.ID))
 	}
 
-	statePath, err := paths.ResolveTarget(roots[scopeRoot(scope)], ".dtkit/state.json")
+	statePath, err := runtimeStateTarget(profile.ID, scope, roots)
 	if err != nil {
 		return planner.InstallPlan{}, nil, false, err
 	}
-	existing, exists, err := state.LoadFile(statePath, scope)
+	existing, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
 	if err != nil {
 		return planner.InstallPlan{}, nil, false, err
 	}
 	if !exists {
-		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("not_installed", fmt.Sprintf("kit %q is not installed in %s scope", pkg.ID, scope)), fmt.Sprintf("run dtkit install %s --%s", pkg.ID, scope))
+		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("not_installed", fmt.Sprintf("kit %q is not installed in %s scope (%s)", pkg.ID, scope, profile.ID)), fmt.Sprintf("run dtkit install %s --%s --runtime %s", pkg.ID, scope, profile.ID))
 	}
 	if existing.Kit.ID != pkg.ID {
 		return planner.InstallPlan{}, existing, false, apperr.Conflict("kit_id_mismatch", fmt.Sprintf("installed kit %q does not match requested %q", existing.Kit.ID, pkg.ID))
 	}
-	if scope == "global" && !samePath(existing.CodexHome, roots["codex-home"]) {
-		return planner.InstallPlan{}, existing, false, apperr.Conflict("profile_mismatch", fmt.Sprintf("installed Codex home %q does not match current %q", existing.CodexHome, roots["codex-home"]))
+	if err := checkGlobalHomeBinding(profile, scope, existing.GlobalHome(), roots); err != nil {
+		return planner.InstallPlan{}, existing, false, err
 	}
 
 	cmp, err := compareSemver(pkg.Version, existing.Kit.Version)
@@ -85,7 +94,7 @@ func PlanUpdate(scope string, roots map[string]string, pkg catalog.Package, pkgD
 		}
 	}
 
-	plan, err := planner.PlanDesired(scope, pkg.ID, roots, existing, desired)
+	plan, err := planner.PlanDesiredForRuntime(profile.ID, scope, pkg.ID, roots, existing, desired)
 	if err != nil {
 		return planner.InstallPlan{}, existing, adapterMigration, err
 	}
@@ -93,21 +102,25 @@ func PlanUpdate(scope string, roots map[string]string, pkg catalog.Package, pkgD
 }
 
 // Update upgrades or migrates an existing installation inside a P1 transaction.
-func Update(scope string, roots map[string]string, pkg catalog.Package, source fs.FS, desired []codex.Artifact, now time.Time, opts UpdateOptions) (UpdateResult, error) {
+func Update(scope string, roots map[string]string, pkg catalog.Package, source fs.FS, desired []adapter.Artifact, now time.Time, opts UpdateOptions) (UpdateResult, error) {
 	var res UpdateResult
 	if now.IsZero() {
 		now = time.Now()
 	}
+	profile, err := runtimeProfile(opts.Runtime)
+	if err != nil {
+		return res, err
+	}
 	adapterRev := opts.AdapterRevision
 	if adapterRev == "" {
-		adapterRev = codex.AdapterRevision
+		adapterRev = profile.Revision
 	}
 	pkgDigest, err := catalog.Digest(source)
 	if err != nil {
 		return res, err
 	}
 
-	plan, existing, adapterMigration, err := PlanUpdate(scope, roots, pkg, pkgDigest, desired, adapterRev)
+	plan, existing, adapterMigration, err := PlanUpdateForRuntime(profile.ID, scope, roots, pkg, pkgDigest, desired, adapterRev)
 	res.Plan = plan
 	res.AdapterMigration = adapterMigration
 	if err != nil {
@@ -130,7 +143,7 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 		return res, nil
 	}
 
-	desiredByKey := map[string]codex.Artifact{}
+	desiredByKey := map[string]adapter.Artifact{}
 	for _, a := range desired {
 		desiredByKey[a.Root+"\x00"+a.Path] = a
 	}
@@ -152,9 +165,10 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 		ManagedBy:       "dtkit",
 		Generation:      existing.Generation + 1,
 		Scope:           scope,
-		Runtime:         "codex",
+		Runtime:         profile.ID,
 		AdapterRevision: adapterRev,
 		CodexHome:       existing.CodexHome,
+		RuntimeHome:     existing.RuntimeHome,
 		InstalledAt:     existing.InstalledAt,
 		UpdatedAt:       now.UTC().Format(time.RFC3339),
 		Kit: state.Kit{
@@ -267,7 +281,7 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 		})
 	}
 
-	if adapterRev == codex.AdapterRevision {
+	if adapterRev == profile.Revision {
 		if err := nextState.Validate(desired); err != nil {
 			return res, err
 		}
@@ -277,10 +291,15 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 		}
 	}
 	if scope == "global" {
-		nextState.CodexHome = filepath.Clean(roots["codex-home"])
+		if profile.UsesCodexHome {
+			nextState.CodexHome = resolveGlobalHomeFromRoots(profile, scope, roots)
+		} else {
+			nextState.RuntimeHome = resolveGlobalHomeFromRoots(profile, scope, roots)
+		}
 	}
 
 	txRes, err := ExecuteTx(TxRequest{
+		Runtime:   profile.ID,
 		Operation: "update",
 		Scope:     scope,
 		KitID:     pkg.ID,

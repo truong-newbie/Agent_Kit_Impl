@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"time"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
@@ -18,29 +17,34 @@ import (
 )
 
 type InstallOptions struct {
+	Runtime       string // optional; defaults to codex
 	SourceKind    string
 	ArchiveSHA256 string
 	Hooks         *TxHooks
 }
 
-// FreshInstall installs a package only when the provided preview is conflict-free.
-func FreshInstall(scope string, roots map[string]string, pkg catalog.Package, source fs.FS, artifacts []codex.Artifact, now time.Time) (state.Installation, error) {
+// FreshInstall installs a Codex package only when the provided preview is conflict-free.
+func FreshInstall(scope string, roots map[string]string, pkg catalog.Package, source fs.FS, artifacts []adapter.Artifact, now time.Time) (state.Installation, error) {
 	return FreshInstallWithOptions(scope, roots, pkg, source, artifacts, now, InstallOptions{})
 }
 
-func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.Package, source fs.FS, artifacts []codex.Artifact, now time.Time, opts InstallOptions) (state.Installation, error) {
+func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.Package, source fs.FS, artifacts []adapter.Artifact, now time.Time, opts InstallOptions) (state.Installation, error) {
 	var result state.Installation
 	if now.IsZero() {
 		now = time.Now()
 	}
-	plan, err := planner.InstallPreview(scope, roots, artifacts)
+	profile, err := runtimeProfile(opts.Runtime)
+	if err != nil {
+		return result, err
+	}
+	plan, err := planner.InstallPreviewForRuntime(profile.ID, scope, roots, artifacts)
 	if err != nil {
 		return result, err
 	}
 	if plan.Conflicts != 0 {
 		return result, apperr.Conflict("install_conflicts", fmt.Sprintf("install has %d conflict(s)", plan.Conflicts))
 	}
-	pending, lockStatus, err := InspectTransactions(scope, roots)
+	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
 		return result, err
 	}
@@ -53,7 +57,7 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 		return result, err
 	}
 
-	byKey := map[string]codex.Artifact{}
+	byKey := map[string]adapter.Artifact{}
 	for _, artifact := range artifacts {
 		byKey[artifact.Root+"\x00"+artifact.Path] = artifact
 	}
@@ -70,8 +74,8 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 		ManagedBy:       "dtkit",
 		Generation:      1,
 		Scope:           scope,
-		Runtime:         "codex",
-		AdapterRevision: codex.AdapterRevision,
+		Runtime:         profile.ID,
+		AdapterRevision: profile.Revision,
 		InstalledAt:     now.UTC().Format(time.RFC3339),
 		UpdatedAt:       now.UTC().Format(time.RFC3339),
 		Kit: state.Kit{
@@ -83,7 +87,11 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 		},
 	}
 	if scope == "global" {
-		result.CodexHome = filepath.Clean(roots["codex-home"])
+		if profile.UsesCodexHome {
+			result.CodexHome = resolveGlobalHomeFromRoots(profile, scope, roots)
+		} else {
+			result.RuntimeHome = resolveGlobalHomeFromRoots(profile, scope, roots)
+		}
 	}
 
 	txActions := make([]TxAction, 0, len(ordered))
@@ -154,6 +162,7 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 	}
 
 	txRes, err := ExecuteTx(TxRequest{
+		Runtime:   profile.ID,
 		Operation: "install",
 		Scope:     scope,
 		KitID:     pkg.ID,

@@ -7,10 +7,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
 )
@@ -26,7 +25,7 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<version>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
+		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<version>] --project|--global [--runtime <codex|gemini>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
 	}
 	kitSpec := args[0]
 
@@ -77,37 +76,26 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		}
 	}
 
+	profile, rtErr := resolveRuntimeProfile(runtimeArg)
+	if rtErr != nil {
+		return fail(rtErr)
+	}
 	env.DryRun = dryRun
-	env.Runtime = "codex"
+	env.Runtime = profile.ID
 	env.Scope = scope
 
 	if scope == "" {
 		return fail(apperr.WithHint(apperr.Usage("missing_scope", "choose --project or --global"), "example: dtkit install engineer --project --dry-run"))
 	}
-	if runtimeArg != "" && runtimeArg != "codex" {
-		return fail(apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", runtimeArg)))
-	}
 	if scope == "global" && projectPath != "" {
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
 	}
 
-	roots := map[string]string{}
-	if scope == "project" {
-		res, err := paths.ResolveProject(ctx, deps.Env, projectPath)
-		if err != nil {
-			return fail(err)
-		}
-		roots["project"] = res.Root
-		env.Warnings = append(env.Warnings, res.Warnings...)
-	} else {
-		res, err := paths.ResolveGlobal(deps.Env)
-		if err != nil {
-			return fail(err)
-		}
-		roots["user-home"] = res.UserHome
-		roots["codex-home"] = res.CodexHome
-		env.Warnings = append(env.Warnings, res.Warnings...)
+	roots, rootWarnings, err := resolveScopeRoots(ctx, deps, profile, scope, projectPath)
+	if err != nil {
+		return fail(err)
 	}
+	env.Warnings = append(env.Warnings, rootWarnings...)
 	env.Roots = roots
 
 	resolved, err := resolveKitSource(ctx, deps, kitSpec, fromPath, sourceURL, sha256Hex, offline)
@@ -124,39 +112,39 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		ArchiveSHA256: resolved.ArchiveSHA256,
 	}
 
-	artifacts, err := codex.Render(pkg, source, scope)
+	artifacts, err := adapter.RenderForRuntime(profile.ID, pkg, source, scope)
 	if err != nil {
 		return fail(err)
 	}
 
-	pending, lockStatus, err := installer.InspectTransactions(scope, roots)
+	pending, lockStatus, err := installer.InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
 		return fail(err)
 	}
 	if len(pending) > 0 || lockStatus.Present {
-		return fail(apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --dry-run", scope)))
+		return fail(apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", scope, profile.ID)))
 	}
 
-	statePath, err := paths.ResolveTarget(roots[scopeRoot(scope)], ".dtkit/state.json")
+	statePath, err := resolveRuntimeStatePath(profile, scope, roots)
 	if err != nil {
 		return fail(err)
 	}
-	existing, stateExists, err := state.LoadFile(statePath, scope)
+	existing, stateExists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
 	if err != nil {
 		return fail(err)
 	}
 
 	if stateExists {
 		if existing.Kit.ID != pkg.ID {
-			return fail(apperr.WithHint(apperr.Conflict("different_kit_installed", fmt.Sprintf("kit %q is already installed in %s scope", existing.Kit.ID, scope)), fmt.Sprintf("run dtkit remove %s --%s first", existing.Kit.ID, scope)))
+			return fail(apperr.WithHint(apperr.Conflict("different_kit_installed", fmt.Sprintf("kit %q is already installed in %s scope (%s)", existing.Kit.ID, scope, profile.ID)), fmt.Sprintf("run dtkit remove %s --%s --runtime %s first", existing.Kit.ID, scope, profile.ID)))
 		}
-		if scope == "global" && !sameAbsPath(existing.CodexHome, roots["codex-home"]) {
-			return fail(apperr.Conflict("profile_mismatch", fmt.Sprintf("installed Codex home %q does not match current %q", existing.CodexHome, roots["codex-home"])))
+		if err := checkRuntimeHomeBinding(profile, scope, existing, roots); err != nil {
+			return fail(err)
 		}
-		if existing.Kit.Version != pkg.Version || existing.Kit.Digest != pkgDigest || existing.AdapterRevision != codex.AdapterRevision {
-			return fail(apperr.WithHint(apperr.Conflict("already_installed", fmt.Sprintf("%s %s is already installed with different version or content", existing.Kit.ID, existing.Kit.Version)), fmt.Sprintf("run dtkit update %s --%s", pkg.ID, scope)))
+		if existing.Kit.Version != pkg.Version || existing.Kit.Digest != pkgDigest || existing.AdapterRevision != profile.Revision {
+			return fail(apperr.WithHint(apperr.Conflict("already_installed", fmt.Sprintf("%s %s is already installed with different version or content", existing.Kit.ID, existing.Kit.Version)), fmt.Sprintf("run dtkit update %s --%s --runtime %s", pkg.ID, scope, profile.ID)))
 		}
-		plan, err := planner.PlanDesired(scope, pkg.ID, roots, existing, artifacts)
+		plan, err := planner.PlanDesiredForRuntime(profile.ID, scope, pkg.ID, roots, existing, artifacts)
 		if err != nil {
 			return fail(err)
 		}
@@ -181,7 +169,7 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		return nil
 	}
 
-	plan, err := planner.PlanDesired(scope, pkg.ID, roots, nil, artifacts)
+	plan, err := planner.PlanDesiredForRuntime(profile.ID, scope, pkg.ID, roots, nil, artifacts)
 	if err != nil {
 		return fail(err)
 	}
@@ -231,11 +219,12 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		return fail(apperr.Cancelled("installation cancelled"))
 	}
 
-	if _, lookErr := deps.LookPath("codex"); lookErr != nil {
-		env.Warnings = append(env.Warnings, "codex executable not found on PATH; files will still be installed")
+	if _, lookErr := deps.LookPath(profile.Binary); lookErr != nil {
+		env.Warnings = append(env.Warnings, fmt.Sprintf("%s executable not found on PATH; files will still be installed", profile.Binary))
 	}
 
 	installed, err := installer.FreshInstallWithOptions(scope, roots, pkg, source, artifacts, deps.Now(), installer.InstallOptions{
+		Runtime:       profile.ID,
 		SourceKind:    resolved.SourceKind,
 		ArchiveSHA256: resolved.ArchiveSHA256,
 	})
@@ -252,7 +241,7 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	for _, w := range env.Warnings {
 		fmt.Fprintf(deps.Stderr, "warning: %s\n", w)
 	}
-	fmt.Fprintf(deps.Stdout, "Installed %s %s (%s) for Codex (%d artifacts).\n", pkg.ID, pkg.Version, scope, len(installed.Artifacts))
+	fmt.Fprintf(deps.Stdout, "Installed %s %s (%s) for %s (%d artifacts).\n", pkg.ID, pkg.Version, scope, profile.DisplayName, len(installed.Artifacts))
 	if scope == "project" {
 		fmt.Fprintf(deps.Stdout, "Tip: add .dtkit/local/ to .gitignore so local transaction backups are not committed.\n")
 	}

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
@@ -13,7 +14,8 @@ import (
 )
 
 type RemoveOptions struct {
-	Hooks *TxHooks
+	Runtime string
+	Hooks   *TxHooks
 }
 
 type RemoveResult struct {
@@ -22,23 +24,32 @@ type RemoveResult struct {
 	Plan          planner.InstallPlan `json:"plan"`
 }
 
-// PlanRemove inspects state and disk to build a safe removal plan without needing the original catalog.
+// PlanRemove inspects Codex state and disk to build a safe removal plan without needing the catalog.
 func PlanRemove(scope, kitID string, roots map[string]string) (planner.InstallPlan, *state.Installation, bool, error) {
+	return PlanRemoveForRuntime(adapter.DefaultRuntime, scope, kitID, roots)
+}
+
+// PlanRemoveForRuntime inspects state and disk for runtime to build a safe removal plan.
+func PlanRemoveForRuntime(runtimeName, scope, kitID string, roots map[string]string) (planner.InstallPlan, *state.Installation, bool, error) {
 	if scope != "project" && scope != "global" {
 		return planner.InstallPlan{}, nil, false, apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", scope))
 	}
-	pending, lockStatus, err := InspectTransactions(scope, roots)
+	profile, err := runtimeProfile(runtimeName)
+	if err != nil {
+		return planner.InstallPlan{}, nil, false, err
+	}
+	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
 		return planner.InstallPlan{}, nil, false, err
 	}
 	if len(pending) > 0 || lockStatus.Present {
-		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --dry-run", scope))
+		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", scope, profile.ID))
 	}
-	statePath, err := paths.ResolveTarget(roots[scopeRoot(scope)], ".dtkit/state.json")
+	statePath, err := runtimeStateTarget(profile.ID, scope, roots)
 	if err != nil {
 		return planner.InstallPlan{}, nil, false, err
 	}
-	existing, exists, err := state.LoadFile(statePath, scope)
+	existing, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
 	if err != nil {
 		return planner.InstallPlan{}, nil, false, err
 	}
@@ -48,8 +59,8 @@ func PlanRemove(scope, kitID string, roots map[string]string) (planner.InstallPl
 	if existing.Kit.ID != kitID {
 		return planner.InstallPlan{}, existing, true, apperr.Conflict("kit_id_mismatch", fmt.Sprintf("installed kit %q does not match requested %q", existing.Kit.ID, kitID))
 	}
-	if scope == "global" && !samePath(existing.CodexHome, roots["codex-home"]) {
-		return planner.InstallPlan{}, existing, true, apperr.Conflict("profile_mismatch", fmt.Sprintf("installed Codex home %q does not match current %q", existing.CodexHome, roots["codex-home"]))
+	if err := checkGlobalHomeBinding(profile, scope, existing.GlobalHome(), roots); err != nil {
+		return planner.InstallPlan{}, existing, true, err
 	}
 
 	plan, err := planner.PlanRemove(scope, roots, existing)
@@ -84,7 +95,7 @@ func Remove(scope, kitID string, roots map[string]string, now time.Time, opts Re
 	if now.IsZero() {
 		now = time.Now()
 	}
-	plan, existing, exists, err := PlanRemove(scope, kitID, roots)
+	plan, existing, exists, err := PlanRemoveForRuntime(opts.Runtime, scope, kitID, roots)
 	res.Plan = plan
 	if err != nil {
 		return res, err
@@ -189,6 +200,7 @@ func Remove(scope, kitID string, roots map[string]string, now time.Time, opts Re
 	}
 
 	txRes, err := ExecuteTx(TxRequest{
+		Runtime:   existing.Runtime,
 		Operation: "remove",
 		Scope:     scope,
 		KitID:     existing.Kit.ID,

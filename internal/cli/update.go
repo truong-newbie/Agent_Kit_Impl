@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 func runUpdate(ctx context.Context, args []string, deps Deps) error {
@@ -21,7 +20,7 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit update <kit>[@<version>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
+		return fail(apperr.Usage("missing_kit", "usage: dtkit update <kit>[@<version>] --project|--global [--runtime <codex|gemini>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
 	}
 	kitSpec := args[0]
 
@@ -72,37 +71,26 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 		}
 	}
 
+	profile, rtErr := resolveRuntimeProfile(runtimeArg)
+	if rtErr != nil {
+		return fail(rtErr)
+	}
 	env.DryRun = dryRun
-	env.Runtime = "codex"
+	env.Runtime = profile.ID
 	env.Scope = scope
 
 	if scope == "" {
 		return fail(apperr.WithHint(apperr.Usage("missing_scope", "choose --project or --global"), "example: dtkit update engineer --project --dry-run"))
 	}
-	if runtimeArg != "" && runtimeArg != "codex" {
-		return fail(apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", runtimeArg)))
-	}
 	if scope == "global" && projectPath != "" {
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
 	}
 
-	roots := map[string]string{}
-	if scope == "project" {
-		res, err := paths.ResolveProject(ctx, deps.Env, projectPath)
-		if err != nil {
-			return fail(err)
-		}
-		roots["project"] = res.Root
-		env.Warnings = append(env.Warnings, res.Warnings...)
-	} else {
-		res, err := paths.ResolveGlobal(deps.Env)
-		if err != nil {
-			return fail(err)
-		}
-		roots["user-home"] = res.UserHome
-		roots["codex-home"] = res.CodexHome
-		env.Warnings = append(env.Warnings, res.Warnings...)
+	roots, rootWarnings, err := resolveScopeRoots(ctx, deps, profile, scope, projectPath)
+	if err != nil {
+		return fail(err)
 	}
+	env.Warnings = append(env.Warnings, rootWarnings...)
 	env.Roots = roots
 
 	resolved, err := resolveKitSource(ctx, deps, kitSpec, fromPath, sourceURL, sha256Hex, offline)
@@ -119,12 +107,12 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 		ArchiveSHA256: resolved.ArchiveSHA256,
 	}
 
-	artifacts, err := codex.Render(pkg, source, scope)
+	artifacts, err := adapter.RenderForRuntime(profile.ID, pkg, source, scope)
 	if err != nil {
 		return fail(err)
 	}
 
-	plan, existing, adapterMigration, err := installer.PlanUpdate(scope, roots, pkg, pkgDigest, artifacts, codex.AdapterRevision)
+	plan, existing, adapterMigration, err := installer.PlanUpdateForRuntime(profile.ID, scope, roots, pkg, pkgDigest, artifacts, profile.Revision)
 	if err != nil {
 		env.Actions, env.Summary = summarizeActions(plan.Actions)
 		return fail(err)
@@ -197,6 +185,7 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	res, err := installer.Update(scope, roots, pkg, source, artifacts, deps.Now(), installer.UpdateOptions{
+		Runtime:       profile.ID,
 		SourceKind:    resolved.SourceKind,
 		ArchiveSHA256: resolved.ArchiveSHA256,
 	})

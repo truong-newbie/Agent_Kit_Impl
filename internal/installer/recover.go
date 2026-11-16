@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
@@ -16,6 +17,7 @@ import (
 type PendingTx struct {
 	ID        string `json:"id"`
 	Operation string `json:"operation"`
+	Runtime   string `json:"runtime,omitempty"`
 	Scope     string `json:"scope"`
 	Phase     string `json:"phase"`
 	CreatedAt string `json:"createdAt"`
@@ -23,6 +25,7 @@ type PendingTx struct {
 }
 
 type RecoverReport struct {
+	Runtime       string      `json:"runtime,omitempty"`
 	Scope         string      `json:"scope"`
 	Outcome       string      `json:"outcome"` // noop | committed | rolled_back | conflict
 	TransactionID string      `json:"transactionId,omitempty"`
@@ -31,10 +34,19 @@ type RecoverReport struct {
 	Detail        string      `json:"detail,omitempty"`
 }
 
-// InspectTransactions returns unresolved journals and current lock status without writing.
+// InspectTransactions returns unresolved Codex journals and current lock status without writing.
 func InspectTransactions(scope string, roots map[string]string) ([]PendingTx, LockStatus, error) {
+	return InspectTransactionsForRuntime(adapter.DefaultRuntime, scope, roots)
+}
+
+// InspectTransactionsForRuntime returns unresolved journals and lock status for the named runtime.
+func InspectTransactionsForRuntime(runtimeName, scope string, roots map[string]string) ([]PendingTx, LockStatus, error) {
 	var lockStatus LockStatus
-	operational, err := paths.ResolveTarget(roots[scopeRoot(scope)], ".dtkit/local")
+	profile, err := runtimeProfile(runtimeName)
+	if err != nil {
+		return nil, lockStatus, err
+	}
+	operational, err := runtimeOperationalTarget(profile.ID, scope, roots)
 	if err != nil {
 		return nil, lockStatus, err
 	}
@@ -67,34 +79,35 @@ func InspectTransactions(scope string, roots map[string]string) ([]PendingTx, Lo
 		jPath := filepath.Join(txRoot, id, "journal.json")
 		jInfo, statErr := os.Lstat(jPath)
 		if os.IsNotExist(statErr) {
-			pending = append(pending, PendingTx{ID: id, Scope: scope, Phase: "corrupt", Detail: "missing journal.json"})
+			pending = append(pending, PendingTx{ID: id, Runtime: profile.ID, Scope: scope, Phase: "corrupt", Detail: "missing journal.json"})
 			continue
 		}
 		if statErr != nil {
 			return nil, lockStatus, statErr
 		}
 		if paths.IsReparseOrSymlink(jInfo) || !jInfo.Mode().IsRegular() || jInfo.Size() > maxJournalBytes {
-			pending = append(pending, PendingTx{ID: id, Scope: scope, Phase: "corrupt", Detail: "invalid or oversized journal.json"})
+			pending = append(pending, PendingTx{ID: id, Runtime: profile.ID, Scope: scope, Phase: "corrupt", Detail: "invalid or oversized journal.json"})
 			continue
 		}
 		data, rErr := readRegularLimited(jPath, maxJournalBytes)
 		if rErr != nil {
-			pending = append(pending, PendingTx{ID: id, Scope: scope, Phase: "corrupt", Detail: rErr.Error()})
+			pending = append(pending, PendingTx{ID: id, Runtime: profile.ID, Scope: scope, Phase: "corrupt", Detail: rErr.Error()})
 			continue
 		}
 		var j Journal
 		if uErr := json.Unmarshal(data, &j); uErr != nil {
-			pending = append(pending, PendingTx{ID: id, Scope: scope, Phase: "corrupt", Detail: uErr.Error()})
+			pending = append(pending, PendingTx{ID: id, Runtime: profile.ID, Scope: scope, Phase: "corrupt", Detail: uErr.Error()})
 			continue
 		}
-		if vErr := validateJournal(j, scope); vErr != nil {
-			pending = append(pending, PendingTx{ID: id, Scope: scope, Phase: "corrupt", Detail: vErr.Error()})
+		if vErr := validateJournalForRuntime(j, scope, profile.ID); vErr != nil {
+			pending = append(pending, PendingTx{ID: id, Runtime: profile.ID, Scope: scope, Phase: "corrupt", Detail: vErr.Error()})
 			continue
 		}
 		if !j.IsTerminal() {
 			pending = append(pending, PendingTx{
 				ID:        j.ID,
 				Operation: j.Operation,
+				Runtime:   j.EffectiveRuntime(),
 				Scope:     j.Scope,
 				Phase:     j.Phase,
 				CreatedAt: j.CreatedAt,
@@ -105,17 +118,27 @@ func InspectTransactions(scope string, roots map[string]string) ([]PendingTx, Lo
 	return pending, lockStatus, nil
 }
 
-// Recover inspects and resolves an interrupted DTKit transaction.
+// Recover inspects and resolves an interrupted Codex DTKit transaction.
 func Recover(scope string, roots map[string]string, txID string, dryRun bool, now time.Time) (RecoverReport, error) {
-	report := RecoverReport{Scope: scope}
-	if scope != "project" && scope != "global" {
+	return RecoverForRuntime(adapter.DefaultRuntime, scope, roots, txID, dryRun, now)
+}
+
+// RecoverForRuntime inspects and resolves an interrupted DTKit transaction for runtimeName.
+func RecoverForRuntime(runtimeName, scope string, roots map[string]string, txID string, dryRun bool, now time.Time) (RecoverReport, error) {
+	profile, pErr := runtimeProfile(runtimeName)
+	report := RecoverReport{Runtime: adapter.NormalizeRuntime(runtimeName), Scope: scope}
+	if pErr != nil {
+		return report, pErr
+	}
+	report.Runtime = profile.ID
+	if !profile.SupportsScope(scope) {
 		return report, apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", scope))
 	}
 	if now.IsZero() {
 		now = time.Now()
 	}
 
-	pending, lockStatus, err := InspectTransactions(scope, roots)
+	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
 		return report, err
 	}
@@ -174,7 +197,7 @@ func Recover(scope string, roots map[string]string, txID string, dryRun bool, no
 	}
 	report.TransactionID = targetTx.ID
 
-	operational, err := paths.ResolveTarget(roots[scopeRoot(scope)], ".dtkit/local")
+	operational, err := runtimeOperationalTarget(profile.ID, scope, roots)
 	if err != nil {
 		return report, err
 	}
@@ -188,14 +211,14 @@ func Recover(scope string, roots map[string]string, txID string, dryRun bool, no
 	if err := json.Unmarshal(data, &j); err != nil {
 		return report, apperr.Wrap(apperr.ExitConflict, "corrupt_journal", fmt.Sprintf("invalid journal %s: %v", targetTx.ID, err), err)
 	}
-	if err := validateJournal(j, scope); err != nil {
+	if err := validateJournalForRuntime(j, scope, profile.ID); err != nil {
 		return report, apperr.Wrap(apperr.ExitConflict, "invalid_journal", err.Error(), err)
 	}
-	if j.Scope == "global" && !samePath(j.CodexHome, roots["codex-home"]) {
-		return report, apperr.Conflict("profile_mismatch", fmt.Sprintf("transaction %s belongs to Codex home %q, not current %q", j.ID, j.CodexHome, roots["codex-home"]))
+	if err := checkGlobalHomeBinding(profile, scope, j.GlobalHome(), roots); err != nil {
+		return report, err
 	}
 
-	statePath, err := paths.ResolveTarget(roots[scopeRoot(scope)], ".dtkit/state.json")
+	statePath, err := runtimeStateTarget(profile.ID, scope, roots)
 	if err != nil {
 		return report, err
 	}

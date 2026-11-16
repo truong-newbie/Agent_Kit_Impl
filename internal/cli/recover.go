@@ -6,7 +6,6 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 func runRecover(ctx context.Context, args []string, deps Deps) error {
@@ -19,7 +18,7 @@ func runRecover(ctx context.Context, args []string, deps Deps) error {
 		return err
 	}
 
-	var scope, projectPath, txID string
+	var scope, projectPath, runtimeArg, txID string
 	var dryRun, yes bool
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -41,15 +40,18 @@ func runRecover(ctx context.Context, args []string, deps Deps) error {
 			jsonOutput = true
 		case "--verbose":
 			deps.Verbose = true
-		case "--path", "--transaction":
+		case "--runtime", "--path", "--transaction":
 			flag := args[i]
 			i++
 			if i >= len(args) {
 				return fail(apperr.Usage("missing_flag_value", fmt.Sprintf("%s requires a value", flag)))
 			}
-			if flag == "--path" {
+			switch flag {
+			case "--runtime":
+				runtimeArg = args[i]
+			case "--path":
 				projectPath = args[i]
-			} else {
+			default:
 				txID = args[i]
 			}
 		default:
@@ -57,7 +59,12 @@ func runRecover(ctx context.Context, args []string, deps Deps) error {
 		}
 	}
 
+	profile, rtErr := resolveRuntimeProfile(runtimeArg)
+	if rtErr != nil {
+		return fail(rtErr)
+	}
 	env.DryRun = dryRun
+	env.Runtime = profile.ID
 	env.Scope = scope
 
 	if scope == "" {
@@ -67,27 +74,15 @@ func runRecover(ctx context.Context, args []string, deps Deps) error {
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
 	}
 
-	roots := map[string]string{}
-	if scope == "project" {
-		res, err := paths.ResolveProject(ctx, deps.Env, projectPath)
-		if err != nil {
-			return fail(err)
-		}
-		roots["project"] = res.Root
-		env.Warnings = append(env.Warnings, res.Warnings...)
-	} else {
-		res, err := paths.ResolveGlobal(deps.Env)
-		if err != nil {
-			return fail(err)
-		}
-		roots["user-home"] = res.UserHome
-		roots["codex-home"] = res.CodexHome
-		env.Warnings = append(env.Warnings, res.Warnings...)
+	roots, rootWarnings, err := resolveScopeRoots(ctx, deps, profile, scope, projectPath)
+	if err != nil {
+		return fail(err)
 	}
+	env.Warnings = append(env.Warnings, rootWarnings...)
 	env.Roots = roots
 
 	if dryRun {
-		report, err := installer.Recover(scope, roots, txID, true, deps.Now())
+		report, err := installer.RecoverForRuntime(profile.ID, scope, roots, txID, true, deps.Now())
 		env.Recovery = &report
 		if err != nil {
 			return fail(err)
@@ -100,7 +95,7 @@ func runRecover(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	// Check read-only first so no-op doesn't prompt.
-	preview, err := installer.Recover(scope, roots, txID, true, deps.Now())
+	preview, err := installer.RecoverForRuntime(profile.ID, scope, roots, txID, true, deps.Now())
 	if err != nil {
 		env.Recovery = &preview
 		return fail(err)
@@ -134,7 +129,7 @@ func runRecover(ctx context.Context, args []string, deps Deps) error {
 		return fail(apperr.Cancelled("recovery cancelled"))
 	}
 
-	report, err := installer.Recover(scope, roots, txID, false, deps.Now())
+	report, err := installer.RecoverForRuntime(profile.ID, scope, roots, txID, false, deps.Now())
 	env.Recovery = &report
 	if err != nil {
 		return fail(err)

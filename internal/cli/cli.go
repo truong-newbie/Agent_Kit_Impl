@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
@@ -21,16 +22,16 @@ Usage:
   dtkit help [command]
   dtkit list [--json]
   dtkit info <kit> [--from <dir|archive>] [--json]
-  dtkit validate <dir|archive> [--json]
+  dtkit validate <dir|archive> [--runtime <codex|gemini>] [--json]
   dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
   dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
   dtkit pack <directory> [--out <file.tar.gz>] [--json]
-  dtkit doctor [--runtime codex] [--project|--global] [--path <dir>] [--json]
-  dtkit install <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
-  dtkit status [--project|--global] [--path <dir>] [--json]
-  dtkit update <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
-  dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]
-  dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
+  dtkit doctor [--runtime <codex|gemini>] [--project|--global] [--path <dir>] [--json]
+  dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+  dtkit status [--runtime <codex|gemini>] [--project|--global] [--path <dir>] [--json]
+  dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+  dtkit remove <kit> --project|--global [--runtime <codex|gemini>] [--path <dir>] [--dry-run] [--yes] [--json]
+  dtkit recover --project|--global [--runtime <codex|gemini>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit hooks <list|status|enable|disable> [args]
   dtkit hook run <id> --scope project|global --root <dir>
 
@@ -112,16 +113,16 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 func printCommandHelp(cmd string, out io.Writer) error {
 	switch cmd {
 	case "install":
-		_, err := io.WriteString(out, "Usage: dtkit install <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "status":
-		_, err := io.WriteString(out, "Usage: dtkit status [--project|--global] [--path <dir>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit status [--runtime <codex|gemini>] [--project|--global] [--path <dir>] [--json]\n")
 		return err
 	case "doctor":
-		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime codex] [--project|--global] [--path <dir>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime <codex|gemini>] [--project|--global] [--path <dir>] [--json]\n")
 		return err
 	case "validate":
-		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--runtime <codex|gemini>] [--json]\n")
 		return err
 	case "info":
 		_, err := io.WriteString(out, "Usage: dtkit info <kit> [--from <dir|archive>] [--json]\n")
@@ -133,13 +134,13 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit pack <directory> [--out <file.tar.gz>] [--json]\n")
 		return err
 	case "update":
-		_, err := io.WriteString(out, "Usage: dtkit update <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "remove":
-		_, err := io.WriteString(out, "Usage: dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit remove <kit> --project|--global [--runtime <codex|gemini>] [--path <dir>] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "recover":
-		_, err := io.WriteString(out, "Usage: dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit recover --project|--global [--runtime <codex|gemini>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "hooks":
 		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
@@ -298,70 +299,82 @@ func runInfo(args []string, deps Deps) error {
 }
 
 func runValidate(args []string, deps Deps) error {
-	var targetPath string
-	jsonOutput := false
-	for _, a := range args {
-		switch a {
+	var targetPath, runtimeArg string
+	jsonOutput := hasJSONFlag(args)
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
 		case "--json":
 			jsonOutput = true
 		case "--verbose":
 			deps.Verbose = true
-		default:
-			if strings.HasPrefix(a, "-") || targetPath != "" {
-				err := apperr.Usage("invalid_usage", "usage: dtkit validate <dir|archive> [--json]")
-				if jsonOutput || hasJSONFlag(args) {
+		case "--runtime":
+			i++
+			if i >= len(args) {
+				err := apperr.Usage("missing_flag_value", "--runtime requires a value")
+				if jsonOutput {
 					return failJSON(deps.Stdout, newEnvelope("validate"), err)
 				}
 				return err
 			}
-			targetPath = a
-		}
-	}
-	if targetPath == "" {
-		err := apperr.Usage("missing_directory", "usage: dtkit validate <dir|archive> [--json]")
-		if jsonOutput {
-			return failJSON(deps.Stdout, newEnvelope("validate"), err)
-		}
-		return err
-	}
-	env := newEnvelope("validate")
-	info, statErr := os.Lstat(targetPath)
-	if statErr != nil {
-		if jsonOutput {
-			return failJSON(deps.Stdout, env, statErr)
-		}
-		return statErr
-	}
-	var p catalog.Package
-	var digest, archiveSHA string
-	if info.IsDir() {
-		var snap interface{ Open(string) (os.File, error) }
-		_ = snap
-		pkg, memFS, dig, err := catalog.LoadDir(targetPath)
-		if err != nil {
-			if jsonOutput {
-				return failJSON(deps.Stdout, env, err)
-			}
-			return err
-		}
-		p, digest = pkg, dig
-		for _, scope := range p.Scopes {
-			if _, err := codex.Render(p, memFS, scope); err != nil {
+			runtimeArg = args[i]
+		default:
+			if strings.HasPrefix(args[i], "-") || targetPath != "" {
+				err := apperr.Usage("invalid_usage", "usage: dtkit validate <dir|archive> [--runtime <codex|gemini>] [--json]")
 				if jsonOutput {
-					return failJSON(deps.Stdout, env, err)
+					return failJSON(deps.Stdout, newEnvelope("validate"), err)
 				}
 				return err
 			}
+			targetPath = args[i]
 		}
-	} else {
-		pkg, _, dig, archSHA, err := dist.ReadArchiveFile(targetPath, "")
+	}
+	env := newEnvelope("validate")
+	fail := func(err error) error {
+		if jsonOutput {
+			return failJSON(deps.Stdout, env, err)
+		}
+		return err
+	}
+	if runtimeArg != "" {
+		profile, err := resolveRuntimeProfile(runtimeArg)
 		if err != nil {
-			if jsonOutput {
-				return failJSON(deps.Stdout, env, err)
-			}
-			return err
+			return fail(err)
 		}
-		p, digest, archiveSHA = pkg, dig, archSHA
+		env.Runtime = profile.ID
+	}
+	if targetPath == "" {
+		return fail(apperr.Usage("missing_directory", "usage: dtkit validate <dir|archive> [--runtime <codex|gemini>] [--json]"))
+	}
+	info, statErr := os.Lstat(targetPath)
+	if statErr != nil {
+		return fail(statErr)
+	}
+	var p catalog.Package
+	var memFS fs.FS
+	var digest, archiveSHA string
+	if info.IsDir() {
+		pkg, snapFS, dig, err := catalog.LoadDir(targetPath)
+		if err != nil {
+			return fail(err)
+		}
+		p, memFS, digest = pkg, snapFS, dig
+	} else {
+		pkg, snapFS, dig, archSHA, err := dist.ReadArchiveFile(targetPath, "")
+		if err != nil {
+			return fail(err)
+		}
+		p, memFS, digest, archiveSHA = pkg, snapFS, dig, archSHA
+	}
+	targets := p.RuntimeTargets
+	if runtimeArg != "" {
+		targets = []string{env.Runtime}
+	}
+	for _, rt := range targets {
+		for _, scope := range p.Scopes {
+			if _, err := adapter.RenderForRuntime(rt, p, memFS, scope); err != nil {
+				return fail(err)
+			}
+		}
 	}
 	if jsonOutput {
 		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest, ArchiveSHA256: archiveSHA}

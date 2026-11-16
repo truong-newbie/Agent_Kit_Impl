@@ -6,7 +6,6 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 func runRemove(ctx context.Context, args []string, deps Deps) error {
@@ -20,11 +19,11 @@ func runRemove(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]"))
+		return fail(apperr.Usage("missing_kit", "usage: dtkit remove <kit> --project|--global [--runtime <codex|gemini>] [--path <dir>] [--dry-run] [--yes] [--json]"))
 	}
 	kitID := args[0]
 
-	var scope, projectPath string
+	var scope, projectPath, runtimeArg string
 	var dryRun, yes bool
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
@@ -46,6 +45,12 @@ func runRemove(ctx context.Context, args []string, deps Deps) error {
 			yes = true
 		case "--verbose":
 			deps.Verbose = true
+		case "--runtime":
+			i++
+			if i >= len(args) {
+				return fail(apperr.Usage("missing_flag_value", "--runtime requires a value"))
+			}
+			runtimeArg = args[i]
 		case "--path":
 			i++
 			if i >= len(args) {
@@ -57,8 +62,12 @@ func runRemove(ctx context.Context, args []string, deps Deps) error {
 		}
 	}
 
+	profile, rtErr := resolveRuntimeProfile(runtimeArg)
+	if rtErr != nil {
+		return fail(rtErr)
+	}
 	env.DryRun = dryRun
-	env.Runtime = "codex"
+	env.Runtime = profile.ID
 	env.Scope = scope
 
 	if scope == "" {
@@ -68,26 +77,14 @@ func runRemove(ctx context.Context, args []string, deps Deps) error {
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
 	}
 
-	roots := map[string]string{}
-	if scope == "project" {
-		res, err := paths.ResolveProject(ctx, deps.Env, projectPath)
-		if err != nil {
-			return fail(err)
-		}
-		roots["project"] = res.Root
-		env.Warnings = append(env.Warnings, res.Warnings...)
-	} else {
-		res, err := paths.ResolveGlobal(deps.Env)
-		if err != nil {
-			return fail(err)
-		}
-		roots["user-home"] = res.UserHome
-		roots["codex-home"] = res.CodexHome
-		env.Warnings = append(env.Warnings, res.Warnings...)
+	roots, rootWarnings, err := resolveScopeRoots(ctx, deps, profile, scope, projectPath)
+	if err != nil {
+		return fail(err)
 	}
+	env.Warnings = append(env.Warnings, rootWarnings...)
 	env.Roots = roots
 
-	plan, existing, exists, err := installer.PlanRemove(scope, kitID, roots)
+	plan, existing, exists, err := installer.PlanRemoveForRuntime(profile.ID, scope, kitID, roots)
 	if existing != nil {
 		env.Kit = &KitSummary{ID: existing.Kit.ID, Version: existing.Kit.Version, Digest: existing.Kit.Digest}
 	} else {
@@ -149,7 +146,7 @@ func runRemove(ctx context.Context, args []string, deps Deps) error {
 		return fail(apperr.Cancelled("removal cancelled"))
 	}
 
-	res, err := installer.Remove(scope, kitID, roots, deps.Now(), installer.RemoveOptions{})
+	res, err := installer.Remove(scope, kitID, roots, deps.Now(), installer.RemoveOptions{Runtime: profile.ID})
 	if err != nil {
 		return fail(err)
 	}
