@@ -73,9 +73,10 @@ type ProjectResolution struct {
 
 // GlobalResolution contains the resolved global roots and diagnostics.
 type GlobalResolution struct {
-	UserHome  string
-	CodexHome string
-	Warnings  []string
+	UserHome   string
+	CodexHome  string
+	GeminiHome string
+	Warnings   []string
 }
 
 // ResolveProject resolves the project root using --path, Git root, or CWD.
@@ -136,48 +137,99 @@ func ResolveProject(ctx context.Context, env Environment, explicitPath string) (
 	return res, nil
 }
 
-// ResolveGlobal resolves user-home and codex-home for global operations.
+// ResolveGlobal resolves user-home and codex-home for global Codex operations.
 func ResolveGlobal(env Environment) (GlobalResolution, error) {
 	env = env.withDefaults()
 	var res GlobalResolution
-	home, err := env.UserHomeDir()
+	absHome, err := resolveUserHome(env)
 	if err != nil {
 		return res, err
 	}
-	absHome, err := filepath.Abs(home)
+	codexHome, warnings, err := resolveEnvDirectory(env, "CODEX_HOME", filepath.Join(absHome, ".codex"), "invalid_codex_home")
 	if err != nil {
-		return res, err
-	}
-	homeInfo, err := os.Lstat(absHome)
-	if err != nil {
-		return res, err
-	}
-	if IsReparseOrSymlink(homeInfo) || !homeInfo.IsDir() {
-		return res, apperr.WithPath(apperr.Usage("invalid_user_home", "user home directory cannot be a symbolic link or non-directory"), absHome)
-	}
-	codexEnv := env.Getenv("CODEX_HOME")
-	codexHome := codexEnv
-	if codexHome == "" {
-		codexHome = filepath.Join(absHome, ".codex")
-	} else if !filepath.IsAbs(codexHome) {
-		absCodex, err := filepath.Abs(codexHome)
-		if err != nil {
-			return res, err
-		}
-		res.Warnings = append(res.Warnings, fmt.Sprintf("CODEX_HOME is relative (%q); resolved to %s (depends on working directory)", codexEnv, absCodex))
-		codexHome = absCodex
-	}
-	codexHome = filepath.Clean(codexHome)
-	if info, err := os.Lstat(codexHome); err == nil {
-		if IsReparseOrSymlink(info) || !info.IsDir() {
-			return res, apperr.WithPath(apperr.Usage("invalid_codex_home", "CODEX_HOME cannot be a symbolic link or non-directory"), codexHome)
-		}
-	} else if !os.IsNotExist(err) {
 		return res, err
 	}
 	res.UserHome = absHome
 	res.CodexHome = codexHome
+	res.Warnings = append(res.Warnings, warnings...)
 	return res, nil
+}
+
+// ResolveGeminiGlobal resolves user-home and gemini-home ($GEMINI_CLI_HOME/.gemini
+// or ~/.gemini) for global Gemini CLI operations.
+func ResolveGeminiGlobal(env Environment) (GlobalResolution, error) {
+	env = env.withDefaults()
+	var res GlobalResolution
+	absHome, err := resolveUserHome(env)
+	if err != nil {
+		return res, err
+	}
+	cliBase, warnings, err := resolveEnvDirectory(env, "GEMINI_CLI_HOME", absHome, "invalid_gemini_home")
+	if err != nil {
+		return res, err
+	}
+	geminiHome := filepath.Clean(filepath.Join(cliBase, ".gemini"))
+	if err := checkOptionalDirectory(geminiHome, "invalid_gemini_home", "GEMINI_CLI_HOME/.gemini"); err != nil {
+		return res, err
+	}
+	res.UserHome = absHome
+	res.GeminiHome = geminiHome
+	res.Warnings = append(res.Warnings, warnings...)
+	return res, nil
+}
+
+func resolveUserHome(env Environment) (string, error) {
+	home, err := env.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	absHome, err := filepath.Abs(home)
+	if err != nil {
+		return "", err
+	}
+	homeInfo, err := os.Lstat(absHome)
+	if err != nil {
+		return "", err
+	}
+	if IsReparseOrSymlink(homeInfo) || !homeInfo.IsDir() {
+		return "", apperr.WithPath(apperr.Usage("invalid_user_home", "user home directory cannot be a symbolic link or non-directory"), absHome)
+	}
+	return absHome, nil
+}
+
+func resolveEnvDirectory(env Environment, envVar, defaultPath, errCode string) (string, []string, error) {
+	var warnings []string
+	raw := env.Getenv(envVar)
+	target := raw
+	if target == "" {
+		target = defaultPath
+	} else if !filepath.IsAbs(target) {
+		absTarget, err := filepath.Abs(target)
+		if err != nil {
+			return "", nil, err
+		}
+		warnings = append(warnings, fmt.Sprintf("%s is relative (%q); resolved to %s (depends on working directory)", envVar, raw, absTarget))
+		target = absTarget
+	}
+	target = filepath.Clean(target)
+	if err := checkOptionalDirectory(target, errCode, envVar); err != nil {
+		return "", nil, err
+	}
+	return target, warnings, nil
+}
+
+func checkOptionalDirectory(dir, errCode, label string) error {
+	info, err := os.Lstat(dir)
+	if err == nil {
+		if IsReparseOrSymlink(info) || !info.IsDir() {
+			return apperr.WithPath(apperr.Usage(errCode, fmt.Sprintf("%s cannot be a symbolic link or non-directory", label)), dir)
+		}
+		return nil
+	}
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 
 // ValidateRelativePath checks that a slash-separated relative path is clean,

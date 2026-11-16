@@ -118,3 +118,53 @@ func TestResolveTargetRejectsSymlinkRootAndChild(t *testing.T) {
 		t.Fatal("accepted symlink child ancestor")
 	}
 }
+
+func TestResolveGeminiGlobal(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "user")
+	customBase := filepath.Join(base, "gemini-cli-home")
+	for _, d := range []string{home, customBase} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Default falls back to ~/.gemini
+	env := Environment{
+		UserHomeDir: func() (string, error) { return home, nil },
+		Getenv:      func(string) string { return "" },
+	}
+	res, err := ResolveGeminiGlobal(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.GeminiHome != filepath.Join(home, ".gemini") || len(res.Warnings) != 0 {
+		t.Fatalf("unexpected default GeminiHome: %+v", res)
+	}
+
+	// GEMINI_CLI_HOME appends .gemini cleanly.
+	env.Getenv = func(k string) string {
+		if k == "GEMINI_CLI_HOME" {
+			return customBase
+		}
+		return ""
+	}
+	res, err = ResolveGeminiGlobal(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.GeminiHome != filepath.Join(customBase, ".gemini") {
+		t.Fatalf("expected %s, got %+v", filepath.Join(customBase, ".gemini"), res)
+	}
+
+	// Relative GEMINI_CLI_HOME emits warning.
+	env.Getenv = func(k string) string {
+		if k == "GEMINI_CLI_HOME" {
+			return "rel-gemini"
+		}
+		return ""
+	}
+	res, err = ResolveGeminiGlobal(env)
+	if err != nil || !filepath.IsAbs(res.GeminiHome) || len(res.Warnings) == 0 {
+		t.Fatalf("expected relative GEMINI_CLI_HOME warning and abs path: %+v, err=%v", res, err)
+	}
+}
