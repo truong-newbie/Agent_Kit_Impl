@@ -56,6 +56,25 @@ func PlanRemove(scope, kitID string, roots map[string]string) (planner.InstallPl
 	if err != nil {
 		return planner.InstallPlan{}, existing, true, err
 	}
+	for _, reg := range existing.Hooks {
+		hAct, hErr := buildHookRemovalAction(roots, reg)
+		if hErr != nil {
+			plan.Conflicts++
+			plan.Actions = append(plan.Actions, planner.Action{
+				Root:   reg.Root,
+				Path:   reg.Path,
+				Kind:   "conflict",
+				Reason: "hook_entry_conflict",
+			})
+		} else {
+			plan.Actions = append(plan.Actions, planner.Action{
+				Root:   hAct.Root,
+				Path:   hAct.Path,
+				Kind:   hAct.Kind,
+				Reason: "unregister_hook",
+			})
+		}
+	}
 	return plan, existing, true, nil
 }
 
@@ -91,6 +110,9 @@ func Remove(scope, kitID string, roots map[string]string, now time.Time, opts Re
 
 	var txActions []TxAction
 	for _, act := range ordered {
+		if act.Reason == "unregister_hook" || act.Reason == "hook_entry_conflict" {
+			continue
+		}
 		sa, ok := byKey[act.Root+"\x00"+act.Path]
 		if !ok {
 			return res, fmt.Errorf("state artifact disappeared during remove")
@@ -156,6 +178,14 @@ func Remove(scope, kitID string, roots map[string]string, now time.Time, opts Re
 			After:    after,
 			Mode:     info.Mode().Perm(),
 		})
+	}
+
+	for _, reg := range existing.Hooks {
+		hAct, hErr := buildHookRemovalAction(roots, reg)
+		if hErr != nil {
+			return res, hErr
+		}
+		txActions = append(txActions, hAct)
 	}
 
 	txRes, err := ExecuteTx(TxRequest{

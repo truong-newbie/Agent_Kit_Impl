@@ -47,6 +47,7 @@ type StatusReport struct {
 	BundledVersion      string            `json:"bundledVersion,omitempty"`
 	AdapterRevision     string            `json:"adapterRevision,omitempty"`
 	Artifacts           []ArtifactStatus  `json:"artifacts,omitempty"`
+	Hooks               []HookStatusInfo  `json:"hooks,omitempty"`
 	Detail              string            `json:"detail,omitempty"`
 }
 
@@ -155,6 +156,27 @@ func Inspect(scope string, roots map[string]string, _ []codex.Artifact) (StatusR
 			}
 		}
 		report.Artifacts = append(report.Artifacts, item)
+	}
+
+	if len(installed.Hooks) > 0 {
+		hookStatuses, hErr := InspectHooks(scope, roots)
+		if hErr != nil {
+			return report, hErr
+		}
+		report.Hooks = hookStatuses
+		for _, hs := range hookStatuses {
+			switch hs.Status {
+			case "missing":
+				report.Healthy = false
+				hasMissing = true
+			case "modified", "broken_executable":
+				report.Healthy = false
+				hasModified = true
+			case "conflicted":
+				report.Healthy = false
+				hasConflict = true
+			}
+		}
 	}
 
 	sort.Strings(report.UnknownFiles)

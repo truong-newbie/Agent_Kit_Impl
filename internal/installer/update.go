@@ -147,7 +147,7 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 	})
 
 	nextState := state.Installation{
-		SchemaVersion:   1,
+		SchemaVersion:   existing.SchemaVersion,
 		ManagedBy:       "dtkit",
 		Generation:      existing.Generation + 1,
 		Scope:           scope,
@@ -162,6 +162,7 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 			Digest:     pkgDigest,
 			SourceKind: opts.SourceKind,
 		},
+		Hooks: append([]state.HookRegistration(nil), existing.Hooks...),
 	}
 
 	var txActions []TxAction
