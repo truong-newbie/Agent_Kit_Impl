@@ -25,13 +25,18 @@ func TestStrictJSON(t *testing.T) {
 }
 
 func TestPackageTreeRejectsUnsafePaths(t *testing.T) {
-	for _, name := range []string{"CON.txt", "file:stream", "trailing.", "one\\two"} {
+	for _, name := range []string{"CON.txt", "file:stream", "trailing.", "one\\two", "script.sh", "run.ps1", "bin.exe", ".git/config", "node_modules/a.md"} {
 		t.Run(name, func(t *testing.T) {
 			f := fstest.MapFS{name: &fstest.MapFile{Data: []byte("x")}}
 			if err := checkTree(f); err == nil {
 				t.Fatalf("expected rejection of %s", name)
 			}
 		})
+	}
+	for _, content := range [][]byte{[]byte("#!/bin/sh\necho hi\n"), []byte("\x7fELF"), []byte("MZ\x90\x00"), []byte("\xff")} {
+		if err := checkContentSafety("tool", content); err == nil {
+			t.Fatalf("expected rejection of unsafe content %q", content)
+		}
 	}
 	f := fstest.MapFS{"A.txt": &fstest.MapFile{}, "a.txt": &fstest.MapFile{}}
 	if err := checkTree(f); err == nil || !strings.Contains(err.Error(), "collision") {

@@ -6,46 +6,59 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"path"
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"dtkit.local/dtkit/internal/apperr"
+	"dtkit.local/dtkit/internal/paths"
+)
+
+const (
+	MaxManifestBytes = 256 * 1024
+	MaxComponents    = 128
+	MaxFiles         = 512
+	MaxFileBytes     = 1024 * 1024
+	MaxPackageBytes  = 10 * 1024 * 1024
 )
 
 var idPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-var reservedDevicePattern = regexp.MustCompile(`^(COM|LPT)[1-9]$`)
+
+var disallowedDirs = map[string]bool{
+	".git":         true,
+	".dtkit":       true,
+	"node_modules": true,
+	"dist":         true,
+}
+
+var disallowedExtensions = map[string]bool{
+	".exe": true, ".dll": true, ".so": true, ".dylib": true,
+	".com": true, ".msi": true, ".bat": true, ".cmd": true,
+	".ps1": true, ".psm1": true, ".psd1": true, ".sh": true,
+	".bash": true, ".zsh": true, ".ksh": true, ".py": true,
+	".pyc": true, ".rb": true, ".pl": true, ".js": true,
+	".mjs": true, ".cjs": true, ".ts": true, ".vbs": true,
+	".wsf": true, ".jar": true, ".scr": true, ".pif": true,
+}
 
 func validID(id string, max int) bool { return len(id) <= max && idPattern.MatchString(id) }
 
-func equalSet(actual, expected []string) bool {
-	if len(actual) != len(expected) {
+func subsetUnique(actual []string, allowed []string) bool {
+	if len(actual) == 0 {
 		return false
 	}
-	counts := map[string]int{}
+	allowMap := make(map[string]bool, len(allowed))
+	for _, a := range allowed {
+		allowMap[a] = true
+	}
+	seen := make(map[string]bool, len(actual))
 	for _, x := range actual {
-		counts[x]++
-	}
-	for _, x := range expected {
-		if counts[x] != 1 {
+		if !allowMap[x] || seen[x] {
 			return false
 		}
-		delete(counts, x)
-	}
-	return len(counts) == 0
-}
-
-func validPath(p string) bool {
-	if !fs.ValidPath(p) || p == "." || strings.ContainsAny(p, `\:`) || strings.Count(p, "/") >= 12 {
-		return false
-	}
-	for _, segment := range strings.Split(p, "/") {
-		if strings.HasSuffix(segment, ".") || strings.HasSuffix(segment, " ") {
-			return false
-		}
-		stem := strings.ToUpper(strings.SplitN(segment, ".", 2)[0])
-		if stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" || reservedDevicePattern.MatchString(stem) {
-			return false
-		}
+		seen[x] = true
 	}
 	return true
 }
@@ -94,11 +107,11 @@ func exactKeys(object map[string]json.RawMessage, expected []string) error {
 	return nil
 }
 
-// checkTree rejects links and oversized package content before reading it.
-// It is not a security boundary against a concurrent process modifying a directory.
+// checkTree rejects links, disallowed directories/executables, case collisions,
+// and oversized package content before reading it.
 func checkTree(fsys fs.FS) error {
 	count, total := 0, int64(0)
-	paths := map[string]string{}
+	pathsSeen := map[string]string{}
 	return fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -106,37 +119,55 @@ func checkTree(fsys fs.FS) error {
 		if name == "." {
 			return nil
 		}
-		if !validPath(name) {
-			return fmt.Errorf("invalid package path %q", name)
+		if !paths.ValidateRelativePath(name) {
+			return apperr.WithPath(apperr.Usage("invalid_package_path", fmt.Sprintf("invalid package path %q", name)), name)
 		}
 		key := strings.ToLower(name)
-		if prev, ok := paths[key]; ok {
-			return fmt.Errorf("case-insensitive path collision: %q and %q", prev, name)
+		if prev, ok := pathsSeen[key]; ok {
+			return apperr.WithPath(apperr.Usage("path_collision", fmt.Sprintf("case-insensitive path collision: %q and %q", prev, name)), name)
 		}
-		paths[key] = name
-		if entry.Type()&fs.ModeSymlink != 0 {
-			return fmt.Errorf("symbolic link not allowed: %q", name)
+		pathsSeen[key] = name
+		if entry.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+			return apperr.WithPath(apperr.Usage("symlink_not_allowed", fmt.Sprintf("symbolic link or reparse point not allowed: %q", name)), name)
 		}
 		if entry.IsDir() {
-			if entry.Name() == ".git" {
-				return fmt.Errorf(".git directory is not allowed")
+			if disallowedDirs[strings.ToLower(entry.Name())] {
+				return apperr.WithPath(apperr.Usage("disallowed_directory", fmt.Sprintf("%s directory is not allowed in package", entry.Name())), name)
 			}
 			return nil
+		}
+		ext := strings.ToLower(path.Ext(name))
+		if disallowedExtensions[ext] {
+			return apperr.WithPath(apperr.Usage("disallowed_file_type", fmt.Sprintf("executable or script file %q is not allowed in v0.1 packages", name)), name)
 		}
 		info, err := entry.Info()
 		if err != nil {
 			return err
 		}
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("special file not allowed: %q", name)
+		if info.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0 || !info.Mode().IsRegular() {
+			return apperr.WithPath(apperr.Usage("special_file_not_allowed", fmt.Sprintf("special file not allowed: %q", name)), name)
 		}
 		count++
 		total += info.Size()
-		if count > 512 || info.Size() > 1024*1024 || total > 10*1024*1024 {
-			return fmt.Errorf("package size limit exceeded at %q", name)
+		if count > MaxFiles || info.Size() > MaxFileBytes || total > MaxPackageBytes {
+			return apperr.WithPath(apperr.Usage("package_size_limit", fmt.Sprintf("package size or file count limit exceeded at %q", name)), name)
 		}
 		return nil
 	})
+}
+
+func checkContentSafety(name string, data []byte) error {
+	if !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
+		return apperr.WithPath(apperr.Usage("binary_file_not_allowed", fmt.Sprintf("non-UTF-8 or binary file not allowed: %q", name)), name)
+	}
+	trimmed := bytes.TrimLeft(data, " \t\r\n")
+	if bytes.HasPrefix(trimmed, []byte("#!")) {
+		return apperr.WithPath(apperr.Usage("executable_not_allowed", fmt.Sprintf("shebang script not allowed: %q", name)), name)
+	}
+	if bytes.HasPrefix(data, []byte("\x7fELF")) || bytes.HasPrefix(data, []byte("MZ")) {
+		return apperr.WithPath(apperr.Usage("executable_not_allowed", fmt.Sprintf("executable binary not allowed: %q", name)), name)
+	}
+	return nil
 }
 
 // checkJSON rejects duplicate object keys at every depth and trailing values.

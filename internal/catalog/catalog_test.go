@@ -37,7 +37,7 @@ func TestValidationRejectsMissingAndCyclicDependencies(t *testing.T) {
 		want       string
 	}{
 		{"missing", []Component{{ID: "rule/a", Kind: "rule", Source: "a", Requires: []string{"rule/b"}}}, "missing dependency"},
-		{"cycle", []Component{{ID: "rule/a", Kind: "rule", Source: "a", Requires: []string{"rule/b"}}, {ID: "rule/b", Kind: "rule", Source: "b", Requires: []string{"rule/a"}}}, "dependency cycle"},
+		{"cycle", []Component{{ID: "rule/a", Kind: "rule", Source: "a", Requires: []string{"rule/b"}}, {ID: "rule/b", Kind: "rule", Source: "b", Requires: []string{"rule/a"}}}, "rule/a -> rule/b -> rule/a"},
 		{"escape", []Component{{ID: "rule/a", Kind: "rule", Source: "../a"}}, "invalid component"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -47,5 +47,26 @@ func TestValidationRejectsMissingAndCyclicDependencies(t *testing.T) {
 				t.Fatalf("got %v, want %s", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestSkillCannotHaveBothTemplateAndStaticFile(t *testing.T) {
+	f := fstest.MapFS{
+		"skills/plan/SKILL.md":      &fstest.MapFile{Data: []byte("---\nname: dtkit-project-plan\ndescription: plan\n---\nbody")},
+		"skills/plan/SKILL.md.tmpl": &fstest.MapFile{Data: []byte("---\nname: {{.SkillName}}\ndescription: plan\n---\nbody")},
+	}
+	p := Package{
+		SchemaVersion:        1,
+		ID:                   "engineer",
+		Name:                 "Engineer",
+		Version:              "0.1.0",
+		Description:          "Test",
+		RuntimeTargets:       []string{"codex"},
+		Scopes:               []string{"project", "global"},
+		RequiresCapabilities: []string{"instructions", "skills"},
+		Components:           []Component{{ID: "skill/plan", Kind: "skill", Source: "skills/plan"}},
+	}
+	if err := Validate(p, f); err == nil || !strings.Contains(err.Error(), "both") {
+		t.Fatalf("expected ambiguous skill error, got %v", err)
 	}
 }

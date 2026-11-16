@@ -4,10 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"hash"
 	"io"
 	"io/fs"
+
+	"dtkit.local/dtkit/internal/apperr"
 )
 
 // Digest hashes ordered relative paths and contents using length prefixes.
@@ -26,14 +27,14 @@ func Digest(source fs.FS) (string, error) {
 		if entry.IsDir() {
 			return nil
 		}
-		if entry.Type()&fs.ModeSymlink != 0 {
-			return fmt.Errorf("symbolic link not allowed: %s", name)
+		if entry.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+			return apperr.WithPath(apperr.Usage("symlink_not_allowed", "symbolic link not allowed"), name)
 		}
 		file, err := source.Open(name)
 		if err != nil {
 			return err
 		}
-		contents, readErr := io.ReadAll(io.LimitReader(file, 1024*1024+1))
+		contents, readErr := io.ReadAll(io.LimitReader(file, MaxFileBytes+1))
 		closeErr := file.Close()
 		if readErr != nil {
 			return readErr
@@ -43,8 +44,8 @@ func Digest(source fs.FS) (string, error) {
 		}
 		count++
 		total += int64(len(contents))
-		if len(contents) > 1024*1024 || count > 512 || total > 10*1024*1024 {
-			return fmt.Errorf("package size limit exceeded: %s", name)
+		if len(contents) > MaxFileBytes || count > MaxFiles || total > MaxPackageBytes {
+			return apperr.WithPath(apperr.Usage("package_size_limit", "package size limit exceeded"), name)
 		}
 		writePart(h, []byte(name))
 		writePart(h, contents)
