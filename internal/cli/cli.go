@@ -1,97 +1,323 @@
 package cli
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 
+	"dtkit.local/dtkit/internal/adapter/codex"
+	"dtkit.local/dtkit/internal/apperr"
+	"dtkit.local/dtkit/internal/buildinfo"
 	"dtkit.local/dtkit/internal/catalog"
 )
 
-const version = "0.1.0-dev"
-
-const help = `DTKit — AI engineering toolkit
+const helpText = `DTKit — AI engineering toolkit
 
 Usage:
-  dtkit version
-  dtkit list
-  dtkit info engineer
-  dtkit validate <directory>
-  dtkit doctor
-  dtkit install engineer --project|--global --dry-run
-  dtkit status --project|--global [--path <dir>] [--json]
+  dtkit version [--json]
+  dtkit help [command]
+  dtkit list [--json]
+  dtkit info <kit> [--from <dir>] [--json]
+  dtkit validate <directory> [--json]
+  dtkit doctor [--runtime codex] [--project|--global] [--path <dir>] [--json]
+  dtkit install <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]
+  dtkit status [--project|--global] [--path <dir>] [--json]
+  dtkit update <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]
+  dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]
+  dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
 
-Updates, removal and recovery are under development.
+Examples:
+  dtkit doctor
+  dtkit install engineer --project --dry-run
+  dtkit install engineer --project --yes
+  dtkit status --project
+  dtkit update engineer --project --dry-run
+  dtkit remove engineer --project --dry-run
+  dtkit recover --project --dry-run
 `
 
 func Run(args []string, stdout, stderr io.Writer) error {
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
-		_, err := io.WriteString(stdout, help)
+	return RunWithDeps(context.Background(), args, DefaultDeps(nil, stdout, stderr))
+}
+
+func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
+	deps = deps.withDefaults()
+	if err := ctx.Err(); err != nil {
+		return apperr.Cancelled("operation cancelled")
+	}
+	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
+		if len(args) > 1 && args[0] == "help" {
+			return printCommandHelp(args[1], deps.Stdout)
+		}
+		_, err := io.WriteString(deps.Stdout, helpText)
 		return err
 	}
+
 	switch args[0] {
 	case "--version", "version":
-		if len(args) == 2 && args[1] == "--json" {
-			return json.NewEncoder(stdout).Encode(map[string]string{"version": version})
-		}
-		if len(args) != 1 {
-			return fmt.Errorf("version accepts only --json")
-		}
-		_, err := fmt.Fprintln(stdout, "dtkit", version)
-		return err
+		return runVersion(args[1:], deps)
 	case "list":
-		if len(args) != 1 {
-			return fmt.Errorf("usage: dtkit list")
-		}
-		p, _, err := catalog.Engineer()
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintf(stdout, "%s\t%s\t%s\n", p.ID, p.Version, p.Description)
-		return err
+		return runList(args[1:], deps)
 	case "info":
-		if len(args) != 2 || args[1] != "engineer" {
-			return fmt.Errorf("usage: dtkit info engineer")
-		}
-		p, _, err := catalog.Engineer()
-		if err != nil {
-			return err
-		}
-		enc := json.NewEncoder(stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(p)
+		return runInfo(args[1:], deps)
 	case "validate":
-		if len(args) != 2 {
-			return fmt.Errorf("usage: dtkit validate <directory>")
-		}
-		p, err := catalog.Load(os.DirFS(args[1]))
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintf(stdout, "Basic validation passed: %s %s (not a security audit)\n", p.ID, p.Version)
-		return err
+		return runValidate(args[1:], deps)
 	case "doctor":
-		if len(args) != 1 {
-			return fmt.Errorf("usage: dtkit doctor")
-		}
-		path, err := exec.LookPath("codex")
-		if err != nil {
-			fmt.Fprintln(stdout, "Codex CLI: not found on PATH")
-			return fmt.Errorf("Codex runtime is not ready")
-		}
-		fmt.Fprintln(stdout, "Codex CLI:", path)
-		return nil
+		return runDoctor(ctx, args[1:], deps)
 	case "install":
-		return previewInstall(args[1:], stdout)
+		return runInstall(ctx, args[1:], deps)
 	case "status":
-		return status(args[1:], stdout)
+		return runStatus(ctx, args[1:], deps)
+	case "update":
+		return runUpdate(ctx, args[1:], deps)
+	case "remove":
+		return runRemove(ctx, args[1:], deps)
+	case "recover":
+		return runRecover(ctx, args[1:], deps)
 	default:
 		if strings.HasPrefix(args[0], "-") {
-			return fmt.Errorf("unknown option %q", args[0])
+			err := apperr.Usage("unknown_option", fmt.Sprintf("unknown option %q", args[0]))
+			if hasJSONFlag(args[1:]) {
+				return failJSON(deps.Stdout, newEnvelope("dtkit"), err)
+			}
+			return err
 		}
-		return fmt.Errorf("command %q is not available yet; run dtkit help", args[0])
+		err := apperr.Usage("unknown_command", fmt.Sprintf("command %q is not available; run dtkit help", args[0]))
+		if hasJSONFlag(args[1:]) {
+			return failJSON(deps.Stdout, newEnvelope(args[0]), err)
+		}
+		return err
 	}
+}
+
+func printCommandHelp(cmd string, out io.Writer) error {
+	switch cmd {
+	case "install":
+		_, err := io.WriteString(out, "Usage: dtkit install <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "status":
+		_, err := io.WriteString(out, "Usage: dtkit status [--project|--global] [--path <dir>] [--json]\n")
+		return err
+	case "doctor":
+		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime codex] [--project|--global] [--path <dir>] [--json]\n")
+		return err
+	case "validate":
+		_, err := io.WriteString(out, "Usage: dtkit validate <directory> [--json]\n")
+		return err
+	case "info":
+		_, err := io.WriteString(out, "Usage: dtkit info <kit> [--from <dir>] [--json]\n")
+		return err
+	case "update":
+		_, err := io.WriteString(out, "Usage: dtkit update <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "remove":
+		_, err := io.WriteString(out, "Usage: dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "recover":
+		_, err := io.WriteString(out, "Usage: dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]\n")
+		return err
+	default:
+		_, err := io.WriteString(out, helpText)
+		return err
+	}
+}
+
+func hasJSONFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--json" {
+			return true
+		}
+	}
+	return false
+}
+
+func runVersion(args []string, deps Deps) error {
+	jsonOutput := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			jsonOutput = true
+		case "--verbose":
+			deps.Verbose = true
+		default:
+			err := apperr.Usage("invalid_flag", fmt.Sprintf("version does not accept %q", a))
+			if jsonOutput || hasJSONFlag(args) {
+				return failJSON(deps.Stdout, newEnvelope("version"), err)
+			}
+			return err
+		}
+	}
+	info := buildinfo.Current()
+	if jsonOutput {
+		env := newEnvelope("version")
+		env.BuildInfo = &info
+		return writeEnvelope(deps.Stdout, env)
+	}
+	_, err := fmt.Fprintf(deps.Stdout, "dtkit %s (commit %s, built %s)\n", info.Version, info.Commit, info.Date)
+	return err
+}
+
+func runList(args []string, deps Deps) error {
+	jsonOutput := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			jsonOutput = true
+		case "--verbose":
+			deps.Verbose = true
+		default:
+			err := apperr.Usage("invalid_flag", fmt.Sprintf("usage: dtkit list [--json] (unexpected %q)", a))
+			if jsonOutput || hasJSONFlag(args) {
+				return failJSON(deps.Stdout, newEnvelope("list"), err)
+			}
+			return err
+		}
+	}
+	p, _, err := catalog.Engineer()
+	if err != nil {
+		if jsonOutput {
+			return failJSON(deps.Stdout, newEnvelope("list"), err)
+		}
+		return err
+	}
+	if jsonOutput {
+		env := newEnvelope("list")
+		env.Packages = []PackageSummary{{ID: p.ID, Name: p.Name, Version: p.Version, Description: p.Description}}
+		return writeEnvelope(deps.Stdout, env)
+	}
+	_, err = fmt.Fprintf(deps.Stdout, "%s\t%s\t%s\n", p.ID, p.Version, p.Description)
+	return err
+}
+
+func runInfo(args []string, deps Deps) error {
+	var kitID, fromDir string
+	jsonOutput := false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--json":
+			jsonOutput = true
+		case "--verbose":
+			deps.Verbose = true
+		case "--from":
+			i++
+			if i >= len(args) {
+				err := apperr.Usage("missing_flag_value", "--from requires a directory")
+				if jsonOutput || hasJSONFlag(args) {
+					return failJSON(deps.Stdout, newEnvelope("info"), err)
+				}
+				return err
+			}
+			fromDir = args[i]
+		default:
+			if strings.HasPrefix(args[i], "-") || kitID != "" {
+				err := apperr.Usage("invalid_usage", "usage: dtkit info <kit> [--from <dir>] [--json]")
+				if jsonOutput || hasJSONFlag(args) {
+					return failJSON(deps.Stdout, newEnvelope("info"), err)
+				}
+				return err
+			}
+			kitID = args[i]
+		}
+	}
+	if kitID == "" {
+		err := apperr.Usage("missing_kit", "usage: dtkit info <kit> [--from <dir>] [--json]")
+		if jsonOutput {
+			return failJSON(deps.Stdout, newEnvelope("info"), err)
+		}
+		return err
+	}
+	var p catalog.Package
+	var digest string
+	var err error
+	if fromDir != "" {
+		p, _, digest, err = catalog.LoadDir(fromDir)
+		if err == nil && p.ID != kitID {
+			err = apperr.Usage("kit_id_mismatch", fmt.Sprintf("local package ID %q does not match requested %q", p.ID, kitID))
+		}
+	} else {
+		if kitID != "engineer" {
+			err = apperr.Usage("unknown_kit", fmt.Sprintf("kit %q is not in the bundled catalog", kitID))
+		} else {
+			var src interface{ Open(string) (os.File, error) }
+			_ = src
+			pkg, fsSrc, loadErr := catalog.Engineer()
+			p = pkg
+			err = loadErr
+			if err == nil {
+				digest, err = catalog.Digest(fsSrc)
+			}
+		}
+	}
+	if err != nil {
+		if jsonOutput {
+			return failJSON(deps.Stdout, newEnvelope("info"), err)
+		}
+		return err
+	}
+	if jsonOutput {
+		env := newEnvelope("info")
+		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest}
+		env.Package = &p
+		return writeEnvelope(deps.Stdout, env)
+	}
+	_, err = fmt.Fprintf(deps.Stdout, "%s %s (%s)\n%s\nRuntimes: %s\nScopes: %s\nComponents: %d\nDigest: %s\n",
+		p.ID, p.Version, p.Name, p.Description,
+		strings.Join(p.RuntimeTargets, ", "),
+		strings.Join(p.Scopes, ", "),
+		len(p.Components), digest)
+	return err
+}
+
+func runValidate(args []string, deps Deps) error {
+	var dir string
+	jsonOutput := false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			jsonOutput = true
+		case "--verbose":
+			deps.Verbose = true
+		default:
+			if strings.HasPrefix(a, "-") || dir != "" {
+				err := apperr.Usage("invalid_usage", "usage: dtkit validate <directory> [--json]")
+				if jsonOutput || hasJSONFlag(args) {
+					return failJSON(deps.Stdout, newEnvelope("validate"), err)
+				}
+				return err
+			}
+			dir = a
+		}
+	}
+	if dir == "" {
+		err := apperr.Usage("missing_directory", "usage: dtkit validate <directory> [--json]")
+		if jsonOutput {
+			return failJSON(deps.Stdout, newEnvelope("validate"), err)
+		}
+		return err
+	}
+	env := newEnvelope("validate")
+	p, snap, digest, err := catalog.LoadDir(dir)
+	if err != nil {
+		if jsonOutput {
+			return failJSON(deps.Stdout, env, err)
+		}
+		return err
+	}
+	for _, scope := range p.Scopes {
+		if _, err := codex.Render(p, snap, scope); err != nil {
+			if jsonOutput {
+				return failJSON(deps.Stdout, env, err)
+			}
+			return err
+		}
+	}
+	if jsonOutput {
+		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest}
+		env.Package = &p
+		return writeEnvelope(deps.Stdout, env)
+	}
+	_, err = fmt.Fprintf(deps.Stdout, "Validation passed: %s %s (digest %s; local package check is not a security audit for untrusted input)\n", p.ID, p.Version, digest[:12])
+	return err
 }
