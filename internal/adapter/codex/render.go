@@ -39,6 +39,7 @@ func Render(p catalog.Package, source fs.FS, scope string) ([]Artifact, error) {
 			if err != nil { return nil, err }
 			var rendered bytes.Buffer
 			if err := tmpl.Execute(&rendered, struct{ SkillName string }{name}); err != nil { return nil, err }
+			if err := validateSkill(rendered.Bytes(), name); err != nil { return nil, fmt.Errorf("skill %s: %w", id, err) }
 			artifacts = append(artifacts, Artifact{Root: root, Path: path.Join(".agents/skills", name, "SKILL.md"), Strategy: "whole-file", Content: rendered.Bytes()})
 			continue
 		}
@@ -56,4 +57,23 @@ func Render(p catalog.Package, source fs.FS, scope string) ([]Artifact, error) {
 	artifacts = append(artifacts, Artifact{Root: instructionRoot, Path: "AGENTS.md", Strategy: "managed-block", Content: []byte(block)})
 	sort.Slice(artifacts, func(i, j int) bool { if artifacts[i].Root != artifacts[j].Root { return artifacts[i].Root < artifacts[j].Root }; return artifacts[i].Path < artifacts[j].Path })
 	return artifacts, nil
+}
+
+// validateSkill checks the deliberately narrow frontmatter format of bundled
+// templates. General third-party YAML requires a full parser before support.
+func validateSkill(content []byte, name string) error {
+	lines := strings.Split(strings.ReplaceAll(string(content), "\r\n", "\n"), "\n")
+	if len(lines) < 5 || lines[0] != "---" { return fmt.Errorf("missing YAML frontmatter") }
+	seenName, seenDescription, end := false, false, -1
+	for i := 1; i < len(lines); i++ {
+		if lines[i] == "---" { end = i; break }
+		if strings.HasPrefix(lines[i], "name: ") {
+			if seenName || strings.TrimPrefix(lines[i], "name: ") != name { return fmt.Errorf("invalid skill name") }; seenName = true
+		} else if strings.HasPrefix(lines[i], "description: ") {
+			desc := strings.TrimSpace(strings.TrimPrefix(lines[i], "description: "))
+			if seenDescription || len(desc) == 0 || len(desc) > 1024 { return fmt.Errorf("invalid skill description") }; seenDescription = true
+		} else { return fmt.Errorf("unsupported frontmatter field") }
+	}
+	if end < 0 || !seenName || !seenDescription || strings.TrimSpace(strings.Join(lines[end+1:], "\n")) == "" { return fmt.Errorf("incomplete skill metadata or body") }
+	return nil
 }

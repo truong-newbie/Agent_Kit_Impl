@@ -22,3 +22,14 @@ func TestRenderScopeAndDeterminism(t *testing.T) {
 		if skillCount != 7 || instructionCount != 1 { t.Fatalf("skills=%d blocks=%d", skillCount, instructionCount) }
 	}
 }
+
+func TestSkillRejectsMalformedFrontmatter(t *testing.T) {
+	for _, content := range []string{
+		"---\nname: wrong\ndescription: hi\n---\nbody",
+		"---\nname: dtkit-project-plan\nname: dtkit-project-plan\ndescription: hi\n---\nbody",
+		"---\nname: dtkit-project-plan\ndescription: \n---\nbody",
+		"---\nname: dtkit-project-plan\ndescription: hi\n---\n",
+	} {
+		if err := validateSkill([]byte(content), "dtkit-project-plan"); err == nil { t.Fatalf("accepted malformed skill: %q", content) }
+	}
+}
