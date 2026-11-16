@@ -14,7 +14,7 @@ Status: in-progress
 
 Status: in-progress
 
-- Started a Go module, read-only CLI, embedded Engineer Kit, component validation and content. Added a pure Codex renderer, managed-block operations and fresh-install preview.
+- Started a Go module, read-only CLI, embedded Engineer Kit, component validation and content. Added a pure Codex renderer, managed-block operations, fresh-install preview, deterministic package digest and installation-state validation.
 - Basic tests cover catalog structure, missing/cyclic dependencies and CLI behavior.
 - The CLI is intentionally incomplete: actual installation, update, status, remove, state and recovery do not yet exist. Only a fresh-install `--dry-run` is available; it rejects existing state.
 - Manifest/schema validation and local package safety require further work before treating packages as untrusted input.
@@ -25,4 +25,4 @@ Status: in-progress
 
 ## M4–M12
 
-Status: in-progress (M4 renderer, managed-block planning and fresh-install preview; M5–M12 not started)
+Status: in-progress (M4 renderer, managed-block planning and fresh-install preview; M5 state validation only; M6–M12 not started)
