@@ -136,5 +136,17 @@ Status: implemented, local-container verified, and `opencode 1.19.5` discovery-s
 - Added `paths.ResolveOpenCodeGlobal` (`$OPENCODE_CONFIG_DIR` -> `$XDG_CONFIG_HOME/opencode` -> `~/.config/opencode`), verified against live `opencode 1.19.5` `opencode debug paths` on Windows.
 - Extended `internal/planner/block.go` (`AppendBlockForRuntime`, `ReplaceBlockForRuntime`, `BlockDigestForRuntime`, `RemoveBlockForRuntime`) with runtime-namespaced managed block markers (`<!-- dtkit:begin <kit> opencode <scope> -->`) and closed sibling-block parsing so Codex and OpenCode share `AGENTS.md` without ownership collisions while malformed/unclosed/nested blocks fail closed.
 - Added `internal/adapter/opencode` (`.opencode/skills/dtkit-opencode-project-*`, `~/.config/opencode/skills/dtkit-opencode-global-*`, `AGENTS.md` / `<opencode-home>/AGENTS.md`, `.dtkit/runtimes/opencode/content/<kit>/...`, strict `opencode.json` syntax warning in `dtkit doctor`), opened `--runtime opencode` in CLI, `catalog`, and `schemas/`, and added 3-way coexistence (`codex` + `gemini` + `opencode`) tests.
-- Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`); isolated `opencode 1.19.5` `debug skill` + `debug config` smoke verified all 14 project+global skills alongside Codex in `docs/verification/opencode-1.19.5-2026-11-16.md`.
-- Next: Push `feat/runtime-opencode-v0.4` for 3-OS + `-race` CI, then proceed to **R3 (Cursor adapter)**.
+- Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`); isolated `opencode 1.19.5` `debug skill` + `debug config` smoke verified all 14 project+global skills alongside Codex in `docs/verification/opencode-1.19.5-2026-11-16.md`; GitHub Actions run `43848615457` passed all 4 jobs (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`).
+- Next: **R3 (Cursor adapter)**.
+
+## R3 — v0.4 Cursor Adapter
+
+Status: implemented and local-container verified (CI pending; `cursor` CLI not installed on host)
+
+- Generalized `InstructionLocation` (`Strategy`, `PathTemplate`, `RelPath`, `MatchesWholeFile`) and `paths.ResolveUserHome` cleanly inside `internal/adapter` (`adapter.go`, `render.go`) and `internal/planner/install.go`, supporting both `managed-block` instructions and whole-file rule artifacts plus optional global instruction capability fallback.
+- Added `internal/adapter/cursor` with:
+  - Project scope: `.cursor/rules/dtkit-<kit>.mdc` (`alwaysApply: true`, whole-file), `.cursor/skills/dtkit-cursor-project-*`, `.dtkit/runtimes/cursor/content/<kit>/...`
+  - Global scope: `~/.cursor/skills/dtkit-cursor-global-*` and `~/.dtkit/runtimes/cursor/content/<kit>/...` under `user-home`, plus honest fallback (`Capabilities.Instructions = {runtimeSupported: true, dtkitSupported: false}`) surfacing a clear warning for Cursor Settings UI User Rules rather than faking an unsupported global rules file.
+- Opened `--runtime cursor` across `catalog`, `schemas/`, `internal/cli` (`runtime.go`, `cli.go`, `install.go`, `update.go`, `remove.go`, `doctor`, `status`), and added `internal/cli/cursor_test.go` verifying 4-way coexistence (`codex` + `gemini` + `opencode` + `cursor`), personal `.cursor/rules/*.mdc` preservation, and global fallback warnings.
+- Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`); real Cursor runtime smoke remains pending (`cursor` executable not present on host).
+- Next: Push `feat/runtime-cursor-v0.4` and verify Windows/Linux/macOS + `-race` CI across the complete v0.1–v0.4+ implementation roadmap.
