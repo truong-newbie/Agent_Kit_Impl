@@ -22,8 +22,9 @@ Usage:
   dtkit validate <directory>
   dtkit doctor
   dtkit install engineer --project|--global --dry-run
+  dtkit status --project|--global [--path <dir>] [--json]
 
-Updates, status, removal and recovery are under development.
+Updates, removal and recovery are under development.
 `
 
 func Run(args []string, stdout, stderr io.Writer) error {
@@ -85,6 +86,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return nil
 	case "install":
 		return previewInstall(args[1:], stdout)
+	case "status":
+		return status(args[1:], stdout)
 	default:
 		if strings.HasPrefix(args[0], "-") {
 			return fmt.Errorf("unknown option %q", args[0])

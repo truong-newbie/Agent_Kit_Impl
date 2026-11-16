@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -46,12 +47,14 @@ func TestFreshInstallPreservesInstructionsAndWritesState(t *testing.T) {
 	if !strings.HasPrefix(string(content), "# Personal\n") || !strings.Contains(string(content), "dtkit:begin engineer project") {
 		t.Fatalf("unexpected AGENTS.md: %s", content)
 	}
-	info, err := os.Stat(agents)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != 0644 {
-		t.Fatalf("mode changed: %v", info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(agents)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0644 {
+			t.Fatalf("mode changed: %v", info.Mode().Perm())
+		}
 	}
 	stateBytes, err := os.ReadFile(filepath.Join(root, ".dtkit", "state.json"))
 	if err != nil {

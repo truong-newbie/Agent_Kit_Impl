@@ -2,7 +2,7 @@
 
 DTKit is a Go-based toolkit for reusable AI engineering skills. The first target is Codex, with project and global installation planned.
 
-This is an early development snapshot. The CLI provides `version`, `help`, `list`, `info`, basic `validate`, a Codex presence check in `doctor`, a fresh-install preview, and a guarded fresh install. Validation is incomplete and must not be used as a security check for untrusted packages. Update, status, remove, recovery, hooks and runtime verification are not implemented yet. Test installs in an isolated project before using personal configuration.
+This is an early development snapshot. The CLI provides `version`, `help`, `list`, `info`, basic `validate`, a Codex presence check in `doctor`, a fresh-install preview, a guarded fresh install, and read-only status/drift checks. Validation is incomplete and must not be used as a security check for untrusted packages. Update, remove, recovery, hooks and runtime verification are not implemented yet. Test installs in an isolated project before using personal configuration.
 
 ## Build and test
 
@@ -13,6 +13,7 @@ go test ./...
 go run ./cmd/dtkit list
 go run ./cmd/dtkit info engineer
 go run ./cmd/dtkit install engineer --project --dry-run
+go run ./cmd/dtkit status --project
 ```
 
 If Windows Device Guard blocks the Go executable, keep the policy enabled and

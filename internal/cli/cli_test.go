@@ -71,3 +71,35 @@ func TestFreshProjectInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestStatusReportsInstallationAndDrift(t *testing.T) {
+	root := t.TempDir()
+	var out, stderr bytes.Buffer
+	if err := Run([]string{"status", "--project", "--path", root, "--json"}, &out, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"installed":false`) {
+		t.Fatalf("expected absent status: %s", out.String())
+	}
+	out.Reset()
+	if err := Run([]string{"install", "engineer", "--project", "--path", root, "--yes"}, &out, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := Run([]string{"status", "--project", "--path", root}, &out, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "healthy") {
+		t.Fatalf("expected healthy status: %s", out.String())
+	}
+	if err := os.WriteFile(filepath.Join(root, ".agents", "skills", "dtkit-project-plan", "SKILL.md"), []byte("changed"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := Run([]string{"status", "--project", "--path", root}, &out, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "drift") || !strings.Contains(out.String(), "modified") {
+		t.Fatalf("expected drift status: %s", out.String())
+	}
+}

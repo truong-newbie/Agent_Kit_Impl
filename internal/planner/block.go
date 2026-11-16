@@ -146,6 +146,20 @@ func ReplaceBlock(existing, block []byte, scope string, state BlockState) ([]byt
 	return out, state, nil
 }
 
+// BlockDigest returns the digest of DTKit's exact managed block. It is used by
+// read-only status checks, so unrelated instructions in the same file do not
+// count as drift.
+func BlockDigest(existing []byte, scope string) (string, error) {
+	start, end, err := locate(existing, scope)
+	if err != nil {
+		return "", err
+	}
+	if start < 0 {
+		return "", fmt.Errorf("managed block is missing")
+	}
+	return digest(existing[start:end]), nil
+}
+
 // RemoveBlock returns the planned bytes and whether the entire file may be removed.
 func RemoveBlock(existing []byte, scope string, state BlockState) ([]byte, bool, error) {
 	if err := validateState(state); err != nil {
