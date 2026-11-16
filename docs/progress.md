@@ -21,8 +21,8 @@
 | `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `verified` | `feat/release-hardening` | F08 | Isolated project/global/combined/4-runtime discovery & clean remove verified for `opencode 1.19.5` & `codex 0.169.0`; honest blockers (`codex` PS sandbox + `opencode` `0 credentials`; `gemini`/`cursor` CLI absent -> `unverified`) (`verify-docker.ps1`, CI `43908484139`) |
 | `N09` — Engineer Kit quality baseline evaluation | `verified` | `feat/release-hardening` | F09 | Rubric + 10-task `scenarios.json` (`docs/evaluation/`), cross-runtime `engineer_eval_test.go` invariant suite (8/8 pairs, 0 dangling refs/unrendered tags), honest host blockers for live A/B LLM runs (`verify-docker.ps1`, CI `43909951887`) |
 | `N10` — Release pipeline & terminal install UX | `verified` | `feat/release-hardening` | F09, F10 | Hardened `release.yml` (env-bound inputs, strict semver, 3-OS `native-smoke`, draft release), `validate-release-args.ps1` + `build.ps1`/`package.ps1`, `0.4.0-rc.1` build + SHA256 + Docker archive smoke, terminal install/uninstall docs (CI `43910935931`) |
-| `N11` — Final docs, CLI UX & `main` merge prep | `verified` | `feat/release-hardening` | F09 | Full CLI reference (`docs/cli.md`), `README.md`, `0.4.0-rc.1` changelog & troubleshooting (`docs/release.md`), `git merge-tree origin/main HEAD` clean zero-conflict merge prep |
-| `N12` — Post-release diagnostics & support policy | `not-started` | `feat/release-hardening` | — | Issue templates, read-only/redacted diagnostics (`--redact`), support & incident guide |
+| `N11` — Final docs, CLI UX & `main` merge prep | `verified` | `feat/release-hardening` | F09 | Full CLI reference (`docs/cli.md`), `README.md`, `0.4.0-rc.1` changelog & troubleshooting (`docs/release.md`), `git merge-tree origin/main HEAD` clean zero-conflict merge prep (CI `43912169447` queued/checked alongside) |
+| `N12` — Post-release diagnostics & support policy | `verified` | `feat/release-hardening` | — | Added `dtkit doctor --redact` (`doctor_redact_test.go`), `.github/ISSUE_TEMPLATE/`, `docs/support.md`, `docs/cli.md`/`README.md`/`docs/release.md` sync (`verify-docker.ps1`) |
 
 *(Post-release backlog `N13`–`N18` stays out of scope for this candidate wave.)*
 
@@ -188,6 +188,15 @@ Verification run: Verified live `go run ./cmd/dtkit help`, `help hooks`, `help d
 Remaining limitation / external blocker: Merge into `main`, tag creation (`v0.4.0-rc.1`), and public GitHub Release publication remain gated on explicit repository owner approval.
 Acceptance checklist result: Pass (docs, help text, exit codes, changelog, troubleshooting, and clean merge ancestry aligned).
 Next task: N12 — Theo dõi sau phát hành: issue templates, `doctor --redact` / diagnostic redaction, support policy và incident procedure.
+
+Task: N12 — Theo dõi sau phát hành & diagnostics (`--redact`, issue templates, support/incident policy)
+Status: verified
+Branch / Commit: `feat/release-hardening` (final N12 push pending)
+Artifact changed: `internal/cli/cli.go`, `internal/cli/doctor.go`, `internal/cli/doctor_redact_test.go`, `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/runtime_compatibility.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `docs/support.md`, `docs/cli.md`, `README.md`, `docs/release.md`, `docs/progress.md`
+Verification run: Added `--redact` flag to `dtkit doctor` scrubbing home directories (`<HOME>`, Windows/POSIX slash variants), credential URLs, Bearer tokens, and `token=`/`api_key=` secrets across checks, warnings, hints, and error envelopes; added `TestDoctorRedactMasksHomeDirectoriesAndTokens`; added GitHub issue forms & support/incident policy (`docs/support.md`); verified cleanly via `.\scripts\verify-docker.ps1`.
+Remaining limitation / external blocker: All mandatory release-hardening tasks (`N00`–`N12`) are complete. Post-release features (`N13`–`N18`), live A/B LLM benchmarks under unblocked workspace tooling, PR merge into `main`, and tagging/publishing `v0.4.0-rc.1` await repository owner authorization.
+Acceptance checklist result: Pass (all mandatory release gates N00–N12 complete, documented, and verified).
+Next task: Owner review & PR merge / release candidate decision (`N13`–`N18` post-release backlog deferred out of scope).
 
 ---
 

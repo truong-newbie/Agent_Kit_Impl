@@ -1,0 +1,37 @@
+name: Bug Report
+description: Report a bug in DTKit CLI, installation engine, hooks, or runtime adapters
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Privacy Warning:** Never paste raw `.dtkit/state.json` dumps, `.dtkit/local/` transaction backups, auth files (`auth.json`), credentials, or URLs containing query tokens/passwords. Always use `--redact` when collecting diagnostics.
+  - type: textarea
+    id: environment
+    attributes:
+      label: DTKit Version, OS & Runtime
+      description: Output of `dtkit version --json`, OS/arch, runtime (`codex`, `gemini`, `opencode`, `cursor`), and scope (`project` or `global`).
+      placeholder: |
+        dtkit version --json:
+        OS / Arch:
+        Runtime / Scope:
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact Command, Exit Code & Redacted Diagnostics
+      description: Paste the exact command invoked, observed exit code, and output of `dtkit doctor --redact --json` (do NOT include raw secrets or state/backup files).
+      placeholder: |
+        Command: dtkit ...
+        Exit code:
+        dtkit doctor --redact --json:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction Steps & Expected vs. Actual Behavior
+    validations:
+      required: true

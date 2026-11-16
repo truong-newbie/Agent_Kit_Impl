@@ -14,7 +14,7 @@ dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtim
 dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
 dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
 dtkit pack <directory> [--out <file.tar.gz>] [--json]
-dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
+dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--redact] [--json]
 dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
 dtkit status [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
 dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
@@ -27,7 +27,7 @@ dtkit hook run <id> --scope project|global --root <dir>
 ## Core Contracts & Semantics
 
 - **One kit per `(runtime, scope)`:** Each runtime and scope pair (`codex/project`, `codex/global`, `opencode/project`, etc.) tracks one active installed kit in its isolated `state.json`. Different runtimes can coexist in the same workspace or home directory without clobbering each other's state.
-- **Read-only guarantees (`info`, `validate`, `doctor`, `status`, `--dry-run`, cancelled prompt):** Never write project files, user config, state, transaction backups, or persistent archive cache blobs.
+- **Read-only guarantees (`info`, `validate`, `doctor`, `status`, `--dry-run`, cancelled prompt):** Never write project files, user config, state, transaction backups, or persistent archive cache blobs. Pass `dtkit doctor --redact` (optionally with `--json`) to scrub local home paths (`<HOME>`) and credential tokens before sharing diagnostics.
 - **Capabilities fallback (`requiresCapabilities` vs. `optionalCapabilities`):** Packages requiring unsupported capabilities for a `(runtime, scope)` fail pre-write with `unsupported_capability`. Optional capabilities (for example `instructions` on `cursor/global`, where global User Rules live in Cursor Settings UI) emit an explicit warning and install supported artifacts (`skills`, resources).
 - **Pre-flight CLI warnings:** Missing target runtime binaries (`codex`, `gemini`, `opencode`, `cursor`) on `PATH` emit consistent non-blocking warnings across `info`, `install`, `update`, `status`, and `doctor` (with `doctor` also flagging `runtime_executable` exit `4`).
 - **Codex hooks (`dtkit hooks`):** Opt-in only and explicitly scoped to Codex (`SessionStart` via `.codex/hooks.json` or `$CODEX_HOME/hooks.json`). Project and global `SessionStart` hooks cannot be enabled simultaneously (`hook_scope_conflict`). Pass `--executable <abs>` if registering a specific stable non-ephemeral binary, and always run `dtkit hooks disable ...` before moving or deleting the `dtkit` binary.

@@ -27,7 +27,7 @@ Usage:
   dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
   dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
   dtkit pack <directory> [--out <file.tar.gz>] [--json]
-  dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
+  dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--redact] [--json]
   dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
   dtkit status [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
   dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
@@ -120,7 +120,7 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit status [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]\n")
 		return err
 	case "doctor":
-		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--redact] [--json]\n")
 		return err
 	case "validate":
 		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]\n       dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor>] [--json]\n")

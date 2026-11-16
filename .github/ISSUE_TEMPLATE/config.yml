@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting Guide & Known Limits
+    url: https://github.com/truong-newbie/Agent_Kit_Impl/blob/main/docs/release.md#troubleshooting-guide
+    about: Check safe recovery steps (dtkit recover, broken_executable, profileMismatch) before opening an issue.
+  - name: Runtime Compatibility Matrix
+    url: https://github.com/truong-newbie/Agent_Kit_Impl/blob/main/docs/compatibility.md
+    about: Inspect verified vs. partial vs. experimental/unverified runtime boundaries.

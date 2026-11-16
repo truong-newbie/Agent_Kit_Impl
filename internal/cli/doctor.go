@@ -7,24 +7,144 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 )
+
+var (
+	redactURLRe    = regexp.MustCompile(`https?://[^\s"'<>]+`)
+	redactBearerRe = regexp.MustCompile(`(?i)\b(bearer\s+)[A-Za-z0-9._~+/-]+=*`)
+	redactKVRe     = regexp.MustCompile(`(?i)\b(token|secret|password|passwd|apikey|api_key|authorization)=([^\s&"';]+)`)
+)
+
+func collectHomeCandidates(deps Deps) []string {
+	raw := make([]string, 0, 6)
+	if deps.Env.UserHomeDir != nil {
+		if h, err := deps.Env.UserHomeDir(); err == nil && h != "" {
+			raw = append(raw, h)
+		}
+	} else if h, err := os.UserHomeDir(); err == nil && h != "" {
+		raw = append(raw, h)
+	}
+	getEnv := os.Getenv
+	if deps.Env.Getenv != nil {
+		getEnv = deps.Env.Getenv
+	}
+	for _, k := range []string{"HOME", "USERPROFILE"} {
+		if v := getEnv(k); v != "" {
+			raw = append(raw, v)
+		}
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(raw)*2)
+	for _, h := range raw {
+		for _, variant := range []string{filepath.Clean(h), filepath.ToSlash(filepath.Clean(h))} {
+			variant = strings.TrimRight(variant, `/\`)
+			if variant == "" || variant == "/" {
+				continue
+			}
+			key := strings.ToLower(variant)
+			if !seen[key] {
+				seen[key] = true
+				out = append(out, variant)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return len(out[i]) > len(out[j]) })
+	return out
+}
+
+func replaceFoldLiteral(s, target, repl string) string {
+	if target == "" || len(target) > len(s) {
+		return s
+	}
+	lowerS := strings.ToLower(s)
+	lowerT := strings.ToLower(target)
+	var b strings.Builder
+	i := 0
+	for i < len(s) {
+		idx := strings.Index(lowerS[i:], lowerT)
+		if idx < 0 {
+			b.WriteString(s[i:])
+			break
+		}
+		b.WriteString(s[i : i+idx])
+		b.WriteString(repl)
+		i += idx + len(target)
+	}
+	return b.String()
+}
+
+func redactDiagnosticText(s string, homes []string) string {
+	if s == "" {
+		return s
+	}
+	out := s
+	for _, h := range homes {
+		out = replaceFoldLiteral(out, h, "<HOME>")
+	}
+	out = redactURLRe.ReplaceAllStringFunc(out, func(raw string) string {
+		return dist.SanitizeURL(raw)
+	})
+	out = redactBearerRe.ReplaceAllString(out, `${1}<REDACTED>`)
+	out = redactKVRe.ReplaceAllString(out, `${1}=<REDACTED>`)
+	return out
+}
+
+func redactEnvelope(env *Envelope, homes []string) {
+	for i := range env.Warnings {
+		env.Warnings[i] = redactDiagnosticText(env.Warnings[i], homes)
+	}
+	for i := range env.Checks {
+		env.Checks[i].Message = redactDiagnosticText(env.Checks[i].Message, homes)
+		env.Checks[i].Hint = redactDiagnosticText(env.Checks[i].Hint, homes)
+	}
+	for i := range env.Errors {
+		env.Errors[i].Message = redactDiagnosticText(env.Errors[i].Message, homes)
+		env.Errors[i].Path = redactDiagnosticText(env.Errors[i].Path, homes)
+		env.Errors[i].Hint = redactDiagnosticText(env.Errors[i].Hint, homes)
+	}
+}
+
+func redactAppError(err error, homes []string) error {
+	if err == nil {
+		return nil
+	}
+	var appErr *apperr.Error
+	if errors.As(err, &appErr) {
+		cp := *appErr
+		cp.Message = redactDiagnosticText(cp.Message, homes)
+		cp.Path = redactDiagnosticText(cp.Path, homes)
+		cp.Hint = redactDiagnosticText(cp.Hint, homes)
+		return &cp
+	}
+	return errors.New(redactDiagnosticText(err.Error(), homes))
+}
 
 func runDoctor(ctx context.Context, args []string, deps Deps) error {
 	env := newEnvelope("doctor")
 	jsonOutput := hasJSONFlag(args)
+	var scope, runtimeArg, projectPath string
+	redact := false
 	fail := func(err error) error {
+		if redact {
+			homes := collectHomeCandidates(deps)
+			redactEnvelope(&env, homes)
+			err = redactAppError(err, homes)
+		}
 		if jsonOutput {
 			return failJSON(deps.Stdout, env, err)
 		}
 		return err
 	}
 
-	var scope, runtimeArg, projectPath string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--project":
@@ -39,6 +159,8 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 			scope = "global"
 		case "--json":
 			jsonOutput = true
+		case "--redact":
+			redact = true
 		case "--verbose":
 			deps.Verbose = true
 		case "--runtime":
@@ -211,12 +333,15 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	env.Checks = checks
+	if redact {
+		redactEnvelope(&env, collectHomeCandidates(deps))
+	}
 	if jsonOutput {
 		if stateFailed {
-			return failJSON(deps.Stdout, env, apperr.Conflict("doctor_state_failed", "doctor found installation or root issues"))
+			return fail(apperr.Conflict("doctor_state_failed", "doctor found installation or root issues"))
 		}
 		if runtimeFailed {
-			return failJSON(deps.Stdout, env, apperr.Runtime("runtime_not_ready", fmt.Sprintf("%s runtime is not ready", profile.DisplayName)))
+			return fail(apperr.Runtime("runtime_not_ready", fmt.Sprintf("%s runtime is not ready", profile.DisplayName)))
 		}
 		return writeEnvelope(deps.Stdout, env)
 	}
@@ -224,7 +349,7 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 	for _, w := range env.Warnings {
 		fmt.Fprintf(deps.Stderr, "warning: %s\n", w)
 	}
-	for _, c := range checks {
+	for _, c := range env.Checks {
 		prefix := c.Scope
 		if prefix != "" {
 			prefix += " "
@@ -232,10 +357,10 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 		fmt.Fprintf(deps.Stdout, "[%s] %s%s: %s\n", c.Status, prefix, c.Name, c.Message)
 	}
 	if stateFailed {
-		return apperr.Conflict("doctor_state_failed", "doctor found installation or root issues")
+		return fail(apperr.Conflict("doctor_state_failed", "doctor found installation or root issues"))
 	}
 	if runtimeFailed {
-		return apperr.Runtime("runtime_not_ready", fmt.Sprintf("%s runtime is not ready", profile.DisplayName))
+		return fail(apperr.Runtime("runtime_not_ready", fmt.Sprintf("%s runtime is not ready", profile.DisplayName)))
 	}
 	return nil
 }

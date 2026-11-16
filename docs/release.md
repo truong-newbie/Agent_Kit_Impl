@@ -24,7 +24,7 @@ See [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md) for detailed accepta
 - [x] `N09` — Establish Engineer Kit evaluation rubric and baseline vs with-kit task results (`docs/evaluation/`).
 - [x] `N10` — Sanitize release workflow/scripts inputs, add GitHub Release publishing flow, generate next RC candidate (e.g., `0.4.0-rc.1`), and verify clean-machine terminal install.
 - [x] `N11` — Final CLI/doc/changelog/troubleshooting audit and PR merge readiness to `main`.
-- [ ] `N12` — Issue templates, redacted `--redact` diagnostic summary support, support policy, and incident handling procedure.
+- [x] `N12` — Issue templates, redacted `--redact` diagnostic summary support, support policy, and incident handling procedure.
 
 ## Upgrade Notes (`0.1.0` -> `0.2.0` Engineer Kit & Dev Snapshots)
 

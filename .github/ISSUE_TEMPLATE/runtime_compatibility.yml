@@ -1,0 +1,34 @@
+name: Runtime Compatibility Report
+description: Report runtime discovery, skill/instruction precedence, or adapter drift for Codex, OpenCode, Gemini CLI, or Cursor
+title: "[Compat]: "
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Privacy Warning:** Do not attach personal `AGENTS.md`, `GEMINI.md`, credentials, or unredacted home paths.
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Target Runtime
+      options:
+        - Codex CLI (`codex`)
+        - OpenCode (`opencode`)
+        - Gemini CLI (`gemini`)
+        - Cursor (`cursor`)
+    validations:
+      required: true
+  - type: input
+    id: runtime_version
+    attributes:
+      label: Runtime Version & OS
+      placeholder: "e.g., codex-cli 0.169.0 / Windows 11, opencode 1.19.5 / macOS 15"
+    validations:
+      required: true
+  - type: textarea
+    id: findings
+    attributes:
+      label: Observed Discovery / Task Behavior
+      description: Output of `dtkit doctor --runtime <rt> --redact --json` and exact mismatch with docs/compatibility.md.
+    validations:
+      required: true
