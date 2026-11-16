@@ -6,6 +6,7 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 )
 
@@ -93,7 +94,7 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 	env.Warnings = append(env.Warnings, rootWarnings...)
 	env.Roots = roots
 
-	resolved, err := resolveKitSource(ctx, deps, kitSpec, fromPath, sourceURL, sha256Hex, offline)
+	resolved, err := resolveKitSource(ctx, deps, kitSpec, fromPath, sourceURL, sha256Hex, offline, dist.CacheReadOnly)
 	if err != nil {
 		return fail(err)
 	}
@@ -182,6 +183,10 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 
 	if ctx.Err() != nil {
 		return fail(apperr.Cancelled("update cancelled"))
+	}
+
+	if err := persistResolvedCache(deps.Env, resolved); err != nil {
+		return fail(err)
 	}
 
 	res, err := installer.Update(scope, roots, pkg, source, artifacts, deps.Now(), installer.UpdateOptions{

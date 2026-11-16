@@ -21,8 +21,9 @@ Usage:
   dtkit version [--json]
   dtkit help [command]
   dtkit list [--json]
-  dtkit info <kit> [--from <dir|archive>] [--json]
+  dtkit info <kit>[@<ver>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]
   dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]
+  dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor>] [--json]
   dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
   dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
   dtkit pack <directory> [--out <file.tar.gz>] [--json]
@@ -71,9 +72,9 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 	case "list":
 		return runList(args[1:], deps)
 	case "info":
-		return runInfo(args[1:], deps)
+		return runInfo(ctx, args[1:], deps)
 	case "validate":
-		return runValidate(args[1:], deps)
+		return runValidate(ctx, args[1:], deps)
 	case "create":
 		return runCreate(ctx, args[1:], deps)
 	case "pack":
@@ -122,10 +123,10 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]\n")
 		return err
 	case "validate":
-		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]\n       dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor>] [--json]\n")
 		return err
 	case "info":
-		_, err := io.WriteString(out, "Usage: dtkit info <kit> [--from <dir|archive>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit info <kit>[@<ver>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]\n")
 		return err
 	case "create":
 		_, err := io.WriteString(out, "Usage: dtkit create <kit|skill> [options]\n")
@@ -218,74 +219,55 @@ func runList(args []string, deps Deps) error {
 	return err
 }
 
-func runInfo(args []string, deps Deps) error {
-	var kitID, fromPath string
-	jsonOutput := false
+func runInfo(ctx context.Context, args []string, deps Deps) error {
+	var kitID, fromPath, sourceURL, sha256Hex string
+	var offline bool
+	jsonOutput := hasJSONFlag(args)
+	env := newEnvelope("info")
+	fail := func(err error) error {
+		if jsonOutput {
+			return failJSON(deps.Stdout, env, err)
+		}
+		return err
+	}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--json":
 			jsonOutput = true
 		case "--verbose":
 			deps.Verbose = true
-		case "--from":
+		case "--offline":
+			offline = true
+		case "--from", "--source", "--sha256":
+			flag := args[i]
 			i++
 			if i >= len(args) {
-				err := apperr.Usage("missing_flag_value", "--from requires a directory or archive")
-				if jsonOutput || hasJSONFlag(args) {
-					return failJSON(deps.Stdout, newEnvelope("info"), err)
-				}
-				return err
+				return fail(apperr.Usage("missing_flag_value", fmt.Sprintf("%s requires a value", flag)))
 			}
-			fromPath = args[i]
+			switch flag {
+			case "--from":
+				fromPath = args[i]
+			case "--source":
+				sourceURL = args[i]
+			case "--sha256":
+				sha256Hex = args[i]
+			}
 		default:
 			if strings.HasPrefix(args[i], "-") || kitID != "" {
-				err := apperr.Usage("invalid_usage", "usage: dtkit info <kit> [--from <dir|archive>] [--json]")
-				if jsonOutput || hasJSONFlag(args) {
-					return failJSON(deps.Stdout, newEnvelope("info"), err)
-				}
-				return err
+				return fail(apperr.Usage("invalid_usage", "usage: dtkit info <kit>[@<ver>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]"))
 			}
 			kitID = args[i]
 		}
 	}
 	if kitID == "" {
-		err := apperr.Usage("missing_kit", "usage: dtkit info <kit> [--from <dir|archive>] [--json]")
-		if jsonOutput {
-			return failJSON(deps.Stdout, newEnvelope("info"), err)
-		}
-		return err
+		return fail(apperr.Usage("missing_kit", "usage: dtkit info <kit>[@<ver>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]"))
 	}
-	var p catalog.Package
-	var digest, archiveSHA string
-	var err error
-	if fromPath != "" {
-		res, rErr := dist.ResolveFromPath(fromPath, kitID, "", "")
-		err = rErr
-		if err == nil {
-			p = res.Package
-			digest = res.PackageDigest
-			archiveSHA = res.ArchiveSHA256
-		}
-	} else {
-		if kitID != "engineer" {
-			err = apperr.Usage("unknown_kit", fmt.Sprintf("kit %q is not in the bundled catalog", kitID))
-		} else {
-			pkg, fsSrc, loadErr := catalog.Engineer()
-			p = pkg
-			err = loadErr
-			if err == nil {
-				digest, err = catalog.Digest(fsSrc)
-			}
-		}
-	}
+	res, err := resolveKitSource(ctx, deps, kitID, fromPath, sourceURL, sha256Hex, offline, dist.CacheReadOnly)
 	if err != nil {
-		if jsonOutput {
-			return failJSON(deps.Stdout, newEnvelope("info"), err)
-		}
-		return err
+		return fail(err)
 	}
+	p, digest, archiveSHA := res.Package, res.PackageDigest, res.ArchiveSHA256
 	if jsonOutput {
-		env := newEnvelope("info")
 		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest, ArchiveSHA256: archiveSHA}
 		env.Package = &p
 		return writeEnvelope(deps.Stdout, env)
@@ -298,42 +280,47 @@ func runInfo(args []string, deps Deps) error {
 	return err
 }
 
-func runValidate(args []string, deps Deps) error {
-	var targetPath, runtimeArg string
+func runValidate(ctx context.Context, args []string, deps Deps) error {
+	var targetPath, runtimeArg, fromPath, sourceURL, sha256Hex string
+	var offline bool
 	jsonOutput := hasJSONFlag(args)
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--json":
-			jsonOutput = true
-		case "--verbose":
-			deps.Verbose = true
-		case "--runtime":
-			i++
-			if i >= len(args) {
-				err := apperr.Usage("missing_flag_value", "--runtime requires a value")
-				if jsonOutput {
-					return failJSON(deps.Stdout, newEnvelope("validate"), err)
-				}
-				return err
-			}
-			runtimeArg = args[i]
-		default:
-			if strings.HasPrefix(args[i], "-") || targetPath != "" {
-				err := apperr.Usage("invalid_usage", "usage: dtkit validate <dir|archive> [--runtime <codex|gemini>] [--json]")
-				if jsonOutput {
-					return failJSON(deps.Stdout, newEnvelope("validate"), err)
-				}
-				return err
-			}
-			targetPath = args[i]
-		}
-	}
 	env := newEnvelope("validate")
 	fail := func(err error) error {
 		if jsonOutput {
 			return failJSON(deps.Stdout, env, err)
 		}
 		return err
+	}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--json":
+			jsonOutput = true
+		case "--verbose":
+			deps.Verbose = true
+		case "--offline":
+			offline = true
+		case "--runtime", "--from", "--source", "--sha256":
+			flag := args[i]
+			i++
+			if i >= len(args) {
+				return fail(apperr.Usage("missing_flag_value", fmt.Sprintf("%s requires a value", flag)))
+			}
+			switch flag {
+			case "--runtime":
+				runtimeArg = args[i]
+			case "--from":
+				fromPath = args[i]
+			case "--source":
+				sourceURL = args[i]
+			case "--sha256":
+				sha256Hex = args[i]
+			}
+		default:
+			if strings.HasPrefix(args[i], "-") || targetPath != "" {
+				return fail(apperr.Usage("invalid_usage", "usage: dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]"))
+			}
+			targetPath = args[i]
+		}
 	}
 	if runtimeArg != "" {
 		profile, err := resolveRuntimeProfile(runtimeArg)
@@ -342,29 +329,45 @@ func runValidate(args []string, deps Deps) error {
 		}
 		env.Runtime = profile.ID
 	}
-	if targetPath == "" {
-		return fail(apperr.Usage("missing_directory", "usage: dtkit validate <dir|archive> [--runtime <codex|gemini>] [--json]"))
-	}
-	info, statErr := os.Lstat(targetPath)
-	if statErr != nil {
-		return fail(statErr)
-	}
+
 	var p catalog.Package
 	var memFS fs.FS
 	var digest, archiveSHA string
-	if info.IsDir() {
-		pkg, snapFS, dig, err := catalog.LoadDir(targetPath)
+	if sourceURL != "" || offline || fromPath != "" {
+		if targetPath == "" {
+			return fail(apperr.Usage("missing_kit", "kit identifier is required with --from, --source, or --offline"))
+		}
+		res, err := resolveKitSource(ctx, deps, targetPath, fromPath, sourceURL, sha256Hex, offline, dist.CacheReadOnly)
 		if err != nil {
 			return fail(err)
 		}
-		p, memFS, digest = pkg, snapFS, dig
+		p, memFS, digest, archiveSHA = res.Package, res.Source, res.PackageDigest, res.ArchiveSHA256
 	} else {
-		pkg, snapFS, dig, archSHA, err := dist.ReadArchiveFile(targetPath, "")
-		if err != nil {
-			return fail(err)
+		if targetPath == "" {
+			return fail(apperr.Usage("missing_directory", "usage: dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]"))
 		}
-		p, memFS, digest, archiveSHA = pkg, snapFS, dig, archSHA
+		info, statErr := os.Lstat(targetPath)
+		if statErr != nil {
+			return fail(statErr)
+		}
+		if info.IsDir() {
+			if sha256Hex != "" {
+				return fail(apperr.Usage("invalid_flag_combination", "--sha256 applies to archives, not directories"))
+			}
+			pkg, snapFS, dig, err := catalog.LoadDir(targetPath)
+			if err != nil {
+				return fail(err)
+			}
+			p, memFS, digest = pkg, snapFS, dig
+		} else {
+			pkg, snapFS, dig, archSHA, err := dist.ReadArchiveFile(targetPath, sha256Hex)
+			if err != nil {
+				return fail(err)
+			}
+			p, memFS, digest, archiveSHA = pkg, snapFS, dig, archSHA
+		}
 	}
+
 	targets := p.RuntimeTargets
 	if runtimeArg != "" {
 		targets = []string{env.Runtime}

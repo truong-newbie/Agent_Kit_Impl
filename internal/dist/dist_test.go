@@ -190,14 +190,14 @@ func TestRemoteRegistryCacheCorruptionAndOfflineMode(t *testing.T) {
 	}
 
 	// Resolve from remote registry index and populate cache.
-	resolved, err := ResolveRemote(context.Background(), server.Client(), cache, "remote-kit", "0.1.0", server.URL+"/index.json", "", "0.1.0-dev", false)
+	resolved, err := ResolveRemote(context.Background(), server.Client(), cache, "remote-kit", "0.1.0", server.URL+"/index.json", "", "0.1.0-dev", false, CachePersist)
 	if err != nil || resolved.Package.ID != "remote-kit" || resolved.ArchiveSHA256 != packRes.ArchiveSHA256 {
 		t.Fatalf("ResolveRemote failed: %+v err=%v", resolved, err)
 	}
 
 	// Offline reinstall succeeds purely from cache without contacting server.
 	server.Close()
-	offlineRes, err := ResolveRemote(context.Background(), nil, cache, "remote-kit", "0.1.0", "", packRes.ArchiveSHA256, "0.1.0-dev", true)
+	offlineRes, err := ResolveRemote(context.Background(), nil, cache, "remote-kit", "0.1.0", "", packRes.ArchiveSHA256, "0.1.0-dev", true, CacheReadOnly)
 	if err != nil || offlineRes.PackageDigest != packRes.PackageDigest {
 		t.Fatalf("offline cache resolve failed: %+v err=%v", offlineRes, err)
 	}
@@ -210,20 +210,29 @@ func TestRemoteRegistryCacheCorruptionAndOfflineMode(t *testing.T) {
 	if err := os.WriteFile(cachedFile, []byte("corrupted"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ResolveRemote(context.Background(), nil, cache, "remote-kit", "0.1.0", "", packRes.ArchiveSHA256, "0.1.0-dev", true); apperr.ExitCodeOf(err) != apperr.ExitConflict || !strings.Contains(err.Error(), "corrupted") {
+	if _, err := ResolveRemote(context.Background(), nil, cache, "remote-kit", "0.1.0", "", packRes.ArchiveSHA256, "0.1.0-dev", true, CacheReadOnly); apperr.ExitCodeOf(err) != apperr.ExitConflict || !strings.Contains(err.Error(), "corrupted") {
 		t.Fatalf("expected cache_corrupted conflict, got %v", err)
 	}
 
-	// CleanStaleDownloads removes leftover .part files inside cache/tmp.
+	// CleanStaleDownloads removes only abandoned/old .part files while preserving active downloads.
 	tmpDir := filepath.Join(cache.Root, "tmp")
 	_ = os.MkdirAll(tmpDir, 0700)
 	stalePart := filepath.Join(tmpDir, "dl-interrupted.part")
 	_ = os.WriteFile(stalePart, []byte("incomplete"), 0600)
+	past := time.Now().Add(-DefaultStalePartAge - time.Minute)
+	if err := os.Chtimes(stalePart, past, past); err != nil {
+		t.Fatal(err)
+	}
+	activePart := filepath.Join(tmpDir, "dl-active.part")
+	_ = os.WriteFile(activePart, []byte("in-progress"), 0600)
 	if err := cache.CleanStaleDownloads(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(stalePart); !os.IsNotExist(err) {
 		t.Fatalf("stale .part file survived cleanup: %v", err)
+	}
+	if _, err := os.Stat(activePart); err != nil {
+		t.Fatalf("active .part file was deleted prematurely: %v", err)
 	}
 
 	// Incompatible minCliVersion must be rejected clearly.
@@ -240,7 +249,7 @@ func TestRemoteRegistryCacheCorruptionAndOfflineMode(t *testing.T) {
 		})
 	}))
 	defer srv2.Close()
-	if _, err := ResolveRemote(context.Background(), srv2.Client(), cache, "remote-kit", "0.1.0", srv2.URL+"/index.json", "", "0.1.0-dev", false); apperr.ExitCodeOf(err) != apperr.ExitUsage || !strings.Contains(err.Error(), "requires dtkit >=") {
+	if _, err := ResolveRemote(context.Background(), srv2.Client(), cache, "remote-kit", "0.1.0", srv2.URL+"/index.json", "", "0.1.0-dev", false, CacheReadOnly); apperr.ExitCodeOf(err) != apperr.ExitUsage || !strings.Contains(err.Error(), "requires dtkit >=") {
 		t.Fatalf("expected cli_upgrade_required usage error, got %v", err)
 	}
 }

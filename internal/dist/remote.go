@@ -32,12 +32,40 @@ type IndexEntry struct {
 	MinCLIVersion string `json:"minCliVersion,omitempty"`
 }
 
+// CacheMode explicitly declares whether source resolution may persist fetched archives to cache.
+type CacheMode uint8
+
+const (
+	// CacheReadOnly reads and verifies existing cache entries without creating directories or writing/deleting files.
+	CacheReadOnly CacheMode = iota
+	// CachePersist persists newly downloaded and verified remote archives into cache.
+	CachePersist
+)
+
 type ResolvedPackage struct {
 	Package       catalog.Package
 	Source        fs.FS
 	PackageDigest string
 	ArchiveSHA256 string
 	SourceKind    string // "bundled" | "local" | "archive" | "remote"
+
+	archiveBytes []byte
+	fromCache    bool
+}
+
+// HasPendingCacheWrite reports whether resolved carries newly fetched remote archive bytes that are not yet verified in cache.
+func (r ResolvedPackage) HasPendingCacheWrite() bool {
+	return len(r.archiveBytes) > 0 && !r.fromCache
+}
+
+// PersistCache stores newly downloaded remote archive bytes in cache when needed.
+// Cache hits, no-ops, bundled packages, and local packages do not write or update timestamps.
+func (r ResolvedPackage) PersistCache(cache Cache) (bool, error) {
+	if !r.HasPendingCacheWrite() {
+		return false, nil
+	}
+	_, wrote, err := cache.putChecked(r.archiveBytes)
+	return wrote, err
 }
 
 // ParseKitSpec splits `<id>` or `<id>@<version>` into components.
@@ -112,11 +140,12 @@ func ResolveFromPath(fromPath, kitID, wantVersion, expectedSHA256 string) (Resol
 	}, nil
 }
 
-// ResolveRemote resolves a kit from a remote archive/registry URL or verified offline cache.
-func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID, wantVersion, sourceURL, wantArchiveSHA256, cliVersion string, offline bool) (ResolvedPackage, error) {
+// ResolveRemote resolves a kit from a remote archive/registry URL or verified offline cache
+// using an explicit CacheMode read/write policy.
+func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID, wantVersion, sourceURL, wantArchiveSHA256, cliVersion string, offline bool, mode CacheMode) (ResolvedPackage, error) {
 	var out ResolvedPackage
 
-	// Offline mode never performs network I/O.
+	// Offline mode never performs network I/O and never creates or mutates cache.
 	if offline {
 		if wantArchiveSHA256 == "" {
 			return out, apperr.WithHint(
@@ -144,6 +173,7 @@ func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID,
 			PackageDigest: dig,
 			ArchiveSHA256: archSHA,
 			SourceKind:    "remote",
+			fromCache:     true,
 		}, nil
 	}
 
@@ -151,7 +181,7 @@ func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID,
 		return out, err
 	}
 
-	// If cached by explicit archive SHA-256, reuse verified cache without hitting network.
+	// If cached by explicit archive SHA-256, reuse verified cache without hitting network or rewriting cache.
 	if wantArchiveSHA256 != "" {
 		if raw, found, err := cache.Get(wantArchiveSHA256); err != nil {
 			return out, err
@@ -169,6 +199,7 @@ func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID,
 				PackageDigest: dig,
 				ArchiveSHA256: archSHA,
 				SourceKind:    "remote",
+				fromCache:     true,
 			}, nil
 		}
 	}
@@ -179,7 +210,7 @@ func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID,
 	}
 	isArchiveURL := strings.HasSuffix(strings.ToLower(parsed.Path), ".tar.gz") || strings.HasSuffix(strings.ToLower(parsed.Path), ".tgz")
 	if isArchiveURL {
-		raw, err := cache.DownloadBytes(ctx, client, sourceURL, MaxArchiveBytes)
+		raw, err := FetchRemoteBytes(ctx, client, sourceURL, MaxArchiveBytes)
 		if err != nil {
 			return out, err
 		}
@@ -190,20 +221,26 @@ func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID,
 		if err := verifyIDAndVersion(pkg, kitID, wantVersion); err != nil {
 			return out, err
 		}
-		if _, err := cache.Put(raw); err != nil {
-			return out, err
-		}
-		return ResolvedPackage{
+		res := ResolvedPackage{
 			Package:       pkg,
 			Source:        snap,
 			PackageDigest: dig,
 			ArchiveSHA256: archSHA,
 			SourceKind:    "remote",
-		}, nil
+			archiveBytes:  raw,
+		}
+		if mode == CachePersist {
+			if _, err := res.PersistCache(cache); err != nil {
+				return out, err
+			}
+			res.archiveBytes = nil
+			res.fromCache = true
+		}
+		return res, nil
 	}
 
 	// Registry index JSON resolution.
-	indexBytes, err := cache.DownloadBytes(ctx, client, sourceURL, MaxIndexBytes)
+	indexBytes, err := FetchRemoteBytes(ctx, client, sourceURL, MaxIndexBytes)
 	if err != nil {
 		return out, err
 	}
@@ -237,12 +274,14 @@ func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID,
 	}
 
 	var raw []byte
+	fromCache := false
 	if cachedRaw, found, cErr := cache.Get(expectedArchiveSHA); cErr != nil {
 		return out, cErr
 	} else if found {
 		raw = cachedRaw
+		fromCache = true
 	} else {
-		raw, err = cache.DownloadBytes(ctx, client, archiveURL, MaxArchiveBytes)
+		raw, err = FetchRemoteBytes(ctx, client, archiveURL, MaxArchiveBytes)
 		if err != nil {
 			return out, err
 		}
@@ -258,16 +297,25 @@ func ResolveRemote(ctx context.Context, client *http.Client, cache Cache, kitID,
 	if entry.PackageDigest != "" && !strings.EqualFold(entry.PackageDigest, pkgDigest) {
 		return out, apperr.Conflict("package_digest_mismatch", fmt.Sprintf("registry packageDigest %s does not match archive content %s", entry.PackageDigest, pkgDigest))
 	}
-	if _, err := cache.Put(raw); err != nil {
-		return out, err
-	}
-	return ResolvedPackage{
+	res := ResolvedPackage{
 		Package:       pkg,
 		Source:        snap,
 		PackageDigest: pkgDigest,
 		ArchiveSHA256: archSHA,
 		SourceKind:    "remote",
-	}, nil
+		fromCache:     fromCache,
+	}
+	if !fromCache {
+		res.archiveBytes = raw
+		if mode == CachePersist {
+			if _, err := res.PersistCache(cache); err != nil {
+				return out, err
+			}
+			res.archiveBytes = nil
+			res.fromCache = true
+		}
+	}
+	return res, nil
 }
 
 func selectIndexEntry(entries []IndexEntry, kitID, wantVersion string) (IndexEntry, error) {

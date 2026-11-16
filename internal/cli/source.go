@@ -8,9 +8,10 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
-func resolveKitSource(ctx context.Context, deps Deps, kitSpec, fromPath, sourceURL, sha256Hex string, offline bool) (dist.ResolvedPackage, error) {
+func resolveKitSource(ctx context.Context, deps Deps, kitSpec, fromPath, sourceURL, sha256Hex string, offline bool, mode dist.CacheMode) (dist.ResolvedPackage, error) {
 	var out dist.ResolvedPackage
 	kitID, wantVersion, err := dist.ParseKitSpec(kitSpec)
 	if err != nil {
@@ -24,13 +25,12 @@ func resolveKitSource(ctx context.Context, deps Deps, kitSpec, fromPath, sourceU
 		return dist.ResolveFromPath(fromPath, kitID, wantVersion, sha256Hex)
 	}
 
-	if sourceURL != "" || (offline && sha256Hex != "") {
+	if sourceURL != "" || (offline && (sha256Hex != "" || kitID != "engineer")) {
 		cache, err := dist.OpenCache(deps.Env)
 		if err != nil {
 			return out, err
 		}
-		_ = cache.CleanStaleDownloads()
-		return dist.ResolveRemote(ctx, deps.HTTPClient, cache, kitID, wantVersion, sourceURL, sha256Hex, buildinfo.Version, offline)
+		return dist.ResolveRemote(ctx, deps.HTTPClient, cache, kitID, wantVersion, sourceURL, sha256Hex, buildinfo.Version, offline, mode)
 	}
 
 	if sha256Hex != "" {
@@ -56,4 +56,16 @@ func resolveKitSource(ctx context.Context, deps Deps, kitSpec, fromPath, sourceU
 		PackageDigest: dig,
 		SourceKind:    "bundled",
 	}, nil
+}
+
+func persistResolvedCache(env paths.Environment, resolved dist.ResolvedPackage) error {
+	if !resolved.HasPendingCacheWrite() {
+		return nil
+	}
+	cache, err := dist.OpenCache(env)
+	if err != nil {
+		return err
+	}
+	_, err = resolved.PersistCache(cache)
+	return err
 }

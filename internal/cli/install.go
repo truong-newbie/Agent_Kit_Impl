@@ -9,6 +9,7 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
@@ -98,7 +99,7 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	env.Warnings = append(env.Warnings, rootWarnings...)
 	env.Roots = roots
 
-	resolved, err := resolveKitSource(ctx, deps, kitSpec, fromPath, sourceURL, sha256Hex, offline)
+	resolved, err := resolveKitSource(ctx, deps, kitSpec, fromPath, sourceURL, sha256Hex, offline, dist.CacheReadOnly)
 	if err != nil {
 		return fail(err)
 	}
@@ -224,6 +225,10 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	}
 	if capSet, ok := profile.CapabilitiesMap[scope]; ok && !capSet.Instructions.DTKitSupported && capSet.Instructions.Note != "" {
 		env.Warnings = append(env.Warnings, capSet.Instructions.Note)
+	}
+
+	if err := persistResolvedCache(deps.Env, resolved); err != nil {
+		return fail(err)
 	}
 
 	installed, err := installer.FreshInstallWithOptions(scope, roots, pkg, source, artifacts, deps.Now(), installer.InstallOptions{
