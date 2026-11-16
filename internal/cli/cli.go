@@ -22,16 +22,16 @@ Usage:
   dtkit help [command]
   dtkit list [--json]
   dtkit info <kit> [--from <dir|archive>] [--json]
-  dtkit validate <dir|archive> [--runtime <codex|gemini|opencode>] [--json]
+  dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]
   dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
   dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
   dtkit pack <directory> [--out <file.tar.gz>] [--json]
-  dtkit doctor [--runtime <codex|gemini|opencode>] [--project|--global] [--path <dir>] [--json]
-  dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
-  dtkit status [--runtime <codex|gemini|opencode>] [--project|--global] [--path <dir>] [--json]
-  dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
-  dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--dry-run] [--yes] [--json]
-  dtkit recover --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
+  dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
+  dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+  dtkit status [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
+  dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+  dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--dry-run] [--yes] [--json]
+  dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit hooks <list|status|enable|disable> [args]
   dtkit hook run <id> --scope project|global --root <dir>
 
@@ -113,16 +113,16 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 func printCommandHelp(cmd string, out io.Writer) error {
 	switch cmd {
 	case "install":
-		_, err := io.WriteString(out, "Usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "status":
-		_, err := io.WriteString(out, "Usage: dtkit status [--runtime <codex|gemini|opencode>] [--project|--global] [--path <dir>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit status [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]\n")
 		return err
 	case "doctor":
-		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime <codex|gemini|opencode>] [--project|--global] [--path <dir>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]\n")
 		return err
 	case "validate":
-		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--runtime <codex|gemini|opencode>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]\n")
 		return err
 	case "info":
 		_, err := io.WriteString(out, "Usage: dtkit info <kit> [--from <dir|archive>] [--json]\n")
@@ -134,13 +134,13 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit pack <directory> [--out <file.tar.gz>] [--json]\n")
 		return err
 	case "update":
-		_, err := io.WriteString(out, "Usage: dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "remove":
-		_, err := io.WriteString(out, "Usage: dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "recover":
-		_, err := io.WriteString(out, "Usage: dtkit recover --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "hooks":
 		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")

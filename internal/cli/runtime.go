@@ -66,6 +66,13 @@ func resolveScopeRoots(ctx context.Context, deps Deps, profile adapter.RuntimePr
 		roots["user-home"] = res.UserHome
 		roots["opencode-home"] = res.OpenCodeHome
 		return roots, res.Warnings, nil
+	case "cursor":
+		res, err := paths.ResolveUserHome(deps.Env)
+		if err != nil {
+			return nil, nil, err
+		}
+		roots["user-home"] = res.UserHome
+		return roots, res.Warnings, nil
 	default:
 		return nil, nil, apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", profile.ID))
 	}
@@ -98,45 +105,43 @@ func checkRuntimeHomeBinding(profile adapter.RuntimeProfile, scope string, exist
 
 func doctorRuntimeSpecificChecks(profile adapter.RuntimeProfile, scope string, roots map[string]string) []DoctorCheck {
 	var checks []DoctorCheck
-	instrLoc, ok := profile.Instructions[scope]
-	if !ok {
-		return checks
-	}
-	instrRoot := roots[instrLoc.Root]
-	if overrideRel := profile.OverrideCheckPath(scope, instrLoc.Path); overrideRel != "" {
-		if overridePath, err := paths.ResolveTarget(instrRoot, overrideRel); err == nil {
-			if info, statErr := os.Lstat(overridePath); statErr == nil && info.Size() > 0 {
-				checks = append(checks, DoctorCheck{
-					Name:    "instruction_override",
-					Scope:   scope,
-					Status:  "warn",
-					Message: fmt.Sprintf("non-empty %s present at %s", overrideRel, overridePath),
-					Hint:    fmt.Sprintf("%s takes precedence over %s in %s", overrideRel, instrLoc.Path, profile.DisplayName),
-				})
+	if instrLoc, ok := profile.Instructions[scope]; ok {
+		instrRoot := roots[instrLoc.Root]
+		if overrideRel := profile.OverrideCheckPath(scope, instrLoc.Path); overrideRel != "" {
+			if overridePath, err := paths.ResolveTarget(instrRoot, overrideRel); err == nil {
+				if info, statErr := os.Lstat(overridePath); statErr == nil && info.Size() > 0 {
+					checks = append(checks, DoctorCheck{
+						Name:    "instruction_override",
+						Scope:   scope,
+						Status:  "warn",
+						Message: fmt.Sprintf("non-empty %s present at %s", overrideRel, overridePath),
+						Hint:    fmt.Sprintf("%s takes precedence over %s in %s", overrideRel, instrLoc.Path, profile.DisplayName),
+					})
+				}
 			}
 		}
-	}
-	if profile.ID == "gemini" {
-		settingsPath := filepath.Join(roots[instrLoc.Root], ".gemini", "settings.json")
-		if scope == "global" {
-			settingsPath = filepath.Join(roots["gemini-home"], "settings.json")
-		}
-		_, warn, err := gemini.InspectSettingsContextOverride(settingsPath)
-		if err != nil {
-			checks = append(checks, DoctorCheck{
-				Name:    "context_settings",
-				Scope:   scope,
-				Status:  "warn",
-				Message: err.Error(),
-			})
-		} else if warn != "" {
-			checks = append(checks, DoctorCheck{
-				Name:    "context_settings",
-				Scope:   scope,
-				Status:  "warn",
-				Message: warn,
-				Hint:    "include \"GEMINI.md\" in context.fileName so Gemini CLI loads DTKit managed instructions",
-			})
+		if profile.ID == "gemini" {
+			settingsPath := filepath.Join(roots[instrLoc.Root], ".gemini", "settings.json")
+			if scope == "global" {
+				settingsPath = filepath.Join(roots["gemini-home"], "settings.json")
+			}
+			_, warn, err := gemini.InspectSettingsContextOverride(settingsPath)
+			if err != nil {
+				checks = append(checks, DoctorCheck{
+					Name:    "context_settings",
+					Scope:   scope,
+					Status:  "warn",
+					Message: err.Error(),
+				})
+			} else if warn != "" {
+				checks = append(checks, DoctorCheck{
+					Name:    "context_settings",
+					Scope:   scope,
+					Status:  "warn",
+					Message: warn,
+					Hint:    "include \"GEMINI.md\" in context.fileName so Gemini CLI loads DTKit managed instructions",
+				})
+			}
 		}
 	}
 	if profile.ID == "opencode" {
@@ -160,13 +165,24 @@ func doctorRuntimeSpecificChecks(profile adapter.RuntimeProfile, scope string, r
 			})
 		}
 	}
-	if capSet, ok := profile.CapabilitiesMap[scope]; ok && !capSet.Hooks.DTKitSupported && capSet.Hooks.Note != "" {
-		checks = append(checks, DoctorCheck{
-			Name:    "hooks_capability",
-			Scope:   scope,
-			Status:  "pass",
-			Message: capSet.Hooks.Note,
-		})
+	if capSet, ok := profile.CapabilitiesMap[scope]; ok {
+		if !capSet.Instructions.DTKitSupported && capSet.Instructions.Note != "" {
+			checks = append(checks, DoctorCheck{
+				Name:    "instructions_capability",
+				Scope:   scope,
+				Status:  "warn",
+				Message: capSet.Instructions.Note,
+				Hint:    fmt.Sprintf("configure global instructions manually in %s UI if needed", profile.DisplayName),
+			})
+		}
+		if !capSet.Hooks.DTKitSupported && capSet.Hooks.Note != "" {
+			checks = append(checks, DoctorCheck{
+				Name:    "hooks_capability",
+				Scope:   scope,
+				Status:  "pass",
+				Message: capSet.Hooks.Note,
+			})
+		}
 	}
 	return checks
 }

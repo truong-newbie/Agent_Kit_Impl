@@ -4,7 +4,7 @@
   "name": "DTKit Engineer Kit",
   "version": "0.1.0",
   "description": "Engineering skills and workflows for coding agents.",
-  "runtimeTargets": ["codex", "gemini", "opencode"],
+  "runtimeTargets": ["codex", "gemini", "opencode", "cursor"],
   "scopes": ["project", "global"],
   "requiresCapabilities": ["instructions", "skills"],
   "packageDependencies": [],

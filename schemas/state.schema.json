@@ -20,7 +20,7 @@
     "managedBy": { "const": "dtkit" },
     "generation": { "type": "integer", "minimum": 1 },
     "scope": { "enum": ["project", "global"] },
-    "runtime": { "enum": ["codex", "gemini", "opencode"] },
+    "runtime": { "enum": ["codex", "gemini", "opencode", "cursor"] },
     "adapterRevision": { "const": "1" },
     "codexHome": { "type": "string" },
     "runtimeHome": { "type": "string" },

@@ -25,7 +25,7 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
+		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
 	}
 	kitSpec := args[0]
 
@@ -221,6 +221,9 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 
 	if _, lookErr := deps.LookPath(profile.Binary); lookErr != nil {
 		env.Warnings = append(env.Warnings, fmt.Sprintf("%s executable not found on PATH; files will still be installed", profile.Binary))
+	}
+	if capSet, ok := profile.CapabilitiesMap[scope]; ok && !capSet.Instructions.DTKitSupported && capSet.Instructions.Note != "" {
+		env.Warnings = append(env.Warnings, capSet.Instructions.Note)
 	}
 
 	installed, err := installer.FreshInstallWithOptions(scope, roots, pkg, source, artifacts, deps.Now(), installer.InstallOptions{
