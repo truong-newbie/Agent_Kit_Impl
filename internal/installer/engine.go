@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
@@ -87,13 +89,23 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 		return res, err
 	}
 	defer func() {
-		if releaseErr := lock.release(); releaseErr != nil {
-			if err == nil {
-				err = releaseErr
-			} else {
-				err = fmt.Errorf("%w (lock release: %v)", err, releaseErr)
-			}
-		}
+		err = combineLockError(err, lock.release())
+	}()
+
+	specs := make([]targetSpec, 0, len(req.Actions))
+	for _, a := range req.Actions {
+		specs = append(specs, targetSpec{Root: a.Root, Path: a.Path})
+	}
+	sharedLockPaths, err := sharedTargetLockPaths(req.Scope, req.Roots, specs)
+	if err != nil {
+		return res, err
+	}
+	sharedLocks, err := acquireSharedLocks(sharedLockPaths, req.Operation, txID, req.Now)
+	if err != nil {
+		return res, err
+	}
+	defer func() {
+		err = combineLockError(err, releaseLockList(sharedLocks))
 	}()
 
 	txDir := filepath.Join(operational, "transactions", txID)
@@ -129,7 +141,7 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 		return res, err
 	}
 
-	// Re-verify state file matches expected PrevState under lock.
+	// Re-verify complete state snapshot matches expected PrevState under lock.
 	var prevStateBytes []byte
 	prevStateExists := false
 	if existingState, readErr := readRegularLimited(statePath, maxStateBytes); readErr == nil {
@@ -138,11 +150,15 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 		if req.PrevState == nil {
 			return res, apperr.WithPath(apperr.Conflict("state_appeared", "installation state appeared after preview"), statePath)
 		}
-		var currentState state.Installation
-		if unmarshalErr := json.Unmarshal(existingState, &currentState); unmarshalErr != nil {
-			return res, apperr.Wrap(apperr.ExitConflict, "invalid_state", "existing installation state is invalid", unmarshalErr)
+		currentState, parseErr := state.ParseAndValidate(existingState, req.Scope)
+		if parseErr != nil || currentState.Runtime != profile.ID {
+			return res, apperr.Wrap(apperr.ExitConflict, "invalid_state", "existing installation state is invalid", parseErr)
 		}
-		if currentState.Generation != req.PrevState.Generation || currentState.Kit.Digest != req.PrevState.Kit.Digest {
+		curCanon, mErr1 := json.Marshal(currentState)
+		prevCopy := *req.PrevState
+		prevCopy.Runtime = adapter.NormalizeRuntime(prevCopy.Runtime)
+		prevCanon, mErr2 := json.Marshal(prevCopy)
+		if mErr1 != nil || mErr2 != nil || !bytes.Equal(curCanon, prevCanon) {
 			return res, apperr.Conflict("state_changed", "installation state changed after preview")
 		}
 	} else if !os.IsNotExist(readErr) {

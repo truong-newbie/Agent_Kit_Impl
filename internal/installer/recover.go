@@ -124,9 +124,9 @@ func Recover(scope string, roots map[string]string, txID string, dryRun bool, no
 }
 
 // RecoverForRuntime inspects and resolves an interrupted DTKit transaction for runtimeName.
-func RecoverForRuntime(runtimeName, scope string, roots map[string]string, txID string, dryRun bool, now time.Time) (RecoverReport, error) {
+func RecoverForRuntime(runtimeName, scope string, roots map[string]string, txID string, dryRun bool, now time.Time) (report RecoverReport, err error) {
 	profile, pErr := runtimeProfile(runtimeName)
-	report := RecoverReport{Runtime: adapter.NormalizeRuntime(runtimeName), Scope: scope}
+	report = RecoverReport{Runtime: adapter.NormalizeRuntime(runtimeName), Scope: scope}
 	if pErr != nil {
 		return report, pErr
 	}
@@ -156,14 +156,15 @@ func RecoverForRuntime(runtimeName, scope string, roots map[string]string, txID 
 	if len(pending) == 0 {
 		if lockStatus.Present && lockStatus.Liveness == "dead" {
 			if dryRun {
-				report.Outcome = "rolled_back"
+				report.Outcome = phaseRolledBack
 				report.Detail = "stale lock from dead process would be cleared"
 				return report, nil
 			}
+			clearDeadOwnedSharedLocks(scope, roots, lockStatus.Owner.TransactionID, lockStatus.Owner.PID)
 			if rmErr := os.Remove(lockStatus.Path); rmErr != nil && !os.IsNotExist(rmErr) {
 				return report, rmErr
 			}
-			report.Outcome = "rolled_back"
+			report.Outcome = phaseRolledBack
 			report.Detail = "cleared stale installation lock from dead process"
 			return report, nil
 		}
@@ -223,38 +224,97 @@ func RecoverForRuntime(runtimeName, scope string, roots map[string]string, txID 
 		return report, err
 	}
 
-	// Evaluate disk state against before and after images.
+	specs := make([]targetSpec, 0, len(j.Actions))
+	for _, act := range j.Actions {
+		specs = append(specs, targetSpec{Root: act.Root, Path: act.Path})
+	}
+	sharedLockPaths, err := sharedTargetLockPaths(scope, roots, specs)
+	if err != nil {
+		return report, err
+	}
+	var deadOwnedSharedLocks []string
+	for _, lp := range sharedLockPaths {
+		sl, lErr := inspectLock(lp)
+		if lErr != nil {
+			return report, lErr
+		}
+		if sl.Present {
+			if !sl.Corrupt && sl.Liveness == "dead" && (sl.Owner.TransactionID == j.ID || (lockStatus.Present && lockStatus.Owner.PID == sl.Owner.PID)) {
+				deadOwnedSharedLocks = append(deadOwnedSharedLocks, lp)
+				continue
+			}
+			return report, apperr.WithPath(apperr.Conflict("active_or_uncertain_lock", fmt.Sprintf("shared target lock is held or liveness is %s; cannot safely recover", sl.Liveness)), lp)
+		}
+	}
+
+	if dryRun {
+		allAfter, canRollback, conflicts, err := evaluateTxOnDisk(roots, txDir, j, statePath)
+		if err != nil {
+			return report, err
+		}
+		if len(conflicts) > 0 {
+			report.Outcome = phaseConflict
+			report.Detail = strings.Join(conflicts, "; ")
+			return report, apperr.Conflict("recovery_conflict", report.Detail)
+		}
+		if allAfter {
+			report.Outcome = phaseCommitted
+			report.Detail = "all targets and state already match committed after-image"
+			return report, nil
+		}
+		if !canRollback {
+			report.Outcome = phaseConflict
+			report.Detail = "cannot safely determine before or after state for recovery"
+			return report, apperr.Conflict("recovery_conflict", report.Detail)
+		}
+		report.Outcome = phaseRolledBack
+		report.Detail = "transaction can be cleanly rolled back to pre-transaction state"
+		return report, nil
+	}
+
+	if lockStatus.Present && lockStatus.Liveness == "dead" {
+		if rmErr := os.Remove(lockStatus.Path); rmErr != nil && !os.IsNotExist(rmErr) {
+			return report, rmErr
+		}
+	}
+	lock, err := acquireLock(filepath.Join(operational, "install.lock"), "recover", j.ID, now)
+	if err != nil {
+		return report, err
+	}
+	defer func() {
+		err = combineLockError(err, lock.release())
+	}()
+
+	for _, lp := range deadOwnedSharedLocks {
+		if rmErr := os.Remove(lp); rmErr != nil && !os.IsNotExist(rmErr) {
+			return report, rmErr
+		}
+	}
+	sharedLocks, err := acquireSharedLocks(sharedLockPaths, "recover", j.ID, now)
+	if err != nil {
+		return report, err
+	}
+	defer func() {
+		err = combineLockError(err, releaseLockList(sharedLocks))
+	}()
+
+	// Evaluate disk state strictly under full runtime + shared target lock protection.
 	allAfter, canRollback, conflicts, err := evaluateTxOnDisk(roots, txDir, j, statePath)
 	if err != nil {
 		return report, err
 	}
-
 	if len(conflicts) > 0 {
 		report.Outcome = phaseConflict
 		report.Detail = strings.Join(conflicts, "; ")
-		if !dryRun {
-			j.Phase = phaseConflict
-			j.UpdatedAt = now.UTC().Format(time.RFC3339)
-			_ = writeJSON(jPath, j, 0600)
-		}
+		j.Phase = phaseConflict
+		j.UpdatedAt = now.UTC().Format(time.RFC3339)
+		_ = writeJSON(jPath, j, 0600)
 		return report, apperr.Conflict("recovery_conflict", report.Detail)
 	}
 
 	if allAfter {
 		report.Outcome = phaseCommitted
 		report.Detail = "all targets and state already match committed after-image"
-		if dryRun {
-			return report, nil
-		}
-		if lockStatus.Present && lockStatus.Liveness == "dead" {
-			_ = os.Remove(lockStatus.Path)
-		}
-		lock, err := acquireLock(filepath.Join(operational, "install.lock"), "recover", j.ID, now)
-		if err != nil {
-			return report, err
-		}
-		defer func() { _ = lock.release() }()
-
 		for i := range j.Actions {
 			j.Actions[i].Status = "applied"
 		}
@@ -273,31 +333,43 @@ func RecoverForRuntime(runtimeName, scope string, roots map[string]string, txID 
 		return report, apperr.Conflict("recovery_conflict", report.Detail)
 	}
 
-	report.Outcome = phaseRolledBack
-	report.Detail = "transaction can be cleanly rolled back to pre-transaction state"
-	if dryRun {
-		return report, nil
-	}
-
-	if lockStatus.Present && lockStatus.Liveness == "dead" {
-		if rmErr := os.Remove(lockStatus.Path); rmErr != nil && !os.IsNotExist(rmErr) {
-			return report, rmErr
-		}
-	}
-	lock, err := acquireLock(filepath.Join(operational, "install.lock"), "recover", j.ID, now)
-	if err != nil {
-		return report, err
-	}
-	defer func() { _ = lock.release() }()
-
 	if err := executeRecoveryRollback(roots, txDir, &j, statePath, now); err != nil {
 		report.Outcome = phaseConflict
 		report.Detail = err.Error()
 		return report, err
 	}
+	report.Outcome = phaseRolledBack
 	report.Detail = "rolled back unfinished transaction to pre-transaction state"
 	_ = pruneOldTransactions(filepath.Join(operational, "transactions"))
 	return report, nil
+}
+
+func clearDeadOwnedSharedLocks(scope string, roots map[string]string, txID string, pid int) {
+	baseRoot := roots[scopeRoot(scope)]
+	if baseRoot == "" || (txID == "" && pid <= 0) {
+		return
+	}
+	locksDir, err := paths.ResolveTarget(baseRoot, ".dtkit/locks")
+	if err != nil {
+		return
+	}
+	entries, err := os.ReadDir(locksDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".lock") {
+			continue
+		}
+		lp := filepath.Join(locksDir, entry.Name())
+		st, lErr := inspectLock(lp)
+		if lErr != nil || !st.Present || st.Corrupt || st.Liveness != "dead" {
+			continue
+		}
+		if (txID != "" && st.Owner.TransactionID == txID) || (txID == "" && pid > 0 && st.Owner.PID == pid) {
+			_ = os.Remove(lp)
+		}
+	}
 }
 
 func evaluateTxOnDisk(roots map[string]string, txDir string, j Journal, statePath string) (allAfter bool, canRollback bool, conflicts []string, err error) {
