@@ -18,8 +18,8 @@
 | `N05` — Capability contract & status consistency | `verified` | `feat/release-hardening` | F07 | Added `optionalCapabilities`, pre-write `requiresCapabilities` enforcement, consistent warnings across commands, `integrationStatus` separation (`verify-docker.ps1`, CI `43901270341`) |
 | `N06` — Hook JSON strictness & executable lifecycle | `verified` | `feat/release-hardening` | F12 | Duplicate-key/oversize/schema rejection, ambiguous digest guard, real `sh`/PowerShell special-char quoting execution, zero-leak timeout/cancel, update/drift/chmod lifecycle (`verify-docker.ps1`, CI `43903546521`) |
 | `N07` — Native OS edge cases & crash subprocess tests | `verified` | `feat/release-hardening` | F11 | CI skip inventory, NTFS junctions (`mklink /J`), Windows exclusive `CreateFile` locks & case collisions, BOM/CRLF/Unicode, `0555` parent confinement, malicious journal/corrupt state preservation, child-process `Kill` at 4 boundaries, 7-target fuzz smoke (`verify-docker.ps1`, CI `43905833459`) |
-| `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `verified` | `feat/release-hardening` | F08 | Isolated project/global/combined/4-runtime discovery & clean remove verified for `opencode 1.19.5` & `codex 0.169.0`; honest blockers (`codex` PS sandbox + `opencode` `0 credentials`; `gemini`/`cursor` CLI absent -> `unverified`) |
-| `N09` — Engineer Kit quality baseline evaluation | `not-started` | `feat/release-hardening` | F08 | 8–12 task rubric (`docs/evaluation/`), baseline vs with-kit verification |
+| `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `verified` | `feat/release-hardening` | F08 | Isolated project/global/combined/4-runtime discovery & clean remove verified for `opencode 1.19.5` & `codex 0.169.0`; honest blockers (`codex` PS sandbox + `opencode` `0 credentials`; `gemini`/`cursor` CLI absent -> `unverified`) (`verify-docker.ps1`, CI `43908484139`) |
+| `N09` — Engineer Kit quality baseline evaluation | `verified` | `feat/release-hardening` | F09 | Rubric + 10-task `scenarios.json` (`docs/evaluation/`), cross-runtime `engineer_eval_test.go` invariant suite (8/8 pairs, 0 dangling refs/unrendered tags), honest host blockers for live A/B LLM runs (`verify-docker.ps1`) |
 | `N10` — Release pipeline & terminal install UX | `not-started` | `feat/release-hardening` | F09, F10 | Sanitize workflow/PS inputs, add GitHub Release draft step, new RC candidate & terminal verify |
 | `N11` — Final docs, CLI UX & `main` merge prep | `not-started` | `feat/release-hardening` | F09 | Final audit across docs/changelog/troubleshooting and PR diff review to `main` |
 | `N12` — Post-release diagnostics & support policy | `not-started` | `feat/release-hardening` | — | Issue templates, read-only/redacted diagnostics (`--redact`), support & incident guide |
@@ -161,6 +161,15 @@ Verification run: Executed isolated temp fixture verification matrix (`$env:TEMP
 Remaining limitation / external blocker: Host Windows sandbox blocks child `powershell.exe` subcommands inside `codex exec`; isolated OpenCode has `0 credentials` (`opencode run` not executed); `gemini` and `cursor` CLIs are absent on the verification host (honestly marked `unverified`/experimental in `adapter.go`, `compatibility.md`, `README.md`).
 Acceptance checklist result: Pass (all available runtime checks performed cleanly without touching real user state; unverified capabilities & blockers documented truthfully).
 Next task: N09 — Đánh giá bộ kit `engineer`: baseline vs with-kit (F09).
+
+Task: N09 — Đánh giá chất lượng Engineer Kit (`docs/evaluation/`)
+Status: verified (structural/disclosure/link evaluation suite + 10-task A/B harness ready; live multi-run A/B LLM comparison gated cleanly by sandbox policy & owner budget)
+Branch / Commit: `feat/release-hardening` (pending N09 push)
+Artifact changed: `internal/adapter/engineer_eval_test.go`, `docs/evaluation/README.md`, `docs/evaluation/scenarios.json`, `docs/evaluation/results-2026-11-16.md`, `docs/progress.md`, `docs/release.md`
+Verification run: Added automated evaluation suite `TestEngineerKitEvaluationInvariantsAcrossRuntimesAndScopes` verifying all 8 `(runtime, scope)` combinations (`codex`/`gemini`/`opencode`/`cursor` × `project`/`global`) render cleanly with `< 8 KiB` instruction budget, 0 unrendered placeholders, 0 dangling `content/engineer/` resource paths, and explicit read-only/non-fabrication guardrails; recorded measured `opencode 1.19.5` & `codex 0.169.0` context-discovery deltas and observed `$dtkit-project-implement` blocked-policy honesty trace; verified via `.\scripts\verify-docker.ps1`.
+Remaining limitation / external blocker: Live baseline vs. with-kit repeated `T01`–`T10` LLM execution (`N >= 3`) requires an unblocked workspace shell sandbox (`codex` PS child execution allowed) and owner-approved LLM API credentials/budget. No speculative quality uplift percentages claimed.
+Acceptance checklist result: Pass (kit template integrity, progressive disclosure, guardrail checks, 10-task benchmark suite, and honest evaluation boundaries established).
+Next task: N10 — Cứng hóa release pipeline và trải nghiệm cài qua terminal (F09/F10).
 
 ---
 
