@@ -2,7 +2,7 @@
 
 DTKit is a Go-based toolkit for reusable AI engineering skills. The first target is Codex, with project and global installation planned.
 
-This is an early development snapshot, not a usable installer. The CLI provides `version`, `help`, `list`, `info`, basic `validate`, a Codex presence check in `doctor`, and a read-only fresh-install preview. Validation is incomplete and must not be used as a security check for untrusted packages. Actual install, update, status, remove, recovery, hooks and runtime verification are not implemented yet. Do not use this snapshot to modify agent configuration.
+This is an early development snapshot. The CLI provides `version`, `help`, `list`, `info`, basic `validate`, a Codex presence check in `doctor`, a fresh-install preview, and a guarded fresh install. Validation is incomplete and must not be used as a security check for untrusted packages. Update, status, remove, recovery, hooks and runtime verification are not implemented yet. Test installs in an isolated project before using personal configuration.
 
 ## Build and test
 

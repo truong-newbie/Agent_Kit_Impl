@@ -37,6 +37,8 @@ type Installation struct {
 	CodexHome       string     `json:"codexHome,omitempty"`
 	Kit             Kit        `json:"kit"`
 	Artifacts       []Artifact `json:"artifacts"`
+	InstalledAt     string     `json:"installedAt"`
+	UpdatedAt       string     `json:"updatedAt"`
 }
 
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
@@ -55,6 +57,9 @@ func (s Installation) Validate(expected []codex.Artifact) error {
 	}
 	if s.Kit.ID != "engineer" || !versionPattern.MatchString(s.Kit.Version) || !validDigest(s.Kit.Digest) {
 		return fmt.Errorf("invalid installed kit")
+	}
+	if s.InstalledAt == "" || s.UpdatedAt == "" {
+		return fmt.Errorf("missing installation timestamps")
 	}
 	if len(expected) == 0 || len(s.Artifacts) != len(expected) {
 		return fmt.Errorf("installed artifact count does not match adapter")

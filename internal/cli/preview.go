@@ -8,9 +8,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"dtkit.local/dtkit/internal/adapter/codex"
 	"dtkit.local/dtkit/internal/catalog"
+	"dtkit.local/dtkit/internal/installer"
 	"dtkit.local/dtkit/internal/planner"
 )
 
@@ -21,7 +23,7 @@ func previewInstall(args []string, out io.Writer) error {
 		return fmt.Errorf("usage: dtkit install engineer --project|--global --dry-run")
 	}
 	var scope, projectPath, runtime string
-	var dryRun, jsonOutput bool
+	var dryRun, jsonOutput, yes bool
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
 		case "--project", "--global":
@@ -33,6 +35,8 @@ func previewInstall(args []string, out io.Writer) error {
 			dryRun = true
 		case "--json":
 			jsonOutput = true
+		case "--yes":
+			yes = true
 		case "--runtime", "--path":
 			flag := args[i]
 			i++
@@ -48,8 +52,8 @@ func previewInstall(args []string, out io.Writer) error {
 			return fmt.Errorf("unknown install option %q", args[i])
 		}
 	}
-	if !dryRun {
-		return fmt.Errorf("installation is not implemented; use --dry-run for a read-only preview")
+	if !dryRun && !yes {
+		return fmt.Errorf("non-interactive install requires --yes; run --dry-run first")
 	}
 	if scope == "" {
 		return fmt.Errorf("choose --project or --global")
@@ -117,6 +121,33 @@ func previewInstall(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if plan.Conflicts != 0 {
+		if jsonOutput {
+			_ = json.NewEncoder(out).Encode(struct {
+				Scope   string              `json:"scope"`
+				Runtime string              `json:"runtime"`
+				DryRun  bool                `json:"dryRun"`
+				Plan    planner.InstallPlan `json:"plan"`
+			}{scope, "codex", dryRun, plan})
+		}
+		return fmt.Errorf("install found %d conflict(s)", plan.Conflicts)
+	}
+	if !dryRun {
+		installed, err := installer.FreshInstall(scope, roots, pkg, source, artifacts, time.Now())
+		if err != nil {
+			return err
+		}
+		if jsonOutput {
+			return json.NewEncoder(out).Encode(struct {
+				Scope      string `json:"scope"`
+				Runtime    string `json:"runtime"`
+				Installed  bool   `json:"installed"`
+				Generation uint64 `json:"generation"`
+			}{scope, "codex", true, installed.Generation})
+		}
+		fmt.Fprintf(out, "Installed engineer %s for Codex (%d artifacts).\n", scope, len(installed.Artifacts))
+		return nil
+	}
 	if jsonOutput {
 		result := struct {
 			Scope   string              `json:"scope"`
@@ -134,9 +165,6 @@ func previewInstall(args []string, out io.Writer) error {
 			fmt.Fprintf(out, "%s\t%s:%s\t%s\n", action.Kind, action.Root, action.Path, action.Reason)
 		}
 		fmt.Fprintf(out, "Conflicts: %d. Nothing was written.\n", plan.Conflicts)
-	}
-	if plan.Conflicts != 0 {
-		return fmt.Errorf("preview found %d conflict(s)", plan.Conflicts)
 	}
 	return nil
 }

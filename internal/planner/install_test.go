@@ -62,7 +62,7 @@ func TestInstallPreviewDoesNotWriteAndDetectsConflicts(t *testing.T) {
 }
 
 func TestInstallPreviewRejectsTraversal(t *testing.T) {
-	_, err := safeTarget(t.TempDir(), "../escape")
+	_, err := ResolveTarget(t.TempDir(), "../escape")
 	if err == nil {
 		t.Fatal("accepted traversal")
 	}

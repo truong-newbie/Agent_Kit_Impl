@@ -23,7 +23,7 @@ Usage:
   dtkit doctor
   dtkit install engineer --project|--global --dry-run
 
-Installation, updates and removal are under development.
+Updates, status, removal and recovery are under development.
 `
 
 func Run(args []string, stdout, stderr io.Writer) error {

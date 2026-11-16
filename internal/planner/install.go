@@ -35,7 +35,7 @@ func InstallPreview(scope string, roots map[string]string, artifacts []codex.Art
 	if scope == "global" {
 		stateRoot = "user-home"
 	}
-	statePath, err := safeTarget(roots[stateRoot], ".dtkit/state.json")
+	statePath, err := ResolveTarget(roots[stateRoot], ".dtkit/state.json")
 	if err != nil {
 		return plan, err
 	}
@@ -64,7 +64,7 @@ func InstallPreview(scope string, roots map[string]string, artifacts []codex.Art
 		if a.Strategy != "managed-block" && a.Strategy != "whole-file" {
 			return plan, fmt.Errorf("unknown artifact strategy")
 		}
-		target, err := safeTarget(roots[a.Root], a.Path)
+		target, err := ResolveTarget(roots[a.Root], a.Path)
 		if err != nil {
 			return plan, err
 		}
@@ -75,7 +75,7 @@ func InstallPreview(scope string, roots map[string]string, artifacts []codex.Art
 		seen[key] = true
 		action := Action{Root: a.Root, Path: a.Path}
 		if a.Strategy == "managed-block" {
-			override, err := safeTarget(roots[a.Root], "AGENTS.override.md")
+			override, err := ResolveTarget(roots[a.Root], "AGENTS.override.md")
 			if err != nil {
 				return plan, err
 			}
@@ -126,7 +126,7 @@ func InstallPreview(scope string, roots map[string]string, artifacts []codex.Art
 
 // safeTarget rejects links in existing ancestors and does not create directories.
 // It cannot guarantee race-free writes by other processes; there are no writes here.
-func safeTarget(root, relative string) (string, error) {
+func ResolveTarget(root, relative string) (string, error) {
 	if root == "" || !fs.ValidPath(relative) || relative == "." || strings.ContainsAny(relative, `\:`) {
 		return "", fmt.Errorf("invalid root or relative path")
 	}

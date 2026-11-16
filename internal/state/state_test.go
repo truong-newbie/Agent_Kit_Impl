@@ -19,7 +19,7 @@ func TestStateRejectsUnknownAndDuplicateArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := strings.Repeat("a", 64)
-	s := Installation{SchemaVersion: 1, ManagedBy: "dtkit", Generation: 1, Scope: "project", Runtime: "codex", AdapterRevision: "1", Kit: Kit{ID: "engineer", Version: "0.1.0", Digest: digest}}
+	s := Installation{SchemaVersion: 1, ManagedBy: "dtkit", Generation: 1, Scope: "project", Runtime: "codex", AdapterRevision: "1", InstalledAt: "2026-11-16T00:00:00Z", UpdatedAt: "2026-11-16T00:00:00Z", Kit: Kit{ID: "engineer", Version: "0.1.0", Digest: digest}}
 	for _, a := range artifacts {
 		record := Artifact{Root: a.Root, Path: a.Path, Strategy: a.Strategy, Digest: digest}
 		if a.Strategy == "managed-block" {
