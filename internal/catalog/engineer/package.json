@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "engineer",
+  "name": "DTKit Engineer Kit",
+  "version": "0.1.0",
+  "description": "Engineering skills and workflows for coding agents.",
+  "runtimeTargets": ["codex"],
+  "scopes": ["project", "global"],
+  "requiresCapabilities": ["instructions", "skills"],
+  "packageDependencies": [],
+  "components": [
+    {"id":"rule/engineering","kind":"rule","source":"rules/engineering.md","requires":[]},
+    {"id":"template/implementation-plan","kind":"template","source":"templates/implementation-plan.md","requires":[]},
+    {"id":"template/review-report","kind":"template","source":"templates/review-report.md","requires":[]},
+    {"id":"template/completion-report","kind":"template","source":"templates/completion-report.md","requires":[]},
+    {"id":"skill/plan","kind":"skill","source":"skills/plan","requires":["rule/engineering","template/implementation-plan"]},
+    {"id":"skill/implement","kind":"skill","source":"skills/implement","requires":["rule/engineering","template/completion-report"]},
+    {"id":"skill/debug","kind":"skill","source":"skills/debug","requires":["rule/engineering"]},
+    {"id":"skill/review","kind":"skill","source":"skills/review","requires":["rule/engineering","template/review-report"]},
+    {"id":"skill/test","kind":"skill","source":"skills/test","requires":["rule/engineering"]},
+    {"id":"skill/explain","kind":"skill","source":"skills/explain","requires":["rule/engineering"]},
+    {"id":"skill/ask","kind":"skill","source":"skills/ask","requires":["rule/engineering"]},
+    {"id":"workflow/feature","kind":"workflow","source":"workflows/feature.md","requires":["skill/plan","skill/implement","skill/test","skill/review"]},
+    {"id":"workflow/bugfix","kind":"workflow","source":"workflows/bugfix.md","requires":["skill/debug","skill/test","skill/review"]},
+    {"id":"workflow/review","kind":"workflow","source":"workflows/review.md","requires":["skill/review"]}
+  ]
+}
