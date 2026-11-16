@@ -1,11 +1,12 @@
 package planner
 
 import (
+	"fmt"
 	"os"
 	"sort"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
@@ -13,16 +14,30 @@ import (
 
 // PlanDesired reconciles existing state, on-disk files, and desired artifacts
 // according to the DTKit planner decision matrix. It never writes to disk.
-func PlanDesired(scope, kitID string, roots map[string]string, existing *state.Installation, desired []codex.Artifact) (InstallPlan, error) {
+func PlanDesired(scope, kitID string, roots map[string]string, existing *state.Installation, desired []adapter.Artifact) (InstallPlan, error) {
+	runtimeName := adapter.DefaultRuntime
+	if existing != nil && existing.Runtime != "" {
+		runtimeName = existing.Runtime
+	}
+	return PlanDesiredForRuntime(runtimeName, scope, kitID, roots, existing, desired)
+}
+
+// PlanDesiredForRuntime reconciles existing state, on-disk files, and desired artifacts
+// for a specific runtime according to the DTKit planner decision matrix.
+func PlanDesiredForRuntime(runtimeName, scope, kitID string, roots map[string]string, existing *state.Installation, desired []adapter.Artifact) (InstallPlan, error) {
 	var plan InstallPlan
-	if scope != "project" && scope != "global" {
+	profile, ok := adapter.Profile(runtimeName)
+	if !ok {
+		return plan, apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", runtimeName))
+	}
+	if !profile.SupportsScope(scope) {
 		return plan, apperr.Usage("invalid_scope", "invalid scope")
 	}
 
-	desiredByKey := map[string]codex.Artifact{}
+	desiredByKey := map[string]adapter.Artifact{}
 	seenTarget := map[string]bool{}
 	for _, a := range desired {
-		if !state.IsAllowedArtifactPath(scope, kitID, a.Root, a.Path, a.Strategy) {
+		if !profile.IsAllowedArtifactPath(scope, kitID, a.Root, a.Path, a.Strategy) {
 			return plan, apperr.WithPath(apperr.Usage("artifact_outside_allowlist", "desired artifact outside allowlist"), a.Path)
 		}
 		target, err := ResolveTarget(roots[a.Root], a.Path)
@@ -40,7 +55,7 @@ func PlanDesired(scope, kitID string, roots map[string]string, existing *state.I
 	stateByKey := map[string]state.Artifact{}
 	if existing != nil {
 		for _, sa := range existing.Artifacts {
-			if !state.IsAllowedArtifactPath(scope, existing.Kit.ID, sa.Root, sa.Path, sa.Strategy) {
+			if !state.IsAllowedRuntimeArtifactPath(existing.Runtime, scope, existing.Kit.ID, sa.Root, sa.Path, sa.Strategy) {
 				return plan, apperr.WithPath(apperr.Conflict("invalid_state", "state artifact outside allowlist"), sa.Path)
 			}
 			stateByKey[strings.ToLower(sa.Root+"\x00"+sa.Path)] = sa
@@ -76,17 +91,19 @@ func PlanDesired(scope, kitID string, roots map[string]string, existing *state.I
 		action := Action{Root: rootKey, Path: relPath}
 
 		if strategy == "managed-block" && hasDesired {
-			override, err := ResolveTarget(roots[rootKey], "AGENTS.override.md")
-			if err != nil {
-				return plan, err
-			}
-			if info, statErr := os.Lstat(override); statErr == nil && (paths.IsReparseOrSymlink(info) || info.Size() > 0) {
-				action.Kind, action.Reason = "conflict", "instruction_override"
-				plan.Conflicts++
-				plan.Actions = append(plan.Actions, action)
-				continue
-			} else if statErr != nil && !os.IsNotExist(statErr) {
-				return plan, statErr
+			if overrideRel := profile.OverrideCheckPath(scope, relPath); overrideRel != "" {
+				override, err := ResolveTarget(roots[rootKey], overrideRel)
+				if err != nil {
+					return plan, err
+				}
+				if info, statErr := os.Lstat(override); statErr == nil && (paths.IsReparseOrSymlink(info) || info.Size() > 0) {
+					action.Kind, action.Reason = "conflict", "instruction_override"
+					plan.Conflicts++
+					plan.Actions = append(plan.Actions, action)
+					continue
+				} else if statErr != nil && !os.IsNotExist(statErr) {
+					return plan, statErr
+				}
 			}
 		}
 

@@ -18,6 +18,11 @@ const MaxStateBytes = 4 * 1024 * 1024
 // LoadFile reads and strictly validates an existing DTKit installation state file.
 // Returns (nil, false, nil) if the file does not exist.
 func LoadFile(statePath, expectedScope string) (*Installation, bool, error) {
+	return LoadFileForRuntime(statePath, expectedScope, "")
+}
+
+// LoadFileForRuntime reads and strictly validates an existing state file for scope and optional runtime.
+func LoadFileForRuntime(statePath, expectedScope, expectedRuntime string) (*Installation, bool, error) {
 	info, err := os.Lstat(statePath)
 	if os.IsNotExist(err) {
 		return nil, false, nil
@@ -49,6 +54,9 @@ func LoadFile(statePath, expectedScope string) (*Installation, bool, error) {
 	inst, err := ParseAndValidate(data, expectedScope)
 	if err != nil {
 		return nil, true, apperr.WithPath(apperr.Wrap(apperr.ExitConflict, "invalid_state", err.Error(), err), statePath)
+	}
+	if expectedRuntime != "" && inst.Runtime != expectedRuntime {
+		return nil, true, apperr.WithPath(apperr.Conflict("runtime_mismatch", fmt.Sprintf("installation state runtime %q does not match requested %q", inst.Runtime, expectedRuntime)), statePath)
 	}
 	return &inst, true, nil
 }

@@ -184,7 +184,7 @@ func ResolveOrder(p Package, fsys fs.FS) ([]Component, error) {
 	if p.SchemaVersion != 1 || !validID(p.ID, 32) || !versionPattern.MatchString(p.Version) || strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.Description) == "" {
 		return nil, apperr.Usage("invalid_package_metadata", "invalid package metadata")
 	}
-	if !subsetUnique(p.RuntimeTargets, []string{"codex"}) || !subsetUnique(p.Scopes, []string{"project", "global"}) || !subsetUnique(p.RequiresCapabilities, []string{"instructions", "skills"}) {
+	if !subsetUnique(p.RuntimeTargets, []string{"codex", "gemini"}) || !subsetUnique(p.Scopes, []string{"project", "global"}) || !subsetUnique(p.RequiresCapabilities, []string{"instructions", "skills"}) {
 		return nil, apperr.Usage("unsupported_package_target", "unsupported runtime, scope or capability")
 	}
 	if len(p.PackageDependencies) != 0 {

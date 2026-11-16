@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
@@ -104,7 +104,7 @@ Follow the kit guidance in ` + "`{{index .ResourcePaths \"rule/engineering\"}}`"
 		Name:                 displayName,
 		Version:              "0.1.0",
 		Description:          "Custom DTKit engineering package.",
-		RuntimeTargets:       []string{"codex"},
+		RuntimeTargets:       adapter.SupportedRuntimes(),
 		Scopes:               []string{"project", "global"},
 		RequiresCapabilities: []string{"instructions", "skills"},
 		PackageDependencies:  []string{},
@@ -125,10 +125,8 @@ Follow the kit guidance in ` + "`{{index .ResourcePaths \"rule/engineering\"}}`"
 	if err != nil {
 		return res, err
 	}
-	for _, sc := range loaded.Scopes {
-		if _, err := codex.Render(loaded, snap, sc); err != nil {
-			return res, err
-		}
+	if err := validatePackageRenderTargets(loaded, snap); err != nil {
+		return res, err
 	}
 	return CreateKitResult{ID: loaded.ID, Version: loaded.Version, Dir: kitDir, Digest: digest}, nil
 }
@@ -227,10 +225,8 @@ description: ` + strings.ReplaceAll(strings.TrimSpace(description), "\n", " ") +
 	if err != nil {
 		return res, err
 	}
-	for _, sc := range loaded.Scopes {
-		if _, err := codex.Render(loaded, snap, sc); err != nil {
-			return res, err
-		}
+	if err := validatePackageRenderTargets(loaded, snap); err != nil {
+		return res, err
 	}
 	return CreateSkillResult{KitID: loaded.ID, SkillID: compID, Dir: skillDir, File: skillFile, Digest: digest}, nil
 }

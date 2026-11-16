@@ -17,7 +17,7 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
@@ -38,17 +38,15 @@ type PackResult struct {
 	SizeBytes     int64  `json:"sizeBytes"`
 }
 
-// Pack validates dir, renders all declared Codex scopes, and emits a deterministic .tar.gz archive + .sha256 file.
+// Pack validates dir, renders all declared target runtimes and scopes, and emits a deterministic .tar.gz archive + .sha256 file.
 func Pack(dir, outPath string) (PackResult, error) {
 	var res PackResult
 	pkg, snap, pkgDigest, err := catalog.LoadDir(dir)
 	if err != nil {
 		return res, err
 	}
-	for _, sc := range pkg.Scopes {
-		if _, err := codex.Render(pkg, snap, sc); err != nil {
-			return res, err
-		}
+	if err := validatePackageRenderTargets(pkg, snap); err != nil {
+		return res, err
 	}
 
 	if outPath == "" {
@@ -286,12 +284,21 @@ func ReadArchiveBytes(raw []byte, expectedArchiveSHA256 string) (catalog.Package
 	if err != nil {
 		return catalog.Package{}, nil, "", "", err
 	}
-	for _, sc := range pkg.Scopes {
-		if _, err := codex.Render(pkg, snap, sc); err != nil {
-			return catalog.Package{}, nil, "", "", err
-		}
+	if err := validatePackageRenderTargets(pkg, snap); err != nil {
+		return catalog.Package{}, nil, "", "", err
 	}
 	return pkg, snap, pkgDigest, actualArchiveSHA256, nil
+}
+
+func validatePackageRenderTargets(pkg catalog.Package, snap fs.FS) error {
+	for _, rt := range pkg.RuntimeTargets {
+		for _, sc := range pkg.Scopes {
+			if _, err := adapter.RenderForRuntime(rt, pkg, snap, sc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func sanitizeArchiveEntryName(raw string, isDir bool) (string, error) {

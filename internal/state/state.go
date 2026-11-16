@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
@@ -58,6 +58,7 @@ type Installation struct {
 	Runtime           string             `json:"runtime"`
 	AdapterRevision   string             `json:"adapterRevision"`
 	CodexHome         string             `json:"codexHome,omitempty"`
+	RuntimeHome       string             `json:"runtimeHome,omitempty"`
 	Kit               Kit                `json:"kit"`
 	Artifacts         []Artifact         `json:"artifacts"`
 	Hooks             []HookRegistration `json:"hooks,omitempty"`
@@ -66,21 +67,41 @@ type Installation struct {
 	UpdatedAt         string             `json:"updatedAt"`
 }
 
+// GlobalHome returns the bound runtime-specific global home path recorded in state.
+func (s Installation) GlobalHome() string {
+	if s.CodexHome != "" {
+		return s.CodexHome
+	}
+	return s.RuntimeHome
+}
+
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 var kitIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
 func (s Installation) validateCommon() error {
-	if (s.SchemaVersion != 1 && s.SchemaVersion != 2) || s.ManagedBy != "dtkit" || s.Generation == 0 || s.Runtime != "codex" || s.AdapterRevision != codex.AdapterRevision {
+	if (s.SchemaVersion != 1 && s.SchemaVersion != 2) || s.ManagedBy != "dtkit" || s.Generation == 0 || s.Runtime == "" {
+		return fmt.Errorf("unsupported or invalid installation metadata")
+	}
+	profile, ok := adapter.Profile(s.Runtime)
+	if !ok || s.AdapterRevision != profile.Revision {
 		return fmt.Errorf("unsupported or invalid installation metadata")
 	}
 	if s.SchemaVersion == 1 && len(s.Hooks) > 0 {
 		return fmt.Errorf("hooks require state schemaVersion 2")
 	}
-	if s.Scope != "project" && s.Scope != "global" {
+	if !profile.SupportsScope(s.Scope) {
 		return fmt.Errorf("invalid installation scope")
 	}
-	if (s.Scope == "project" && s.CodexHome != "") || (s.Scope == "global" && !filepath.IsAbs(s.CodexHome)) {
-		return fmt.Errorf("invalid Codex home binding")
+	if profile.UsesCodexHome {
+		if (s.Scope == "project" && (s.CodexHome != "" || s.RuntimeHome != "")) || (s.Scope == "global" && (!filepath.IsAbs(s.CodexHome) || s.RuntimeHome != "")) {
+			return fmt.Errorf("invalid Codex home binding")
+		}
+	} else if profile.GlobalHomeKey != "" {
+		if (s.Scope == "project" && (s.RuntimeHome != "" || s.CodexHome != "")) || (s.Scope == "global" && (!filepath.IsAbs(s.RuntimeHome) || s.CodexHome != "")) {
+			return fmt.Errorf("invalid %s home binding", profile.DisplayName)
+		}
+	} else if s.CodexHome != "" || s.RuntimeHome != "" {
+		return fmt.Errorf("unexpected runtime home binding for %s", profile.DisplayName)
 	}
 	if !kitIDPattern.MatchString(s.Kit.ID) || len(s.Kit.ID) > 32 || !versionPattern.MatchString(s.Kit.Version) || !validDigest(s.Kit.Digest) {
 		return fmt.Errorf("invalid installed kit")
@@ -94,10 +115,13 @@ func (s Installation) validateCommon() error {
 	if s.InstalledAt == "" || s.UpdatedAt == "" {
 		return fmt.Errorf("missing installation timestamps")
 	}
-	return s.validateHooks()
+	return s.validateHooks(profile)
 }
 
-func (s Installation) validateHooks() error {
+func (s Installation) validateHooks(profile adapter.RuntimeProfile) error {
+	if !profile.HooksSupported && len(s.Hooks) > 0 {
+		return fmt.Errorf("hooks are not supported for runtime %q", s.Runtime)
+	}
 	seenIDs := map[string]bool{}
 	for _, h := range s.Hooks {
 		if !kitIDPattern.MatchString(h.ID) || !kitIDPattern.MatchString(h.HandlerID) {
@@ -110,7 +134,7 @@ func (s Installation) validateHooks() error {
 			return fmt.Errorf("duplicate hook %q", h.ID)
 		}
 		seenIDs[h.ID] = true
-		if !IsAllowedArtifactPath(s.Scope, s.Kit.ID, h.Root, h.Path, "hooks-json") {
+		if !IsAllowedRuntimeArtifactPath(s.Runtime, s.Scope, s.Kit.ID, h.Root, h.Path, "hooks-json") {
 			return fmt.Errorf("hook target %s:%s outside allowlist", h.Root, h.Path)
 		}
 		if strings.TrimSpace(h.Command) == "" || strings.TrimSpace(h.CommandWindows) == "" || !filepath.IsAbs(h.Executable) {
@@ -125,16 +149,20 @@ func (s Installation) validateHooks() error {
 
 // Validate checks metadata against the known output mapping of the adapter.
 // Callers must also check on-disk content and roots immediately before writes.
-func (s Installation) Validate(expected []codex.Artifact) error {
+func (s Installation) Validate(expected []adapter.Artifact) error {
 	if err := s.validateCommon(); err != nil {
 		return err
+	}
+	profile, ok := adapter.Profile(s.Runtime)
+	if !ok {
+		return fmt.Errorf("unsupported runtime %q", s.Runtime)
 	}
 	if len(expected) == 0 || len(s.Artifacts) != len(expected) {
 		return fmt.Errorf("installed artifact count does not match adapter")
 	}
-	known := make(map[string]codex.Artifact, len(expected))
+	known := make(map[string]adapter.Artifact, len(expected))
 	for _, a := range expected {
-		if (s.Scope == "project" && a.Root != "project") || (s.Scope == "global" && a.Root != "user-home" && a.Root != "codex-home") {
+		if !profile.AllowedRootForScope(s.Scope, a.Root) {
 			return fmt.Errorf("adapter artifact does not belong to scope")
 		}
 		key := strings.ToLower(a.Root + "\x00" + a.Path)
@@ -179,7 +207,7 @@ func (s Installation) ValidateSelf() error {
 	}
 	seen := make(map[string]bool, len(s.Artifacts))
 	for _, a := range s.Artifacts {
-		if !IsAllowedArtifactPath(s.Scope, s.Kit.ID, a.Root, a.Path, a.Strategy) {
+		if !IsAllowedRuntimeArtifactPath(s.Runtime, s.Scope, s.Kit.ID, a.Root, a.Path, a.Strategy) {
 			return fmt.Errorf("artifact %q outside DTKit allowlist", a.Path)
 		}
 		key := strings.ToLower(a.Root + "\x00" + a.Path)
@@ -201,46 +229,18 @@ func (s Installation) ValidateSelf() error {
 	return nil
 }
 
-// IsAllowedArtifactPath enforces DTKit's path allowlist before any state-driven write or delete.
+// IsAllowedArtifactPath enforces DTKit's Codex allowlist before any state-driven write or delete.
 func IsAllowedArtifactPath(scope, kitID, root, relPath, strategy string) bool {
-	if !paths.ValidateRelativePath(relPath) {
+	return IsAllowedRuntimeArtifactPath(adapter.DefaultRuntime, scope, kitID, root, relPath, strategy)
+}
+
+// IsAllowedRuntimeArtifactPath enforces the named runtime's path allowlist before writes or deletes.
+func IsAllowedRuntimeArtifactPath(runtime, scope, kitID, root, relPath, strategy string) bool {
+	profile, ok := adapter.Profile(runtime)
+	if !ok {
 		return false
 	}
-	if scope == "project" && root != "project" {
-		return false
-	}
-	if scope == "global" && root != "user-home" && root != "codex-home" {
-		return false
-	}
-	switch strategy {
-	case "managed-block":
-		if relPath != "AGENTS.md" {
-			return false
-		}
-		if scope == "global" && root != "codex-home" {
-			return false
-		}
-		return true
-	case "hooks-json":
-		if scope == "project" {
-			return root == "project" && relPath == ".codex/hooks.json"
-		}
-		return root == "codex-home" && relPath == "hooks.json"
-	case "whole-file":
-		if scope == "global" && root != "user-home" {
-			return false
-		}
-		skillPrefix := ".agents/skills/dtkit-" + scope + "-"
-		contentPrefix := ".dtkit/content/" + kitID + "/"
-		if strings.HasPrefix(relPath, skillPrefix) {
-			rest := strings.TrimPrefix(relPath, skillPrefix)
-			parts := strings.Split(rest, "/")
-			return len(parts) == 2 && parts[0] != "" && parts[1] == "SKILL.md"
-		}
-		return strings.HasPrefix(relPath, contentPrefix) && len(relPath) > len(contentPrefix)
-	default:
-		return false
-	}
+	return profile.IsAllowedArtifactPath(scope, kitID, root, relPath, strategy)
 }
 
 func validDigest(value string) bool {

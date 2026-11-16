@@ -20,9 +20,10 @@
     "managedBy": { "const": "dtkit" },
     "generation": { "type": "integer", "minimum": 1 },
     "scope": { "enum": ["project", "global"] },
-    "runtime": { "const": "codex" },
+    "runtime": { "enum": ["codex", "gemini"] },
     "adapterRevision": { "const": "1" },
     "codexHome": { "type": "string" },
+    "runtimeHome": { "type": "string" },
     "kit": {
       "type": "object",
       "additionalProperties": false,
@@ -43,7 +44,7 @@
         "additionalProperties": false,
         "required": ["root", "path", "strategy", "digest"],
         "properties": {
-          "root": { "enum": ["project", "user-home", "codex-home"] },
+          "root": { "enum": ["project", "user-home", "codex-home", "gemini-home"] },
           "path": { "type": "string", "minLength": 1 },
           "strategy": { "enum": ["whole-file", "managed-block"] },
           "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },

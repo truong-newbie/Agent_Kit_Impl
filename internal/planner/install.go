@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
@@ -27,18 +27,23 @@ type InstallPlan struct {
 	Conflicts int      `json:"conflicts"`
 }
 
-// InstallPreview supports fresh installations only. Existing state, symlinks,
-// and unowned files are conflicts; this function is not an apply operation.
-func InstallPreview(scope string, roots map[string]string, artifacts []codex.Artifact) (InstallPlan, error) {
+// InstallPreview supports fresh Codex installations only.
+func InstallPreview(scope string, roots map[string]string, artifacts []adapter.Artifact) (InstallPlan, error) {
+	return InstallPreviewForRuntime(adapter.DefaultRuntime, scope, roots, artifacts)
+}
+
+// InstallPreviewForRuntime supports fresh installations for the specified runtime.
+// Existing state, symlinks, and unowned files are conflicts; this function never writes to disk.
+func InstallPreviewForRuntime(runtime, scope string, roots map[string]string, artifacts []adapter.Artifact) (InstallPlan, error) {
 	var plan InstallPlan
-	if scope != "project" && scope != "global" {
+	profile, ok := adapter.Profile(runtime)
+	if !ok {
+		return plan, apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", runtime))
+	}
+	if !profile.SupportsScope(scope) {
 		return plan, apperr.Usage("invalid_scope", "invalid scope")
 	}
-	stateRoot := "project"
-	if scope == "global" {
-		stateRoot = "user-home"
-	}
-	statePath, err := ResolveTarget(roots[stateRoot], ".dtkit/state.json")
+	statePath, err := ResolveTarget(roots[adapter.ScopeStateRoot(scope)], profile.StateRelPath)
 	if err != nil {
 		return plan, err
 	}
@@ -48,21 +53,22 @@ func InstallPreview(scope string, roots map[string]string, artifacts []codex.Art
 		return plan, err
 	}
 	seen := map[string]bool{}
+	instrLoc := profile.Instructions[scope]
+	skillLoc := profile.Skills[scope]
+	contentRoot := profile.ContentRoot[scope]
 	for _, a := range artifacts {
-		if scope == "project" && a.Root != "project" {
+		if !profile.AllowedRootForScope(scope, a.Root) {
 			return plan, apperr.Usage("unexpected_artifact_root", "unexpected artifact root")
 		}
-		if scope == "global" && a.Root != "user-home" && a.Root != "codex-home" {
-			return plan, apperr.Usage("unexpected_artifact_root", "unexpected artifact root")
-		}
-		if a.Strategy == "managed-block" && (a.Path != "AGENTS.md" || (scope == "global" && a.Root != "codex-home")) {
+		if a.Strategy == "managed-block" && (a.Path != instrLoc.Path || a.Root != instrLoc.Root) {
 			return plan, apperr.Usage("invalid_instruction_artifact", "invalid instruction artifact")
 		}
-		if a.Strategy == "whole-file" && !(strings.HasPrefix(a.Path, ".agents/skills/dtkit-"+scope+"-") || strings.HasPrefix(a.Path, ".dtkit/content/")) {
-			return plan, apperr.Usage("artifact_outside_allowlist", "artifact outside allowed paths")
-		}
-		if scope == "global" && a.Strategy == "whole-file" && a.Root != "user-home" {
-			return plan, apperr.Usage("invalid_global_artifact_root", "invalid global artifact root")
+		if a.Strategy == "whole-file" {
+			isSkill := a.Root == skillLoc.Root && profile.IsSkillArtifact(scope, a.Path)
+			isContent := a.Root == contentRoot && strings.HasPrefix(a.Path, profile.ContentRelBase+"/")
+			if !isSkill && !isContent {
+				return plan, apperr.Usage("artifact_outside_allowlist", "artifact outside allowed paths")
+			}
 		}
 		if a.Strategy != "managed-block" && a.Strategy != "whole-file" {
 			return plan, apperr.Usage("unknown_artifact_strategy", "unknown artifact strategy")
@@ -78,14 +84,16 @@ func InstallPreview(scope string, roots map[string]string, artifacts []codex.Art
 		seen[key] = true
 		action := Action{Root: a.Root, Path: a.Path}
 		if a.Strategy == "managed-block" {
-			override, err := ResolveTarget(roots[a.Root], "AGENTS.override.md")
-			if err != nil {
-				return plan, err
-			}
-			if info, err := os.Lstat(override); err == nil && (paths.IsReparseOrSymlink(info) || info.Size() > 0) {
-				action.Kind, action.Reason = "conflict", "instruction_override"
-			} else if err != nil && !os.IsNotExist(err) {
-				return plan, err
+			if overrideRel := profile.OverrideCheckPath(scope, a.Path); overrideRel != "" {
+				override, err := ResolveTarget(roots[a.Root], overrideRel)
+				if err != nil {
+					return plan, err
+				}
+				if info, err := os.Lstat(override); err == nil && (paths.IsReparseOrSymlink(info) || info.Size() > 0) {
+					action.Kind, action.Reason = "conflict", "instruction_override"
+				} else if err != nil && !os.IsNotExist(err) {
+					return plan, err
+				}
 			}
 		}
 		if action.Kind != "conflict" {
