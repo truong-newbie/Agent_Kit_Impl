@@ -1,0 +1,59 @@
+name: Release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (without v prefix, e.g. 0.1.0)'
+        required: true
+        default: '0.1.0-rc1'
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Verify tests before packaging
+        run: |
+          go test -race ./...
+          go vet ./...
+      - name: Build release archives and SHA256SUMS
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          fi
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          LDFLAGS="-s -w -X dtkit.local/dtkit/internal/buildinfo.Version=${VERSION} -X dtkit.local/dtkit/internal/buildinfo.Commit=${COMMIT} -X dtkit.local/dtkit/internal/buildinfo.Date=${DATE}"
+          mkdir -p dist/stage
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "${LDFLAGS}" -o dist/stage/dtkit.exe ./cmd/dtkit
+          cp README.md dist/stage/README.md
+          (cd dist/stage && zip -q "../dtkit_${VERSION}_windows_amd64.zip" dtkit.exe README.md)
+          rm -f dist/stage/dtkit.exe
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "${LDFLAGS}" -o dist/stage/dtkit ./cmd/dtkit
+          tar -czf "dist/dtkit_${VERSION}_linux_amd64.tar.gz" -C dist/stage dtkit README.md
+          rm -f dist/stage/dtkit
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "${LDFLAGS}" -o dist/stage/dtkit ./cmd/dtkit
+          tar -czf "dist/dtkit_${VERSION}_darwin_arm64.tar.gz" -C dist/stage dtkit README.md
+          rm -rf dist/stage
+          (cd dist && sha256sum dtkit_* > SHA256SUMS)
+      - name: Smoke test extracted Linux archive
+        run: |
+          mkdir -p /tmp/dtkit-smoke
+          tar -xzf dist/dtkit_*_linux_amd64.tar.gz -C /tmp/dtkit-smoke
+          /tmp/dtkit-smoke/dtkit version --json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dtkit-release-artifacts
+          path: dist/
+          retention-days: 14
