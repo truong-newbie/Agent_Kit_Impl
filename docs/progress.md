@@ -17,8 +17,9 @@ Status: in-progress
 - Basic tests cover catalog structure, missing/cyclic dependencies and CLI behavior.
 - The CLI is intentionally incomplete: installation, update, status, remove, dry-run, state and recovery do not yet exist.
 - Manifest/schema validation and local package safety require further work before treating packages as untrusted input.
-- Build, test, vet and runtime verification have not run because Windows Application Control blocked Go. A CI workflow is provided for an independent runner but its results are not yet known.
-- Next: use an approved Go toolchain or inspect CI, fix any build/test errors, implement strict manifest and path validation, then finish the Codex adapter and transaction-safe installer as described in the plan.
+- Local build, test and vet could not run because Windows Application Control blocked Go. GitHub Actions run 43827322269 passed `go test ./...`, `go vet ./...`, and `go build ./cmd/dtkit` on Windows, Linux and macOS for commit `6bce4dfde0643dd8b97e1621caf047309f3de1a5`.
+- Codex runtime verification has not run.
+- Next: use an approved Go toolchain for iterative development, implement strict manifest and path validation, then finish the Codex adapter and transaction-safe installer as described in the plan.
 
 ## M4–M12
 
