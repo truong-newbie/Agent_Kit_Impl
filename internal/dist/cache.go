@@ -372,7 +372,14 @@ func (c Cache) writeCacheFileIdempotent(dest, partPattern string, raw []byte, ve
 	}
 
 	var renameErr error
-	for attempt := 0; attempt < 5; attempt++ {
+	for attempt := 0; attempt < 25; attempt++ {
+		if !allowReplace {
+			if info, statErr := os.Lstat(dest); statErr == nil {
+				if verifyErr := verifyExisting(dest, info); verifyErr == nil {
+					return false, nil
+				}
+			}
+		}
 		renameErr = os.Rename(partPath, dest)
 		if renameErr == nil {
 			return true, nil
