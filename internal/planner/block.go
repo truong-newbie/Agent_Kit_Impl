@@ -8,28 +8,29 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"dtkit.local/dtkit/internal/state"
 )
 
 // BlockState records only the bytes DTKit owns, not the whole shared file.
-type BlockState struct {
-	Digest      string `json:"digest"`
-	Separator   string `json:"separator"`
-	CreatedFile bool   `json:"createdFile"`
-}
+type BlockState = state.BlockState
 
 func digest(data []byte) string { sum := sha256.Sum256(data); return hex.EncodeToString(sum[:]) }
 
-func markers(scope string) (string, string, error) {
+func markers(kitID, scope string) (string, string, error) {
+	if kitID == "" || strings.ContainsAny(kitID, " \t\r\n") {
+		return "", "", fmt.Errorf("invalid kit id %q", kitID)
+	}
 	if scope != "project" && scope != "global" {
 		return "", "", fmt.Errorf("invalid scope %q", scope)
 	}
-	return "<!-- dtkit:begin engineer " + scope + " -->", "<!-- dtkit:end engineer " + scope + " -->", nil
+	return "<!-- dtkit:begin " + kitID + " " + scope + " -->", "<!-- dtkit:end " + kitID + " " + scope + " -->", nil
 }
 
 // locate returns the exact byte range including the end marker's newline.
 // All malformed or repeated DTKit markers fail closed.
-func locate(data []byte, scope string) (int, int, error) {
-	begin, end, err := markers(scope)
+func locate(data []byte, kitID, scope string) (int, int, error) {
+	begin, end, err := markers(kitID, scope)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -69,11 +70,11 @@ func locate(data []byte, scope string) (int, int, error) {
 	return start, stop, nil
 }
 
-func validateRendered(block []byte, scope string) error {
+func validateRendered(block []byte, kitID, scope string) error {
 	if bytes.Contains(block, []byte("\r")) {
 		return fmt.Errorf("rendered block must use LF newlines")
 	}
-	start, end, err := locate(block, scope)
+	start, end, err := locate(block, kitID, scope)
 	if err != nil {
 		return err
 	}
@@ -83,16 +84,21 @@ func validateRendered(block []byte, scope string) error {
 	return nil
 }
 
-// AppendBlock plans adding a managed block while retaining existing bytes.
+// AppendBlock plans adding an engineer managed block while retaining existing bytes.
 func AppendBlock(existing []byte, exists bool, block []byte, scope string) ([]byte, BlockState, error) {
+	return AppendBlockForKit("engineer", existing, exists, block, scope)
+}
+
+// AppendBlockForKit plans adding a managed block for kitID while retaining existing bytes.
+func AppendBlockForKit(kitID string, existing []byte, exists bool, block []byte, scope string) ([]byte, BlockState, error) {
 	var state BlockState
 	if !exists && len(existing) != 0 {
 		return nil, state, fmt.Errorf("missing file cannot have existing content")
 	}
-	if err := validateRendered(block, scope); err != nil {
+	if err := validateRendered(block, kitID, scope); err != nil {
 		return nil, state, err
 	}
-	start, _, err := locate(existing, scope)
+	start, _, err := locate(existing, kitID, scope)
 	if err != nil {
 		return nil, state, err
 	}
@@ -119,13 +125,18 @@ func AppendBlock(existing []byte, exists bool, block []byte, scope string) ([]by
 
 // ReplaceBlock changes only a block that still has the recorded digest.
 func ReplaceBlock(existing, block []byte, scope string, state BlockState) ([]byte, BlockState, error) {
+	return ReplaceBlockForKit("engineer", existing, block, scope, state)
+}
+
+// ReplaceBlockForKit changes only a block for kitID that still has the recorded digest.
+func ReplaceBlockForKit(kitID string, existing, block []byte, scope string, state BlockState) ([]byte, BlockState, error) {
 	if err := validateState(state); err != nil {
 		return nil, state, err
 	}
-	if err := validateRendered(block, scope); err != nil {
+	if err := validateRendered(block, kitID, scope); err != nil {
 		return nil, state, err
 	}
-	start, end, err := locate(existing, scope)
+	start, end, err := locate(existing, kitID, scope)
 	if err != nil {
 		return nil, state, err
 	}
@@ -146,11 +157,14 @@ func ReplaceBlock(existing, block []byte, scope string, state BlockState) ([]byt
 	return out, state, nil
 }
 
-// BlockDigest returns the digest of DTKit's exact managed block. It is used by
-// read-only status checks, so unrelated instructions in the same file do not
-// count as drift.
+// BlockDigest returns the digest of DTKit's exact managed block.
 func BlockDigest(existing []byte, scope string) (string, error) {
-	start, end, err := locate(existing, scope)
+	return BlockDigestForKit("engineer", existing, scope)
+}
+
+// BlockDigestForKit returns the digest of kitID's exact managed block.
+func BlockDigestForKit(kitID string, existing []byte, scope string) (string, error) {
+	start, end, err := locate(existing, kitID, scope)
 	if err != nil {
 		return "", err
 	}
@@ -162,10 +176,15 @@ func BlockDigest(existing []byte, scope string) (string, error) {
 
 // RemoveBlock returns the planned bytes and whether the entire file may be removed.
 func RemoveBlock(existing []byte, scope string, state BlockState) ([]byte, bool, error) {
+	return RemoveBlockForKit("engineer", existing, scope, state)
+}
+
+// RemoveBlockForKit returns the planned bytes and whether the entire file may be removed.
+func RemoveBlockForKit(kitID string, existing []byte, scope string, state BlockState) ([]byte, bool, error) {
 	if err := validateState(state); err != nil {
 		return nil, false, err
 	}
-	start, end, err := locate(existing, scope)
+	start, end, err := locate(existing, kitID, scope)
 	if err != nil {
 		return nil, false, err
 	}

@@ -6,7 +6,6 @@ import (
 
 	"dtkit.local/dtkit/internal/adapter/codex"
 	"dtkit.local/dtkit/internal/catalog"
-	"dtkit.local/dtkit/internal/planner"
 )
 
 func TestStateRejectsUnknownAndDuplicateArtifacts(t *testing.T) {
@@ -23,7 +22,7 @@ func TestStateRejectsUnknownAndDuplicateArtifacts(t *testing.T) {
 	for _, a := range artifacts {
 		record := Artifact{Root: a.Root, Path: a.Path, Strategy: a.Strategy, Digest: digest}
 		if a.Strategy == "managed-block" {
-			record.Block = &planner.BlockState{Digest: digest}
+			record.Block = &BlockState{Digest: digest}
 		}
 		s.Artifacts = append(s.Artifacts, record)
 	}
