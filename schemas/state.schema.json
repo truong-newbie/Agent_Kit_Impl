@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "DTKit Installation State v1",
+  "title": "DTKit Installation State v1/v2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,7 +16,7 @@
     "updatedAt"
   ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "enum": [1, 2] },
     "managedBy": { "const": "dtkit" },
     "generation": { "type": "integer", "minimum": 1 },
     "scope": { "enum": ["project", "global"] },
@@ -56,6 +56,27 @@
               "createdFile": { "type": "boolean" }
             }
           }
+        }
+      }
+    },
+    "hooks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "event", "handlerId", "root", "path", "command", "commandWindows", "executable", "entryDigest", "timeoutSec", "createdFile"],
+        "properties": {
+          "id": { "type": "string" },
+          "event": { "const": "SessionStart" },
+          "handlerId": { "const": "session-context" },
+          "root": { "enum": ["project", "codex-home"] },
+          "path": { "enum": [".codex/hooks.json", "hooks.json"] },
+          "command": { "type": "string" },
+          "commandWindows": { "type": "string" },
+          "executable": { "type": "string" },
+          "entryDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "timeoutSec": { "type": "integer", "minimum": 1, "maximum": 30 },
+          "createdFile": { "type": "boolean" }
         }
       }
     },

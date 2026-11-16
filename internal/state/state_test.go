@@ -52,8 +52,24 @@ func TestStateRejectsUnknownAndDuplicateArtifacts(t *testing.T) {
 		t.Fatal("accepted project artifacts in global state")
 	}
 	bad = s
-	bad.SchemaVersion = 2
+	bad.SchemaVersion = 3
 	if err := bad.Validate(artifacts); err == nil {
 		t.Fatal("accepted unsupported schema")
+	}
+	bad = s
+	bad.SchemaVersion = 1
+	bad.Hooks = []HookRegistration{{
+		ID: "session-context", Event: "SessionStart", HandlerID: "session-context",
+		Root: "project", Path: ".codex/hooks.json",
+		Command: "/usr/local/bin/dtkit hook run session-context", CommandWindows: "& 'C:\\dtkit\\dtkit.exe' 'hook' 'run' 'session-context'",
+		Executable: t.TempDir(), EntryDigest: digest, TimeoutSec: 3,
+	}}
+	if err := bad.Validate(artifacts); err == nil {
+		t.Fatal("accepted hooks in schemaVersion 1")
+	}
+	goodV2 := bad
+	goodV2.SchemaVersion = 2
+	if err := goodV2.Validate(artifacts); err != nil {
+		t.Fatalf("rejected valid schemaVersion 2 with hooks: %v", err)
 	}
 }

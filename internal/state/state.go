@@ -20,6 +20,20 @@ type BlockState struct {
 	CreatedFile bool   `json:"createdFile"`
 }
 
+type HookRegistration struct {
+	ID             string `json:"id"`
+	Event          string `json:"event"`
+	HandlerID      string `json:"handlerId"`
+	Root           string `json:"root"`
+	Path           string `json:"path"`
+	Command        string `json:"command"`
+	CommandWindows string `json:"commandWindows"`
+	Executable     string `json:"executable"`
+	EntryDigest    string `json:"entryDigest"`
+	TimeoutSec     int    `json:"timeoutSec"`
+	CreatedFile    bool   `json:"createdFile"`
+}
+
 type Kit struct {
 	ID         string `json:"id"`
 	Version    string `json:"version"`
@@ -36,28 +50,30 @@ type Artifact struct {
 }
 
 type Installation struct {
-	SchemaVersion     int        `json:"schemaVersion"`
-	ManagedBy         string     `json:"managedBy"`
-	Generation        uint64     `json:"generation"`
-	Scope             string     `json:"scope"`
-	Runtime           string     `json:"runtime"`
-	AdapterRevision   string     `json:"adapterRevision"`
-	CodexHome         string     `json:"codexHome,omitempty"`
-	Kit               Kit        `json:"kit"`
-	Artifacts         []Artifact `json:"artifacts"`
-	LastTransactionID string     `json:"lastTransactionID,omitempty"`
-	InstalledAt       string     `json:"installedAt"`
-	UpdatedAt         string     `json:"updatedAt"`
+	SchemaVersion     int                `json:"schemaVersion"`
+	ManagedBy         string             `json:"managedBy"`
+	Generation        uint64             `json:"generation"`
+	Scope             string             `json:"scope"`
+	Runtime           string             `json:"runtime"`
+	AdapterRevision   string             `json:"adapterRevision"`
+	CodexHome         string             `json:"codexHome,omitempty"`
+	Kit               Kit                `json:"kit"`
+	Artifacts         []Artifact         `json:"artifacts"`
+	Hooks             []HookRegistration `json:"hooks,omitempty"`
+	LastTransactionID string             `json:"lastTransactionID,omitempty"`
+	InstalledAt       string             `json:"installedAt"`
+	UpdatedAt         string             `json:"updatedAt"`
 }
 
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 var kitIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
-// Validate checks metadata against the known output mapping of the adapter.
-// Callers must also check on-disk content and roots immediately before writes.
-func (s Installation) Validate(expected []codex.Artifact) error {
-	if s.SchemaVersion != 1 || s.ManagedBy != "dtkit" || s.Generation == 0 || s.Runtime != "codex" || s.AdapterRevision != codex.AdapterRevision {
+func (s Installation) validateCommon() error {
+	if (s.SchemaVersion != 1 && s.SchemaVersion != 2) || s.ManagedBy != "dtkit" || s.Generation == 0 || s.Runtime != "codex" || s.AdapterRevision != codex.AdapterRevision {
 		return fmt.Errorf("unsupported or invalid installation metadata")
+	}
+	if s.SchemaVersion == 1 && len(s.Hooks) > 0 {
+		return fmt.Errorf("hooks require state schemaVersion 2")
 	}
 	if s.Scope != "project" && s.Scope != "global" {
 		return fmt.Errorf("invalid installation scope")
@@ -73,6 +89,41 @@ func (s Installation) Validate(expected []codex.Artifact) error {
 	}
 	if s.InstalledAt == "" || s.UpdatedAt == "" {
 		return fmt.Errorf("missing installation timestamps")
+	}
+	return s.validateHooks()
+}
+
+func (s Installation) validateHooks() error {
+	seenIDs := map[string]bool{}
+	for _, h := range s.Hooks {
+		if !kitIDPattern.MatchString(h.ID) || !kitIDPattern.MatchString(h.HandlerID) {
+			return fmt.Errorf("invalid hook id %q", h.ID)
+		}
+		if h.HandlerID != "session-context" || h.Event != "SessionStart" {
+			return fmt.Errorf("unsupported hook handler or event: %s/%s", h.HandlerID, h.Event)
+		}
+		if seenIDs[h.ID] {
+			return fmt.Errorf("duplicate hook %q", h.ID)
+		}
+		seenIDs[h.ID] = true
+		if !IsAllowedArtifactPath(s.Scope, s.Kit.ID, h.Root, h.Path, "hooks-json") {
+			return fmt.Errorf("hook target %s:%s outside allowlist", h.Root, h.Path)
+		}
+		if strings.TrimSpace(h.Command) == "" || strings.TrimSpace(h.CommandWindows) == "" || !filepath.IsAbs(h.Executable) {
+			return fmt.Errorf("invalid hook command or executable for %q", h.ID)
+		}
+		if !validDigest(h.EntryDigest) || h.TimeoutSec <= 0 || h.TimeoutSec > 30 {
+			return fmt.Errorf("invalid hook digest or timeout for %q", h.ID)
+		}
+	}
+	return nil
+}
+
+// Validate checks metadata against the known output mapping of the adapter.
+// Callers must also check on-disk content and roots immediately before writes.
+func (s Installation) Validate(expected []codex.Artifact) error {
+	if err := s.validateCommon(); err != nil {
+		return err
 	}
 	if len(expected) == 0 || len(s.Artifacts) != len(expected) {
 		return fmt.Errorf("installed artifact count does not match adapter")
@@ -116,23 +167,11 @@ func (s Installation) Validate(expected []codex.Artifact) error {
 // ValidateSelf checks structural & allowlist invariants of a state record without
 // requiring the original catalog source (used by remove and recovery).
 func (s Installation) ValidateSelf() error {
-	if s.SchemaVersion != 1 || s.ManagedBy != "dtkit" || s.Generation == 0 || s.Runtime != "codex" || s.AdapterRevision != codex.AdapterRevision {
-		return fmt.Errorf("unsupported or invalid installation metadata")
+	if err := s.validateCommon(); err != nil {
+		return err
 	}
-	if s.Scope != "project" && s.Scope != "global" {
-		return fmt.Errorf("invalid installation scope")
-	}
-	if (s.Scope == "project" && s.CodexHome != "") || (s.Scope == "global" && !filepath.IsAbs(s.CodexHome)) {
-		return fmt.Errorf("invalid Codex home binding")
-	}
-	if !kitIDPattern.MatchString(s.Kit.ID) || len(s.Kit.ID) > 32 || !versionPattern.MatchString(s.Kit.Version) || !validDigest(s.Kit.Digest) {
-		return fmt.Errorf("invalid installed kit")
-	}
-	if s.Kit.SourceKind != "" && s.Kit.SourceKind != "bundled" && s.Kit.SourceKind != "local" {
-		return fmt.Errorf("invalid kit source kind")
-	}
-	if s.InstalledAt == "" || s.UpdatedAt == "" || len(s.Artifacts) == 0 {
-		return fmt.Errorf("missing installation timestamps or artifacts")
+	if len(s.Artifacts) == 0 {
+		return fmt.Errorf("missing installation artifacts")
 	}
 	seen := make(map[string]bool, len(s.Artifacts))
 	for _, a := range s.Artifacts {
@@ -178,6 +217,11 @@ func IsAllowedArtifactPath(scope, kitID, root, relPath, strategy string) bool {
 			return false
 		}
 		return true
+	case "hooks-json":
+		if scope == "project" {
+			return root == "project" && relPath == ".codex/hooks.json"
+		}
+		return root == "codex-home" && relPath == "hooks.json"
 	case "whole-file":
 		if scope == "global" && root != "user-home" {
 			return false
