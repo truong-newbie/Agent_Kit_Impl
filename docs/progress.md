@@ -14,7 +14,7 @@
 | `N01` — Kit version bump & upgrade from `main` | `verified` | `feat/release-hardening` | F01 | Bumped `engineer` `0.1.0`->`0.2.0` + CLI `0.4.0-dev`; tested real `main` `f81ce6e`->HEAD upgrade (`verify-docker.ps1` + live binary smoke) |
 | `N02` — Source resolution read-only contract | `verified` | `feat/release-hardening` | F02, F05 | Separated `CacheReadOnly`/`CachePersist`; in-memory `FetchRemoteBytes`; no preview/offline cache writes or `.part` cleanup (`verify-docker.ps1`) |
 | `N03` — Remote transport, index strictness, cache safety | `verified` | `feat/release-hardening` | F03, F05, F06 | HTTP timeout/redirect/redaction, strict index, offline `minCliVersion` meta, concurrent cache `Put`, flood cap + fuzz (`verify-docker.ps1`) |
-| `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `not-started` | `feat/release-hardening` | F04 | Barrier concurrency tests (`codex` + `opencode`), shared lock coordination, recovery conflict preservation |
+| `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `verified` | `feat/release-hardening` | F04 | Shared target locks (`.dtkit/locks`), atomic recover-under-lock, strict full-state check, barrier & multi-process tests (`verify-docker.ps1`) |
 | `N05` — Capability contract & status consistency | `not-started` | `feat/release-hardening` | F07 | Formalize required vs fallback capability checks (e.g., Cursor global) consistently in preview & apply |
 | `N06` — Hook JSON strictness & executable lifecycle | `not-started` | `feat/release-hardening` | F12 | Duplicate-key rejection, ambiguous digest guard, special-char quoting, timeout/leak checks |
 | `N07` — Native OS edge cases & crash subprocess tests | `not-started` | `feat/release-hardening` | F11 | CI skip inventory, Windows locks/junctions, child-process crash recovery |
@@ -96,6 +96,25 @@ Tests actually run:
 Remaining limitation / external blocker: Cross-OS CI (`windows-latest`, `macos-latest`) runs on push; N04 concurrent cross-runtime `AGENTS.md` / lock / recovery tests follow next.
 Acceptance checklist result: Pass (finite timeouts, strict redirect & credential sanitization, TLS custom CA verified, strict index & offline `minCliVersion` parity, idempotent concurrent `Cache.Put`, bounded archive + fuzz smoke green).
 Next task: N04 — Đồng thời nhiều runtime và recovery trên file shared (F04).
+
+---
+
+Task: N04 — Đồng thời nhiều runtime và recovery trên file shared (and N03 Windows contention fix)
+Status: verified (Docker race/linux; pushing for 3-OS Windows/macOS/Linux CI)
+Baseline/branch/SHA: feat/release-hardening @ 3e9686f (N03 CI run 43894917283 passed `race`, `macos-latest`, `ubuntu-latest`; `windows-latest` failed — fixed Windows `writeCacheFileIdempotent` rename/sharing contention in `internal/dist/cache.go` before N04)
+Observed problem and reproduction: Previously each runtime used an isolated lock (`<operational>/install.lock`), leaving a TOCTOU lost-update window between `verifyBeforeState` and `atomicWrite` on shared `<project>/AGENTS.md` (`codex` + `opencode` or aliased global homes). `RecoverForRuntime` evaluated disk outside locks and lacked shared-target lock coordination, while `ExecuteTx` revalidated only `Generation` + `Kit.Digest` under lock instead of full state snapshots.
+Changed files and behavior:
+- `internal/dist/cache.go` (N03 Windows contention fix): enhanced `writeCacheFileIdempotent` to re-check verified existing blobs before attempting `os.Rename` and increased backoff retries under Windows `MoveFileEx` / `os.Open` sharing contention.
+- `internal/installer/lock.go`: added `canonicalTargetPath` (resolving symlinked existing ancestors + lowercase on Windows) and `sharedTargetLockPaths` / `acquireSharedLocks` / `releaseLockList` writing per-canonical-target `.lock` files under `<scopeRoot>/.dtkit/locks/<sha>.lock`. Strict DAG lock order: runtime `install.lock` -> sorted canonical shared target locks (never acquiring runtime lock while holding a shared lock; non-overlapping targets such as Cursor `.cursor/*` proceed without blocking Codex/OpenCode).
+- `internal/installer/engine.go`: acquires shared target locks inside `ExecuteTx` before target checks/writes/rollback, and enforces strict canonical JSON state comparison (`state.ParseAndValidate` + `json.Marshal` equality) under lock so mutations to root bindings/artifacts/hooks under unchanged `Generation` + `Kit.Digest` fail as `state_changed`.
+- `internal/installer/recover.go`: evaluates disk and executes recovery strictly under runtime + sorted shared-target locks; clears dead shared locks only when owned by that dead transaction/PID; refuses on live, unknown, age-only-old, or corrupt locks; preserves concurrent runtime blocks and journal evidence on `recovery_conflict`.
+- External editor limit documented: external non-DTKit editors do not consult `.dtkit/locks/`, so protection against concurrent outside edits remains DTKit's pre-write digest check + conditional rollback, subject to OS rename TOCTOU between read check and `os.Rename`.
+- `internal/installer/concurrency_test.go`: added barrier (`install/install`, `update/update` + non-overlapping `cursor`, `remove/update`, crashed-tx + OpenCode `recover`), strict state revalidation under lock, aliased global roots + case-variant + lock age/corrupt/dead policies, and multi-process OS `os/exec` race tests.
+Tests actually run:
+- `docker run --rm -v "${PWD}:/src" -w /src golang:1.27.4 /usr/local/go/bin/gofmt -w cmd internal schemas; .\scripts\verify-docker.ps1` -> exit `0`, all packages passed under `go test -race ./...`, `go vet ./...`, and `go build`.
+Remaining limitation / external blocker: Pushing next to confirm `windows-latest`, `macos-latest`, `ubuntu-latest`, and `race` CI all green for N03 fix + N04 before starting N05.
+Acceptance checklist result: Pass (deterministic winner or safe conflict/rollback with zero lost `AGENTS.md` blocks across goroutine barriers and OS child processes; non-overlapping runtimes unblocked; recovery preserves concurrent runtime blocks and backups).
+Next task: N05 — Capability contract và status chính xác (F07).
 
 ---
 
