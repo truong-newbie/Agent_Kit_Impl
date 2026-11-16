@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -12,6 +14,14 @@ func TestListAndInfo(t *testing.T) {
 		if err := Run(args, &out, &stderr); err != nil { t.Fatalf("%v: %v", args, err) }
 		if !strings.Contains(out.String(), "engineer") { t.Fatalf("missing engineer: %s", out.String()) }
 	}
+}
+
+func TestInstallDryRunIsReadOnly(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir()); if err != nil { t.Fatal(err) }
+	var out, stderr bytes.Buffer
+	if err := Run([]string{"install", "engineer", "--project", "--path", root, "--dry-run", "--json"}, &out, &stderr); err != nil { t.Fatal(err) }
+	if !strings.Contains(out.String(), `"dryRun":true`) || !strings.Contains(out.String(), "dtkit-project-plan") { t.Fatalf("unexpected preview: %s", out.String()) }
+	entries, err := os.ReadDir(root); if err != nil || len(entries) != 0 { t.Fatalf("preview wrote files: %v %v", entries, err) }
 }
 
 func TestUnsupportedInstallDoesNotClaimSuccess(t *testing.T) {

@@ -61,6 +61,7 @@ func validateRendered(block []byte, scope string) error {
 // AppendBlock plans adding a managed block while retaining existing bytes.
 func AppendBlock(existing []byte, exists bool, block []byte, scope string) ([]byte, BlockState, error) {
 	var state BlockState
+	if !exists && len(existing) != 0 { return nil, state, fmt.Errorf("missing file cannot have existing content") }
 	if err := validateRendered(block, scope); err != nil { return nil, state, err }
 	start, _, err := locate(existing, scope); if err != nil { return nil, state, err }; if start >= 0 { return nil, state, fmt.Errorf("block exists without ownership") }
 	newline := "\n"; if bytes.Contains(existing, []byte("\r\n")) { newline = "\r\n" }

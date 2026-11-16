@@ -13,9 +13,9 @@ Status: in-progress
 
 Status: in-progress
 
-- Started a Go module, read-only CLI, embedded Engineer Kit, component validation and content. Added a pure Codex renderer and scope/determinism test.
+- Started a Go module, read-only CLI, embedded Engineer Kit, component validation and content. Added a pure Codex renderer, managed-block operations and fresh-install preview.
 - Basic tests cover catalog structure, missing/cyclic dependencies and CLI behavior.
-- The CLI is intentionally incomplete: installation, update, status, remove, dry-run, state and recovery do not yet exist.
+- The CLI is intentionally incomplete: actual installation, update, status, remove, state and recovery do not yet exist. Only a fresh-install `--dry-run` is available; it rejects existing state.
 - Manifest/schema validation and local package safety require further work before treating packages as untrusted input.
 - Local build, test and vet could not run because Windows Application Control blocked Go. GitHub Actions run 43827322269 passed `go test ./...`, `go vet ./...`, and `go build ./cmd/dtkit` on Windows, Linux and macOS for commit `6bce4dfde0643dd8b97e1621caf047309f3de1a5`.
 - Codex runtime verification has not run.
@@ -23,4 +23,4 @@ Status: in-progress
 
 ## M4–M12
 
-Status: in-progress (M4 renderer only; M5–M12 not started)
+Status: in-progress (M4 renderer, managed-block planning and fresh-install preview; M5–M12 not started)

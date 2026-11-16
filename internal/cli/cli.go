@@ -21,6 +21,7 @@ Usage:
   dtkit info engineer
   dtkit validate <directory>
   dtkit doctor
+  dtkit install engineer --project|--global --dry-run
 
 Installation, updates and removal are under development.
 `
@@ -49,6 +50,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		path, err := exec.LookPath("codex")
 		if err != nil { fmt.Fprintln(stdout, "Codex CLI: not found on PATH"); return fmt.Errorf("Codex runtime is not ready") }
 		fmt.Fprintln(stdout, "Codex CLI:", path); return nil
+	case "install":
+		return previewInstall(args[1:], stdout)
 	default:
 		if strings.HasPrefix(args[0], "-") { return fmt.Errorf("unknown option %q", args[0]) }
 		return fmt.Errorf("command %q is not available yet; run dtkit help", args[0])
