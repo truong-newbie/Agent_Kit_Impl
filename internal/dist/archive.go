@@ -26,6 +26,7 @@ import (
 const (
 	MaxArchiveBytes         = 10 * 1024 * 1024 // 10 MiB compressed cap
 	MaxUncompressedTarBytes = 12 * 1024 * 1024 // 12 MiB tar stream cap (headers + 10 MiB payload)
+	MaxArchiveEntries       = 2048             // cap total tar headers (including directories) against header-only floods
 )
 
 type PackResult struct {
@@ -212,6 +213,7 @@ func ReadArchiveBytes(raw []byte, expectedArchiveSHA256 string) (catalog.Package
 
 	memFS := fstest.MapFS{}
 	seenPaths := map[string]string{}
+	entryCount := 0
 	fileCount := 0
 	var totalBytes int64
 
@@ -222,6 +224,10 @@ func ReadArchiveBytes(raw []byte, expectedArchiveSHA256 string) (catalog.Package
 		}
 		if err != nil {
 			return catalog.Package{}, nil, "", "", apperr.Wrap(apperr.ExitUsage, "invalid_archive_tar", fmt.Sprintf("corrupt or truncated tar stream: %v", err), err)
+		}
+		entryCount++
+		if entryCount > MaxArchiveEntries {
+			return catalog.Package{}, nil, "", "", apperr.Usage("archive_entry_count_limit", fmt.Sprintf("archive exceeds %d entry limit", MaxArchiveEntries))
 		}
 
 		cleanName, err := sanitizeArchiveEntryName(hdr.Name, hdr.Typeflag == tar.TypeDir)

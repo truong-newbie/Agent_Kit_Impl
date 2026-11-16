@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
@@ -47,7 +48,7 @@ func DefaultDeps(stdin io.Reader, stdout, stderr io.Writer) Deps {
 		Now:        time.Now,
 		LookPath:   exec.LookPath,
 		Executable: os.Executable,
-		HTTPClient: http.DefaultClient,
+		HTTPClient: dist.DefaultHTTPClient(),
 	}
 }
 
@@ -71,7 +72,7 @@ func (d Deps) withDefaults() Deps {
 		d.Executable = os.Executable
 	}
 	if d.HTTPClient == nil {
-		d.HTTPClient = http.DefaultClient
+		d.HTTPClient = dist.DefaultHTTPClient()
 	}
 	return d
 }

@@ -22,7 +22,14 @@ func resolveKitSource(ctx context.Context, deps Deps, kitSpec, fromPath, sourceU
 	}
 
 	if fromPath != "" {
-		return dist.ResolveFromPath(fromPath, kitID, wantVersion, sha256Hex)
+		res, err := dist.ResolveFromPath(fromPath, kitID, wantVersion, sha256Hex)
+		if err != nil {
+			return out, err
+		}
+		if err := dist.CheckMinCLIVersion(buildinfo.Version, res.Package.MinCLIVersion, res.Package.ID+" "+res.Package.Version); err != nil {
+			return out, err
+		}
+		return res, nil
 	}
 
 	if sourceURL != "" || (offline && (sha256Hex != "" || kitID != "engineer")) {
@@ -48,6 +55,9 @@ func resolveKitSource(ctx context.Context, deps Deps, kitSpec, fromPath, sourceU
 	}
 	dig, err := catalog.Digest(source)
 	if err != nil {
+		return out, err
+	}
+	if err := dist.CheckMinCLIVersion(buildinfo.Version, pkg.MinCLIVersion, pkg.ID+" "+pkg.Version); err != nil {
 		return out, err
 	}
 	return dist.ResolvedPackage{
