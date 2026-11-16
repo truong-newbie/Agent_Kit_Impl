@@ -153,7 +153,31 @@ func TestBuiltBinaryEndToEndLifecycle(t *testing.T) {
 		t.Fatalf("update failed: code=%d out=%s", code, out)
 	}
 
-	// 8. remove project leaves global healthy and recovers clean state.
+	// 7b. Enable opt-in SessionStart hook, execute the generated native shell command against the built binary, then verify remove cleans it up.
+	code, out, _ = runBin(proj, "hooks", "enable", "session-context", "--project", "--executable", binPath, "--yes", "--json")
+	if code != 0 || !strings.Contains(out, `"configured_pending_trust"`) {
+		t.Fatalf("hooks enable failed: code=%d out=%s", code, out)
+	}
+	var hookEnv Envelope
+	if err := json.Unmarshal([]byte(out), &hookEnv); err != nil || len(hookEnv.Hooks) != 1 {
+		t.Fatalf("unexpected hooks enable json: %v (%s)", err, out)
+	}
+	shellCmd := hookEnv.Hooks[0].Command
+	var execHook *exec.Cmd
+	if runtime.GOOS == "windows" {
+		shellCmd = hookEnv.Hooks[0].CommandWindows
+		execHook = exec.Command("powershell", "-NoProfile", "-Command", shellCmd)
+	} else {
+		execHook = exec.Command("sh", "-c", shellCmd)
+	}
+	execHook.Env = env
+	execHook.Stdin = strings.NewReader(`{"hook_event_name":"SessionStart","source":"startup","cwd":"/ignored"}`)
+	hookStdout, hookErr := execHook.CombinedOutput()
+	if hookErr != nil || !strings.Contains(string(hookStdout), `"SessionStart"`) || !strings.Contains(string(hookStdout), "dtkit-project-plan") {
+		t.Fatalf("native hook execution failed: err=%v cmd=%s out=%s", hookErr, shellCmd, string(hookStdout))
+	}
+
+	// 8. remove project cleans up kit and hook entry, leaving global healthy.
 	code, _, _ = runBin(proj, "remove", "engineer", "--project", "--yes")
 	if code != 0 {
 		t.Fatalf("remove failed: code=%d", code)

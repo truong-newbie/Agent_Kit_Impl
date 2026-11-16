@@ -13,6 +13,8 @@
 - `dtkit update <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]` — Upgrade kit version (semver increasing) or migrate adapter revision while preserving user content outside managed blocks.
 - `dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]` — Remove DTKit-owned files and managed blocks based on `state.json`.
 - `dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]` — Inspect and resolve interrupted transactions or stale dead-PID locks.
+- `dtkit hooks <list|status|enable|disable> [options]` — Manage opt-in `session-context` (`SessionStart`) Codex hooks (schema v2, structural JSON merge in `.codex/hooks.json` or `$CODEX_HOME/hooks.json`, cross-scope duplicate check, and `configured_pending_trust` guidance).
+- `dtkit hook run <id> --scope project|global --root <dir>` — Native runtime entrypoint for Codex hooks (reads JSON stdin <= 1 MiB, writes `hookSpecificOutput` JSON <= 2 KiB within 3s timeout, read-only).
 
 ## Exit Codes
 

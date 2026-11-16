@@ -21,6 +21,7 @@ type Deps struct {
 	Env           paths.Environment
 	Now           func() time.Time
 	LookPath      func(string) (string, error)
+	Executable    func() (string, error)
 	Verbose       bool
 }
 
@@ -40,9 +41,10 @@ func DefaultDeps(stdin io.Reader, stdout, stderr io.Writer) Deps {
 			}
 			return info.Mode()&os.ModeCharDevice != 0
 		},
-		Env:      paths.DefaultEnvironment(),
-		Now:      time.Now,
-		LookPath: exec.LookPath,
+		Env:        paths.DefaultEnvironment(),
+		Now:        time.Now,
+		LookPath:   exec.LookPath,
+		Executable: os.Executable,
 	}
 }
 
@@ -61,6 +63,9 @@ func (d Deps) withDefaults() Deps {
 	}
 	if d.LookPath == nil {
 		d.LookPath = exec.LookPath
+	}
+	if d.Executable == nil {
+		d.Executable = os.Executable
 	}
 	return d
 }

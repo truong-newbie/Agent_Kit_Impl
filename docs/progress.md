@@ -92,3 +92,15 @@ Status: implemented and verified (ready to merge `feat/dtkit-foundation` -> `mai
 - Added MIT `LICENSE`, migrated Go module path and `-ldflags` from `dtkit.local/dtkit` to `github.com/truong-newbie/Agent_Kit_Impl`, and included `LICENSE` in `scripts/package.ps1` and `.github/workflows/release.yml`.
 - Recorded additional `codex-cli 0.169.0` `-s workspace-write` observation in `docs/verification/codex-0.169.0-2026-11-16.md` (host sandbox policy blocks nested `powershell.exe` execution; discovery and path resolution confirmed).
 - Next: Verify `main` CI after merge, then begin **H1 (v0.2 Hooks opt-in)** on a dedicated feature branch.
+
+## H1 — v0.2 Opt-in Hooks (`session-context`)
+
+Status: implemented and local-container verified (CI & real Codex `/hooks` trust smoke pending)
+
+- Added `internal/hooks` (`command.go`, `merge.go`, `runner.go`) implementing:
+  - Stable executable resolution (rejects `go-build` / ephemeral temp binaries), POSIX single-quoting, and Windows PowerShell `& '...'` quoting (`commandWindows`).
+  - Structural JSON merge/unmerge (`MergeHooksJSON`, `UnmergeHooksJSON`, `InspectHooksJSON`) for Codex `hooks.json` (`SessionStart`) using canonical entry SHA-256 digests in `state.json` without injecting non-standard keys into `hooks.json`.
+  - Read-only `RunSessionContext` handler (`dtkit hook run session-context`) bounded to 1 MiB stdin, 3s timeout, and 2 KiB `additionalContext`, ignoring payload `cwd`.
+- Upgraded state schema (`internal/state`, `schemas/state.schema.json`) to support v1 -> v2 migration with `Hooks` registrations; integrated `hooks enable/disable/status/list` with `ExecuteTx`, cross-scope duplicate guard, `dtkit remove` cleanup, and `dtkit update` preservation.
+- Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`), including `internal/hooks/hooks_test.go`, `internal/installer/hooks_test.go`, `internal/cli/hooks_test.go`, and built-binary `sh -c` hook execution in `internal/cli/e2e_test.go`.
+- Next: Push `feat/hooks-v0.2` and verify Windows/Linux/macOS + `-race` CI (including PowerShell `commandWindows` execution in `e2e_test.go`), test interactive `/hooks` trust review in Codex CLI, then move to D1 (v0.3 packaging/remote).

@@ -27,6 +27,8 @@ Usage:
   dtkit update <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]
   dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
+  dtkit hooks <list|status|enable|disable> [args]
+  dtkit hook run <id> --scope project|global --root <dir>
 
 Examples:
   dtkit doctor
@@ -36,6 +38,7 @@ Examples:
   dtkit update engineer --project --dry-run
   dtkit remove engineer --project --dry-run
   dtkit recover --project --dry-run
+  dtkit hooks enable session-context --project --dry-run
 `
 
 func Run(args []string, stdout, stderr io.Writer) error {
@@ -76,6 +79,10 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runRemove(ctx, args[1:], deps)
 	case "recover":
 		return runRecover(ctx, args[1:], deps)
+	case "hooks":
+		return runHooks(ctx, args[1:], deps)
+	case "hook":
+		return runHookExec(ctx, args[1:], deps)
 	default:
 		if strings.HasPrefix(args[0], "-") {
 			err := apperr.Usage("unknown_option", fmt.Sprintf("unknown option %q", args[0]))
@@ -117,6 +124,9 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		return err
 	case "recover":
 		_, err := io.WriteString(out, "Usage: dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "hooks":
+		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
 		return err
 	default:
 		_, err := io.WriteString(out, helpText)
