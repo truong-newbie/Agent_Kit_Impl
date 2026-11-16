@@ -23,4 +23,4 @@ run the same checks through Docker Desktop:
 .\\scripts\\verify-docker.ps1
 ```
 
-The development roadmap and safety requirements are in [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md). Original product notes are in [ai-agent-toolkit-spec.md](ai-agent-toolkit-spec.md) and [AI-Engineering-Kit-Global.md](AI-Engineering-Kit-Global.md).
+The detailed contract and safety requirements are in [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md). The actionable continuation plan is [DTKIT-PRODUCT-HANDOFF.md](DTKIT-PRODUCT-HANDOFF.md). Original product notes are in [ai-agent-toolkit-spec.md](ai-agent-toolkit-spec.md) and [AI-Engineering-Kit-Global.md](AI-Engineering-Kit-Global.md).
