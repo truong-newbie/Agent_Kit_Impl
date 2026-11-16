@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -22,6 +23,7 @@ type Deps struct {
 	Now           func() time.Time
 	LookPath      func(string) (string, error)
 	Executable    func() (string, error)
+	HTTPClient    *http.Client
 	Verbose       bool
 }
 
@@ -45,6 +47,7 @@ func DefaultDeps(stdin io.Reader, stdout, stderr io.Writer) Deps {
 		Now:        time.Now,
 		LookPath:   exec.LookPath,
 		Executable: os.Executable,
+		HTTPClient: http.DefaultClient,
 	}
 }
 
@@ -66,6 +69,9 @@ func (d Deps) withDefaults() Deps {
 	}
 	if d.Executable == nil {
 		d.Executable = os.Executable
+	}
+	if d.HTTPClient == nil {
+		d.HTTPClient = http.DefaultClient
 	}
 	return d
 }

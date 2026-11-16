@@ -3,14 +3,12 @@ package cli
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter/codex"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
@@ -27,16 +25,13 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		return err
 	}
 
-	if len(args) == 0 {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit> --project|--global [--path <dir>] [--from <dir>] [--dry-run] [--yes] [--json]"))
+	if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
+		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<version>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
 	}
-	kitID := args[0]
-	if kitID == "" || kitID[0] == '-' {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit> --project|--global [--path <dir>] [--from <dir>] [--dry-run] [--yes] [--json]"))
-	}
+	kitSpec := args[0]
 
-	var scope, projectPath, runtimeArg, fromDir string
-	var dryRun, yes bool
+	var scope, projectPath, runtimeArg, fromPath, sourceURL, sha256Hex string
+	var dryRun, yes, offline bool
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
 		case "--project":
@@ -55,9 +50,11 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 			jsonOutput = true
 		case "--yes":
 			yes = true
+		case "--offline":
+			offline = true
 		case "--verbose":
 			deps.Verbose = true
-		case "--runtime", "--path", "--from":
+		case "--runtime", "--path", "--from", "--source", "--sha256":
 			flag := args[i]
 			i++
 			if i >= len(args) {
@@ -69,7 +66,11 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 			case "--path":
 				projectPath = args[i]
 			case "--from":
-				fromDir = args[i]
+				fromPath = args[i]
+			case "--source":
+				sourceURL = args[i]
+			case "--sha256":
+				sha256Hex = args[i]
 			}
 		default:
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown install option %q", args[i])))
@@ -109,31 +110,19 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	}
 	env.Roots = roots
 
-	var pkg catalog.Package
-	var source fs.FS
-	var pkgDigest string
-	sourceKind := "bundled"
-	var err error
-	if fromDir != "" {
-		sourceKind = "local"
-		pkg, source, pkgDigest, err = catalog.LoadDir(fromDir)
-		if err == nil && pkg.ID != kitID {
-			err = apperr.Usage("kit_id_mismatch", fmt.Sprintf("local package ID %q does not match requested %q", pkg.ID, kitID))
-		}
-	} else {
-		if kitID != "engineer" {
-			err = apperr.Usage("unknown_kit", fmt.Sprintf("kit %q is not in the bundled catalog", kitID))
-		} else {
-			pkg, source, err = catalog.Engineer()
-			if err == nil {
-				pkgDigest, err = catalog.Digest(source)
-			}
-		}
-	}
+	resolved, err := resolveKitSource(ctx, deps, kitSpec, fromPath, sourceURL, sha256Hex, offline)
 	if err != nil {
 		return fail(err)
 	}
-	env.Kit = &KitSummary{ID: pkg.ID, Version: pkg.Version, Digest: pkgDigest}
+	pkg := resolved.Package
+	source := resolved.Source
+	pkgDigest := resolved.PackageDigest
+	env.Kit = &KitSummary{
+		ID:            pkg.ID,
+		Version:       pkg.Version,
+		Digest:        pkgDigest,
+		ArchiveSHA256: resolved.ArchiveSHA256,
+	}
 
 	artifacts, err := codex.Render(pkg, source, scope)
 	if err != nil {
@@ -247,7 +236,8 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	installed, err := installer.FreshInstallWithOptions(scope, roots, pkg, source, artifacts, deps.Now(), installer.InstallOptions{
-		SourceKind: sourceKind,
+		SourceKind:    resolved.SourceKind,
+		ArchiveSHA256: resolved.ArchiveSHA256,
 	})
 	if err != nil {
 		return fail(err)

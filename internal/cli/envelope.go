@@ -7,14 +7,16 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
 )
 
 type KitSummary struct {
-	ID      string `json:"id"`
-	Version string `json:"version"`
-	Digest  string `json:"digest,omitempty"`
+	ID            string `json:"id"`
+	Version       string `json:"version"`
+	Digest        string `json:"digest,omitempty"`
+	ArchiveSHA256 string `json:"archiveSha256,omitempty"`
 }
 
 type PackageSummary struct {
@@ -67,6 +69,9 @@ type Envelope struct {
 	Installations []installer.StatusReport   `json:"installations,omitempty"`
 	Hooks         []installer.HookStatusInfo `json:"hooks,omitempty"`
 	Recovery      *installer.RecoverReport   `json:"recovery,omitempty"`
+	Pack          *dist.PackResult           `json:"pack,omitempty"`
+	CreateKit     *dist.CreateKitResult      `json:"createKit,omitempty"`
+	CreateSkill   *dist.CreateSkillResult    `json:"createSkill,omitempty"`
 	Warnings      []string                   `json:"warnings"`
 	Errors        []apperr.Error             `json:"errors"`
 }

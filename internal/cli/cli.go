@@ -11,6 +11,7 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 )
 
 const helpText = `DTKit — AI engineering toolkit
@@ -19,12 +20,15 @@ Usage:
   dtkit version [--json]
   dtkit help [command]
   dtkit list [--json]
-  dtkit info <kit> [--from <dir>] [--json]
-  dtkit validate <directory> [--json]
+  dtkit info <kit> [--from <dir|archive>] [--json]
+  dtkit validate <dir|archive> [--json]
+  dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
+  dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
+  dtkit pack <directory> [--out <file.tar.gz>] [--json]
   dtkit doctor [--runtime codex] [--project|--global] [--path <dir>] [--json]
-  dtkit install <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]
+  dtkit install <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
   dtkit status [--project|--global] [--path <dir>] [--json]
-  dtkit update <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]
+  dtkit update <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
   dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit recover --project|--global [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit hooks <list|status|enable|disable> [args]
@@ -32,6 +36,8 @@ Usage:
 
 Examples:
   dtkit doctor
+  dtkit create kit my-kit
+  dtkit pack ./my-kit
   dtkit install engineer --project --dry-run
   dtkit install engineer --project --yes
   dtkit status --project
@@ -67,6 +73,10 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runInfo(args[1:], deps)
 	case "validate":
 		return runValidate(args[1:], deps)
+	case "create":
+		return runCreate(ctx, args[1:], deps)
+	case "pack":
+		return runPack(args[1:], deps)
 	case "doctor":
 		return runDoctor(ctx, args[1:], deps)
 	case "install":
@@ -102,7 +112,7 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 func printCommandHelp(cmd string, out io.Writer) error {
 	switch cmd {
 	case "install":
-		_, err := io.WriteString(out, "Usage: dtkit install <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit install <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "status":
 		_, err := io.WriteString(out, "Usage: dtkit status [--project|--global] [--path <dir>] [--json]\n")
@@ -111,13 +121,19 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime codex] [--project|--global] [--path <dir>] [--json]\n")
 		return err
 	case "validate":
-		_, err := io.WriteString(out, "Usage: dtkit validate <directory> [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit validate <dir|archive> [--json]\n")
 		return err
 	case "info":
-		_, err := io.WriteString(out, "Usage: dtkit info <kit> [--from <dir>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit info <kit> [--from <dir|archive>] [--json]\n")
+		return err
+	case "create":
+		_, err := io.WriteString(out, "Usage: dtkit create <kit|skill> [options]\n")
+		return err
+	case "pack":
+		_, err := io.WriteString(out, "Usage: dtkit pack <directory> [--out <file.tar.gz>] [--json]\n")
 		return err
 	case "update":
-		_, err := io.WriteString(out, "Usage: dtkit update <kit> --project|--global [--path <dir>] [--from <dir>] [--runtime codex] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit update <kit>[@<ver>] --project|--global [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "remove":
 		_, err := io.WriteString(out, "Usage: dtkit remove <kit> --project|--global [--path <dir>] [--dry-run] [--yes] [--json]\n")
@@ -202,7 +218,7 @@ func runList(args []string, deps Deps) error {
 }
 
 func runInfo(args []string, deps Deps) error {
-	var kitID, fromDir string
+	var kitID, fromPath string
 	jsonOutput := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -213,16 +229,16 @@ func runInfo(args []string, deps Deps) error {
 		case "--from":
 			i++
 			if i >= len(args) {
-				err := apperr.Usage("missing_flag_value", "--from requires a directory")
+				err := apperr.Usage("missing_flag_value", "--from requires a directory or archive")
 				if jsonOutput || hasJSONFlag(args) {
 					return failJSON(deps.Stdout, newEnvelope("info"), err)
 				}
 				return err
 			}
-			fromDir = args[i]
+			fromPath = args[i]
 		default:
 			if strings.HasPrefix(args[i], "-") || kitID != "" {
-				err := apperr.Usage("invalid_usage", "usage: dtkit info <kit> [--from <dir>] [--json]")
+				err := apperr.Usage("invalid_usage", "usage: dtkit info <kit> [--from <dir|archive>] [--json]")
 				if jsonOutput || hasJSONFlag(args) {
 					return failJSON(deps.Stdout, newEnvelope("info"), err)
 				}
@@ -232,26 +248,27 @@ func runInfo(args []string, deps Deps) error {
 		}
 	}
 	if kitID == "" {
-		err := apperr.Usage("missing_kit", "usage: dtkit info <kit> [--from <dir>] [--json]")
+		err := apperr.Usage("missing_kit", "usage: dtkit info <kit> [--from <dir|archive>] [--json]")
 		if jsonOutput {
 			return failJSON(deps.Stdout, newEnvelope("info"), err)
 		}
 		return err
 	}
 	var p catalog.Package
-	var digest string
+	var digest, archiveSHA string
 	var err error
-	if fromDir != "" {
-		p, _, digest, err = catalog.LoadDir(fromDir)
-		if err == nil && p.ID != kitID {
-			err = apperr.Usage("kit_id_mismatch", fmt.Sprintf("local package ID %q does not match requested %q", p.ID, kitID))
+	if fromPath != "" {
+		res, rErr := dist.ResolveFromPath(fromPath, kitID, "", "")
+		err = rErr
+		if err == nil {
+			p = res.Package
+			digest = res.PackageDigest
+			archiveSHA = res.ArchiveSHA256
 		}
 	} else {
 		if kitID != "engineer" {
 			err = apperr.Usage("unknown_kit", fmt.Sprintf("kit %q is not in the bundled catalog", kitID))
 		} else {
-			var src interface{ Open(string) (os.File, error) }
-			_ = src
 			pkg, fsSrc, loadErr := catalog.Engineer()
 			p = pkg
 			err = loadErr
@@ -268,7 +285,7 @@ func runInfo(args []string, deps Deps) error {
 	}
 	if jsonOutput {
 		env := newEnvelope("info")
-		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest}
+		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest, ArchiveSHA256: archiveSHA}
 		env.Package = &p
 		return writeEnvelope(deps.Stdout, env)
 	}
@@ -281,7 +298,7 @@ func runInfo(args []string, deps Deps) error {
 }
 
 func runValidate(args []string, deps Deps) error {
-	var dir string
+	var targetPath string
 	jsonOutput := false
 	for _, a := range args {
 		switch a {
@@ -290,44 +307,67 @@ func runValidate(args []string, deps Deps) error {
 		case "--verbose":
 			deps.Verbose = true
 		default:
-			if strings.HasPrefix(a, "-") || dir != "" {
-				err := apperr.Usage("invalid_usage", "usage: dtkit validate <directory> [--json]")
+			if strings.HasPrefix(a, "-") || targetPath != "" {
+				err := apperr.Usage("invalid_usage", "usage: dtkit validate <dir|archive> [--json]")
 				if jsonOutput || hasJSONFlag(args) {
 					return failJSON(deps.Stdout, newEnvelope("validate"), err)
 				}
 				return err
 			}
-			dir = a
+			targetPath = a
 		}
 	}
-	if dir == "" {
-		err := apperr.Usage("missing_directory", "usage: dtkit validate <directory> [--json]")
+	if targetPath == "" {
+		err := apperr.Usage("missing_directory", "usage: dtkit validate <dir|archive> [--json]")
 		if jsonOutput {
 			return failJSON(deps.Stdout, newEnvelope("validate"), err)
 		}
 		return err
 	}
 	env := newEnvelope("validate")
-	p, snap, digest, err := catalog.LoadDir(dir)
-	if err != nil {
+	info, statErr := os.Lstat(targetPath)
+	if statErr != nil {
 		if jsonOutput {
-			return failJSON(deps.Stdout, env, err)
+			return failJSON(deps.Stdout, env, statErr)
 		}
-		return err
+		return statErr
 	}
-	for _, scope := range p.Scopes {
-		if _, err := codex.Render(p, snap, scope); err != nil {
+	var p catalog.Package
+	var digest, archiveSHA string
+	if info.IsDir() {
+		var snap interface{ Open(string) (os.File, error) }
+		_ = snap
+		pkg, memFS, dig, err := catalog.LoadDir(targetPath)
+		if err != nil {
 			if jsonOutput {
 				return failJSON(deps.Stdout, env, err)
 			}
 			return err
 		}
+		p, digest = pkg, dig
+		for _, scope := range p.Scopes {
+			if _, err := codex.Render(p, memFS, scope); err != nil {
+				if jsonOutput {
+					return failJSON(deps.Stdout, env, err)
+				}
+				return err
+			}
+		}
+	} else {
+		pkg, _, dig, archSHA, err := dist.ReadArchiveFile(targetPath, "")
+		if err != nil {
+			if jsonOutput {
+				return failJSON(deps.Stdout, env, err)
+			}
+			return err
+		}
+		p, digest, archiveSHA = pkg, dig, archSHA
 	}
 	if jsonOutput {
-		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest}
+		env.Kit = &KitSummary{ID: p.ID, Version: p.Version, Digest: digest, ArchiveSHA256: archiveSHA}
 		env.Package = &p
 		return writeEnvelope(deps.Stdout, env)
 	}
-	_, err = fmt.Fprintf(deps.Stdout, "Validation passed: %s %s (digest %s; local package check is not a security audit for untrusted input)\n", p.ID, p.Version, digest[:12])
+	_, err := fmt.Fprintf(deps.Stdout, "Validation passed: %s %s (digest %s; local package check is not a security audit for untrusted input)\n", p.ID, p.Version, digest[:12])
 	return err
 }
