@@ -13,6 +13,7 @@ import (
 
 var idPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+var reservedDevicePattern = regexp.MustCompile(`^(COM|LPT)[1-9]$`)
 
 func validID(id string, max int) bool { return len(id) <= max && idPattern.MatchString(id) }
 
@@ -29,9 +30,27 @@ func validPath(p string) bool {
 	for _, segment := range strings.Split(p, "/") {
 		if strings.HasSuffix(segment, ".") || strings.HasSuffix(segment, " ") { return false }
 		stem := strings.ToUpper(strings.SplitN(segment, ".", 2)[0])
-		if stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" || regexp.MustCompile(`^(COM|LPT)[1-9]$`).MatchString(stem) { return false }
+		if stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" || reservedDevicePattern.MatchString(stem) { return false }
 	}
 	return true
+}
+
+func checkManifestKeys(data []byte) error {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(data, &top); err != nil { return err }
+	if err := exactKeys(top, []string{"schemaVersion", "id", "name", "version", "description", "runtimeTargets", "scopes", "requiresCapabilities", "packageDependencies", "components"}); err != nil { return err }
+	var components []map[string]json.RawMessage
+	if err := json.Unmarshal(top["components"], &components); err != nil { return fmt.Errorf("components: %w", err) }
+	for i, component := range components { if err := exactKeys(component, []string{"id", "kind", "source", "requires"}); err != nil { return fmt.Errorf("component %d: %w", i, err) } }
+	return nil
+}
+
+func exactKeys(object map[string]json.RawMessage, expected []string) error {
+	if object == nil { return fmt.Errorf("expected an object") }
+	allowed := map[string]bool{}; for _, key := range expected { allowed[key] = true }
+	for key, value := range object { if !allowed[key] { return fmt.Errorf("unknown field %q", key) }; if bytes.Equal(bytes.TrimSpace(value), []byte("null")) { return fmt.Errorf("field %q cannot be null", key) } }
+	for _, key := range expected { if _, ok := object[key]; !ok { return fmt.Errorf("missing field %q", key) } }
+	return nil
 }
 
 // checkTree rejects links and oversized package content before reading it.

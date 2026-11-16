@@ -47,6 +47,7 @@ func Load(fsys fs.FS) (Package, error) {
 	if err != nil { return p, err }
 	if len(b) > 256*1024 { return p, fmt.Errorf("manifest exceeds 256 KiB") }
 	if err := checkJSON(b); err != nil { return p, fmt.Errorf("manifest: %w", err) }
+	if err := checkManifestKeys(b); err != nil { return p, fmt.Errorf("manifest: %w", err) }
 	dec := json.NewDecoder(strings.NewReader(string(b)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&p); err != nil { return p, fmt.Errorf("manifest: %w", err) }

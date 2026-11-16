@@ -32,3 +32,13 @@ func TestLocalManifestDoesNotAcceptDuplicateKeys(t *testing.T) {
 	f := fstest.MapFS{"package.json": &fstest.MapFile{Data: []byte(`{"id":"first","id":"second"}`)}}
 	if _, err := Load(f); err == nil || !strings.Contains(err.Error(), "duplicate key") { t.Fatalf("got %v", err) }
 }
+
+func TestManifestRejectsWrongCaseMissingAndNullFields(t *testing.T) {
+	for _, input := range []string{
+		`{"SchemaVersion":1}`,
+		`{"schemaVersion":1}`,
+		`{"schemaVersion":1,"id":"engineer","name":"x","version":"0.1.0","description":"x","runtimeTargets":["codex"],"scopes":["project","global"],"requiresCapabilities":["instructions","skills"],"packageDependencies":null,"components":[]}`,
+	} {
+		if err := checkManifestKeys([]byte(input)); err == nil { t.Fatalf("accepted invalid manifest: %s", input) }
+	}
+}
