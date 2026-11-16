@@ -115,5 +115,16 @@ Status: implemented and local-container verified (CI pending)
   - Digest-keyed cache (`Cache`) with atomic `.part` download cleanup, cache corruption detection on read, HTTPS-only enforcement (plus loopback HTTP for test servers), `<id>@<version>` resolution, registry index JSON support, `minCliVersion` check, and `--offline --sha256` reinstall.
 - Extended `state.Kit` (`archiveSha256`, `archive`/`remote` source kinds) and `paths.Environment.UserCacheDir`, and updated `install`, `update`, `info`, `validate` to share `resolveKitSource`.
 - Added unit/integration tests in `internal/dist/dist_test.go` and `internal/cli/dist_test.go` covering deterministic pack, hostile archives, partial download `.part` cleanup, cache corruption, `minCliVersion`, offline reinstall, and end-to-end authoring -> remote install -> update -> remove -> offline cache reinstall.
-- Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`).
-- Next: Push `feat/distribution-v0.3` for 3-OS + `-race` CI, then proceed to R1–R3 (v0.4+ Gemini CLI, OpenCode, Cursor adapters).
+- Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`); GitHub Actions run `43844758850` passed all 4 jobs (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`).
+- Next: Implement R1–R3 sequentially (`gemini`, `opencode`, `cursor`).
+
+## R1 — v0.4 Gemini CLI Adapter
+
+Status: implemented and local-container verified (CI pending; `gemini` CLI not installed on host)
+
+- Extracted shared multi-runtime core in `internal/adapter` (`adapter.go`, `render.go`) with `RuntimeProfile`, `CapabilityStatus` (`RuntimeSupported` vs `DTKitSupported`), shared template rendering/frontmatter validation, and per-runtime state/lock separation (`.dtkit/state.json` for `codex`, `.dtkit/runtimes/<runtime>/state.json` + `.dtkit/local/runtimes/<runtime>` for new runtimes).
+- Generalized `internal/state`, `internal/planner`, `internal/installer`, `internal/dist`, `schemas/`, and CLI commands (`validate`, `doctor`, `install`, `status`, `update`, `remove`, `recover`, `hooks`) to accept `--runtime` while keeping existing v1/v2 `codex` state files backward compatible.
+- Added `internal/adapter/gemini` (`GEMINI.md` managed block, `.gemini/skills/dtkit-gemini-project-*`, `~/.gemini/skills/dtkit-gemini-global-*` via `$GEMINI_CLI_HOME/.gemini` or `~/.gemini`, `.dtkit/runtimes/gemini/content/<kit>/...`, and `.gemini/settings.json` `context.fileName` override inspection in `dtkit doctor`).
+- Expanded `internal/catalog/engineer/package.json` (`runtimeTargets: ["codex", "gemini"]`) and added isolation/coexistence/lifecycle tests across `internal/adapter`, `internal/paths`, `internal/installer`, and `internal/cli`.
+- Verification: `.\scripts\verify-docker.ps1` passed (`gofmt`, `go test -race ./...`, `go vet ./...`, `go build`); real Gemini CLI runtime smoke remains pending (`gemini` executable not present on host).
+- Next: Push `feat/runtime-gemini-v0.4` for 3-OS + `-race` CI, then proceed to **R2 (OpenCode adapter)**.
