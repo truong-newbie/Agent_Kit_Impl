@@ -5,7 +5,7 @@
 - `dtkit version [--json]` — Print CLI version, commit, and build date.
 - `dtkit help [command]` — Show general or command-specific usage.
 - `dtkit list [--json]` — List kits in the bundled catalog.
-- `dtkit info <kit> [--from <dir|archive>] [--json]` — Show kit metadata, components, and deterministic digest.
+- `dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]` — Show kit metadata, capability contract, integration status, components, and deterministic digest.
 - `dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]` — Strictly validate a local kit directory or `.tar.gz` archive (schema, paths, DAG, and runtime rendering for declared targets/scopes).
 - `dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]` — Scaffold a new standalone kit package passing `dtkit validate`.
 - `dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]` — Add a templated skill to an existing kit package and re-validate.

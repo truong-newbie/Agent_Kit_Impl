@@ -15,7 +15,7 @@
 | `N02` — Source resolution read-only contract | `verified` | `feat/release-hardening` | F02, F05 | Separated `CacheReadOnly`/`CachePersist`; in-memory `FetchRemoteBytes`; no preview/offline cache writes or `.part` cleanup (`verify-docker.ps1`) |
 | `N03` — Remote transport, index strictness, cache safety | `verified` | `feat/release-hardening` | F03, F05, F06 | HTTP timeout/redirect/redaction, strict index, offline `minCliVersion` meta, concurrent cache `Put`, flood cap + fuzz (`verify-docker.ps1`) |
 | `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `verified` | `feat/release-hardening` | F04 | Shared target locks (`.dtkit/locks`), atomic recover-under-lock, strict full-state check, barrier & multi-process tests (`verify-docker.ps1`) |
-| `N05` — Capability contract & status consistency | `not-started` | `feat/release-hardening` | F07 | Formalize required vs fallback capability checks (e.g., Cursor global) consistently in preview & apply |
+| `N05` — Capability contract & status consistency | `verified` | `feat/release-hardening` | F07 | Added `optionalCapabilities`, pre-write `requiresCapabilities` enforcement, consistent warnings across commands, `integrationStatus` separation (`verify-docker.ps1`) |
 | `N06` — Hook JSON strictness & executable lifecycle | `not-started` | `feat/release-hardening` | F12 | Duplicate-key rejection, ambiguous digest guard, special-char quoting, timeout/leak checks |
 | `N07` — Native OS edge cases & crash subprocess tests | `not-started` | `feat/release-hardening` | F11 | CI skip inventory, Windows locks/junctions, child-process crash recovery |
 | `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `not-started` | `feat/release-hardening` | F08 | Discover/task verification per runtime; unverified integrations stay experimental |
@@ -115,6 +115,25 @@ Tests actually run:
 Remaining limitation / external blocker: Pushing next to confirm `windows-latest`, `macos-latest`, `ubuntu-latest`, and `race` CI all green for N03 fix + N04 before starting N05.
 Acceptance checklist result: Pass (deterministic winner or safe conflict/rollback with zero lost `AGENTS.md` blocks across goroutine barriers and OS child processes; non-overlapping runtimes unblocked; recovery preserves concurrent runtime blocks and backups).
 Next task: N05 — Capability contract và status chính xác (F07).
+
+---
+
+Task: N05 — Capability contract và status chính xác
+Status: verified
+Baseline/branch/SHA: feat/release-hardening @ baa0a69 (N03+N04 CI run 43899396900 green across race, ubuntu-latest, macos-latest, windows-latest)
+Observed problem and reproduction: Previously `RenderKit` silently omitted `instructions` on Cursor global despite `engineer/package.json` listing `"instructions"` in `requiresCapabilities`, `install` appended absent-binary and Cursor-global fallback warnings only late in apply (omitted in `--dry-run`, `noop`, `update`, `info`, and `status`), and `status`/`doctor` did not separate file integrity (`healthy`) from runtime integration verification (`unverified`/`partial`/`verified`).
+Changed files and behavior:
+- `schemas/package.schema.json`, `internal/catalog/{catalog,validation}.go`: added optional `optionalCapabilities` field, allowed `hooks` in capability vocabulary cleanly, and rejected overlapping or unknown capabilities.
+- `internal/catalog/engineer/package.json`, `internal/dist/scaffold.go`: declared `"requiresCapabilities": ["skills"], "optionalCapabilities": ["instructions"]` explicitly so skill-only Cursor global fallback is contractual rather than silent bypass.
+- `internal/adapter/{adapter,render}.go`: added `IntegrationEvidence` (`unverified`/`partial`/`verified`) per runtime/scope and `EvaluateCapabilities`, called by `RenderKit` (`validate`/`pack`/`install`/`update`) so unsatisfied `requiresCapabilities` (such as strict `instructions` on Cursor global or `hooks` on package install) fail pre-write with `unsupported_capability` while `optionalCapabilities` emit consistent fallback warnings.
+- `internal/installer/status.go`: added `IntegrationStatus` and `IntegrationNote` to `StatusReport` alongside artifact health (pure static evidence metadata, zero network calls).
+- `internal/cli/{envelope,runtime,install,update,status,doctor,cli}.go`: unified `applyScopeCapabilitiesAndBinaryWarnings` across `info`, `install --dry-run`/apply/noop, `update --dry-run`/apply/noop, `status`, and `doctor` (text + JSON), separating artifact file health from runtime integration status.
+- `internal/adapter/capabilities_test.go`, `internal/cli/capabilities_test.go`: tested all 8 runtime/scope pairs for strict vs optional capabilities, hooks/unknown capability failures, zero pre-write leakage, cross-command warning/capability parity, and status/doctor integration distinction.
+Tests actually run:
+- `docker run --rm -v "${PWD}:/src" -w /src golang:1.27.4 /usr/local/go/bin/gofmt -w cmd internal schemas; .\scripts\verify-docker.ps1` -> exit `0`, all packages passed under `go test -race ./...`, `go vet ./...`, and `go build`.
+Remaining limitation / external blocker: Cross-OS CI runs on push; runtime `integrationStatus` reflects real observed evidence prior to N08 full runtime verification.
+Acceptance checklist result: Pass (required capabilities strictly fail pre-write; optional fallback explicitly declared and warned identically across preview, apply, noop, info, status, and doctor; artifact health cleanly separated from runtime integration evidence).
+Next task: N06 — Hook ownership, parser và executable lifecycle (F12).
 
 ---
 
