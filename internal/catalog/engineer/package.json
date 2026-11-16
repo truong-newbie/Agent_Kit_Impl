@@ -6,7 +6,8 @@
   "description": "Engineering skills and workflows for coding agents.",
   "runtimeTargets": ["codex", "gemini", "opencode", "cursor"],
   "scopes": ["project", "global"],
-  "requiresCapabilities": ["instructions", "skills"],
+  "requiresCapabilities": ["skills"],
+  "optionalCapabilities": ["instructions"],
   "packageDependencies": [],
   "components": [
     {"id":"rule/engineering","kind":"rule","source":"rules/engineering.md","requires":[]},

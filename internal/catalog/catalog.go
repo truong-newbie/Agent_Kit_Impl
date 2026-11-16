@@ -36,6 +36,7 @@ type Package struct {
 	RuntimeTargets       []string    `json:"runtimeTargets"`
 	Scopes               []string    `json:"scopes"`
 	RequiresCapabilities []string    `json:"requiresCapabilities"`
+	OptionalCapabilities []string    `json:"optionalCapabilities,omitempty"`
 	PackageDependencies  []string    `json:"packageDependencies"`
 	Components           []Component `json:"components"`
 }
@@ -191,8 +192,21 @@ func ResolveOrder(p Package, fsys fs.FS) ([]Component, error) {
 	if p.MinCLIVersion != "" && !versionPattern.MatchString(p.MinCLIVersion) {
 		return nil, apperr.Usage("invalid_package_metadata", fmt.Sprintf("invalid minCliVersion %q", p.MinCLIVersion))
 	}
-	if !subsetUnique(p.RuntimeTargets, []string{"codex", "gemini", "opencode", "cursor"}) || !subsetUnique(p.Scopes, []string{"project", "global"}) || !subsetUnique(p.RequiresCapabilities, []string{"instructions", "skills"}) {
+	allowedCaps := []string{"instructions", "skills", "hooks"}
+	if !subsetUnique(p.RuntimeTargets, []string{"codex", "gemini", "opencode", "cursor"}) || !subsetUnique(p.Scopes, []string{"project", "global"}) || !subsetUniqueOptional(p.RequiresCapabilities, allowedCaps) || !subsetUniqueOptional(p.OptionalCapabilities, allowedCaps) {
 		return nil, apperr.Usage("unsupported_package_target", "unsupported runtime, scope or capability")
+	}
+	if len(p.RequiresCapabilities)+len(p.OptionalCapabilities) == 0 {
+		return nil, apperr.Usage("unsupported_package_target", "package must declare at least one capability in requiresCapabilities or optionalCapabilities")
+	}
+	reqSet := make(map[string]bool, len(p.RequiresCapabilities))
+	for _, rc := range p.RequiresCapabilities {
+		reqSet[rc] = true
+	}
+	for _, oc := range p.OptionalCapabilities {
+		if reqSet[oc] {
+			return nil, apperr.Usage("conflicting_capability_contract", fmt.Sprintf("capability %q cannot appear in both requiresCapabilities and optionalCapabilities", oc))
+		}
 	}
 	if len(p.PackageDependencies) != 0 {
 		return nil, apperr.Usage("unsupported_package_deps", "package dependencies are not supported in v0.1")

@@ -37,7 +37,12 @@
     "requiresCapabilities": {
       "type": "array",
       "uniqueItems": true,
-      "items": { "enum": ["instructions", "skills"] }
+      "items": { "enum": ["instructions", "skills", "hooks"] }
+    },
+    "optionalCapabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["instructions", "skills", "hooks"] }
     },
     "packageDependencies": {
       "type": "array",

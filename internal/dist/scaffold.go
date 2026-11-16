@@ -106,7 +106,8 @@ Follow the kit guidance in ` + "`{{index .ResourcePaths \"rule/engineering\"}}`"
 		Description:          "Custom DTKit engineering package.",
 		RuntimeTargets:       adapter.SupportedRuntimes(),
 		Scopes:               []string{"project", "global"},
-		RequiresCapabilities: []string{"instructions", "skills"},
+		RequiresCapabilities: []string{"skills"},
+		OptionalCapabilities: []string{"instructions"},
 		PackageDependencies:  []string{},
 		Components: []catalog.Component{
 			{ID: "rule/engineering", Kind: "rule", Source: "rules/engineering.md", Requires: []string{}},

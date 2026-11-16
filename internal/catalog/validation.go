@@ -57,6 +57,10 @@ func subsetUnique(actual []string, allowed []string) bool {
 	if len(actual) == 0 {
 		return false
 	}
+	return subsetUniqueOptional(actual, allowed)
+}
+
+func subsetUniqueOptional(actual []string, allowed []string) bool {
 	allowMap := make(map[string]bool, len(allowed))
 	for _, a := range allowed {
 		allowMap[a] = true
@@ -76,7 +80,7 @@ func checkManifestKeys(data []byte) error {
 	if err := json.Unmarshal(data, &top); err != nil {
 		return err
 	}
-	if err := CheckObjectKeys(top, []string{"schemaVersion", "id", "name", "version", "description", "runtimeTargets", "scopes", "requiresCapabilities", "packageDependencies", "components"}, []string{"minCliVersion"}); err != nil {
+	if err := CheckObjectKeys(top, []string{"schemaVersion", "id", "name", "version", "description", "runtimeTargets", "scopes", "requiresCapabilities", "packageDependencies", "components"}, []string{"minCliVersion", "optionalCapabilities"}); err != nil {
 		return err
 	}
 	var components []map[string]json.RawMessage
