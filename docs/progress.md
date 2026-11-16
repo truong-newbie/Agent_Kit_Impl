@@ -13,7 +13,7 @@
 | `N00` — Baseline sync & status tracking | `verified` | `feat/release-hardening` | Baseline sync | Recorded `936043f` / run `43849330462`, separated historical snapshots, aligned `README.md`, `compatibility.md`, `release.md` |
 | `N01` — Kit version bump & upgrade from `main` | `verified` | `feat/release-hardening` | F01 | Bumped `engineer` `0.1.0`->`0.2.0` + CLI `0.4.0-dev`; tested real `main` `f81ce6e`->HEAD upgrade (`verify-docker.ps1` + live binary smoke) |
 | `N02` — Source resolution read-only contract | `verified` | `feat/release-hardening` | F02, F05 | Separated `CacheReadOnly`/`CachePersist`; in-memory `FetchRemoteBytes`; no preview/offline cache writes or `.part` cleanup (`verify-docker.ps1`) |
-| `N03` — Remote transport, index strictness, cache safety | `not-started` | `feat/release-hardening` | F03, F05, F06 | Bounded HTTP timeout/redirect hop checks, strict registry index, offline `minCliVersion`, concurrent cache `Put` |
+| `N03` — Remote transport, index strictness, cache safety | `verified` | `feat/release-hardening` | F03, F05, F06 | HTTP timeout/redirect/redaction, strict index, offline `minCliVersion` meta, concurrent cache `Put`, flood cap + fuzz (`verify-docker.ps1`) |
 | `N04` — Cross-runtime concurrency & shared `AGENTS.md` | `not-started` | `feat/release-hardening` | F04 | Barrier concurrency tests (`codex` + `opencode`), shared lock coordination, recovery conflict preservation |
 | `N05` — Capability contract & status consistency | `not-started` | `feat/release-hardening` | F07 | Formalize required vs fallback capability checks (e.g., Cursor global) consistently in preview & apply |
 | `N06` — Hook JSON strictness & executable lifecycle | `not-started` | `feat/release-hardening` | F12 | Duplicate-key rejection, ambiguous digest guard, special-char quoting, timeout/leak checks |
@@ -76,6 +76,26 @@ Tests actually run:
 Remaining limitation / external blocker: Cross-OS CI (`windows-latest`, `macos-latest`) runs on push; N03 HTTP transport/index strictness & parallel cache stress follow next.
 Acceptance checklist result: Pass (zero filesystem/mtime mutations on `--dry-run`, `info`, `validate`, `--offline`, cancel, no-`--yes`, and no-op; zero HTTP requests on offline/cache-hit; active `.part` files preserved).
 Next task: N03 — Remote transport, registry strictness, `minCliVersion` offline/cached parity, and concurrent cache idempotency.
+
+---
+
+Task: N03 — Remote transport, registry và cache integrity
+Status: verified
+Baseline/branch/SHA: feat/release-hardening @ b53b764 (N02 CI run 43853976619 green on all 4 jobs)
+Observed problem and reproduction: Previously `DefaultDeps` used timeout-less `http.DefaultClient`, `FetchRemoteBytes` validated only the initial URL (allowing unsafe redirect hops/downgrades, leaking query secrets/userinfo via stdlib `*url.Error`, and keeping `Authorization` headers across hosts), `ResolveRemote` parsed registry indexes permissively without duplicate-key/duplicate-version checks or entry caps, `minCliVersion` existed only in index entries and was bypassed in `--offline`/direct archive modes, tar dir headers escaped entry-count limits, and `Cache.Put` lacked cross-process rename contention handling.
+Changed files and behavior:
+- `schemas/package.schema.json`, `internal/catalog/{catalog,validation}.go`: added optional `minCliVersion` on manifest v1 packages and exported `CheckStrictJSON` / `CheckObjectKeys` / `IsValidID` / `IsValidVersion`.
+- `internal/dist/cache.go`: added `DefaultHTTPClient` (30s timeout), bounded `MaxRedirects` (10), per-hop `ValidateRemoteURL`, HTTPS downgrade blocking, cross-host `Authorization`/`Cookie` header stripping, URL credential rejection & `SanitizeURL` scrubbing of `*url.Error` messages, monotonic `<sha>.meta.json` `CacheMetadata` sidecars, and contention-safe idempotent `writeCacheFileIdempotent`.
+- `internal/dist/remote.go`: implemented strict `ParseRegistryIndex` (`CheckStrictJSON`, unknown/null field rejection, entry cap `1024`, unique `id@version`, entry field/URL/digest validation, deterministic highest-semver selection); unified `CheckMinCLIVersion`/`SatisfiesMinCLI` (with explicit dev/prerelease base floor policy) across index, direct archive, cached hit, `--offline`, and `--from` (`internal/cli/{deps,source}.go`).
+- `internal/dist/archive.go`: added `MaxArchiveEntries` (`2048`) across all tar headers to block header-only floods alongside existing duplicate/case-collision and size limits.
+- `internal/dist/{remote_hardening_test,fuzz_test}.go`: added TLS custom CA tests, slow/canceled request redaction tests, redirect hop/downgrade/header-stripping tests, strict index & deterministic semver tests, `minCliVersion` offline/cached parity tests, 16-goroutine `-race` + 4-child-process concurrent `Cache.PutArchive` tests, header-flood/duplicate-tar tests, and `FuzzParseRegistryIndex` / `FuzzReadArchiveBytes`.
+- `docs/{cli,release,progress}.md`: documented remote transport/compatibility/SHA-256 policy and marked N03 verified.
+Tests actually run:
+- `docker run --rm -v "${PWD}:/src" -w /src golang:1.27.4 /usr/local/go/bin/gofmt -w cmd internal schemas; .\scripts\verify-docker.ps1` -> exit `0`, all packages passed under `go test -race ./...`, `go vet ./...`, and `go build`.
+- `go test -fuzz=FuzzParseRegistryIndex -fuzztime=3s ./internal/dist` (42,213 execs) and `go test -fuzz=FuzzReadArchiveBytes -fuzztime=3s ./internal/dist` (63,045 execs) -> both `PASS`.
+Remaining limitation / external blocker: Cross-OS CI (`windows-latest`, `macos-latest`) runs on push; N04 concurrent cross-runtime `AGENTS.md` / lock / recovery tests follow next.
+Acceptance checklist result: Pass (finite timeouts, strict redirect & credential sanitization, TLS custom CA verified, strict index & offline `minCliVersion` parity, idempotent concurrent `Cache.Put`, bounded archive + fuzz smoke green).
+Next task: N04 — Đồng thời nhiều runtime và recovery trên file shared (F04).
 
 ---
 

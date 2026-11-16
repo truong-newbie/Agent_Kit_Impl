@@ -33,3 +33,10 @@
 ## JSON Output
 
 Passing `--json` emits a single JSON object (`schemaVersion: 1`) to `stdout` on both success and error. Diagnostics go to `stderr`. Mutations with `--json` require `--yes` (except `--dry-run`).
+
+## Remote Source, Compatibility & Integrity Policy
+
+- **Supported remote schemes:** `--source` requires HTTPS (including private/internal registries trusted by system/custom CA roots); plain HTTP is allowed only for loopback hosts (`localhost`, `127.0.0.1`, `::1`) for local tests/registries.
+- **Redirects & credentials:** Bounded to 30s request timeout and 10 redirects, blocking HTTPS->HTTP downgrades, stripping `Authorization`/`Cookie` headers on cross-host redirects, rejecting embedded URL `userinfo`, and redacting credentials and query tokens from errors.
+- **Registry index & `minCliVersion`:** Indexes reject duplicate JSON keys, invalid entries, and duplicate `id@version` pairs, selecting the highest valid semver deterministically. Dev/prerelease CLI builds (`X.Y.Z-dev`, `X.Y.Z-rc.N`) satisfy `minCliVersion <= X.Y.Z`. Verified `minCliVersion` requirements are cached in sidecar `<sha>.meta.json` and enforced equally across online, direct archive, `--from`, cached, and `--offline` paths.
+- **Archive integrity (`--sha256`):** SHA-256 checksums verify downloaded byte integrity against expected digests and do **not** provide cryptographic publisher authenticity or provenance signatures.

@@ -15,7 +15,7 @@ See [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md) for detailed accepta
 - [x] `N00` — Baseline sync, truthful README/compatibility matrix, and progress tracking.
 - [x] `N01` — Bump bundled `engineer` kit version (`0.1.0` -> `0.2.0`) for multi-runtime manifest changes and test real upgrade path from `main` (`f81ce6e`).
 - [x] `N02` — Enforce strict read-only no-write guarantees for remote/cached `--dry-run`, `info`, and `validate`.
-- [ ] `N03` — Harden remote HTTP timeouts/redirects, registry index validation, offline `minCliVersion`, and multi-process cache idempotency.
+- [x] `N03` — Harden remote HTTP timeouts/redirects, registry index validation, offline `minCliVersion`, and multi-process cache idempotency.
 - [ ] `N04` — Reproduce and verify concurrent cross-runtime `AGENTS.md` mutations, shared lock ordering, and recovery safety.
 - [ ] `N05` — Formalize required vs optional/fallback capability enforcement (including Cursor global) and consistent pre/post-install warnings.
 - [ ] `N06` — Harden hook JSON duplicate-key parsing, ambiguous-digest handling, special-character executable quoting, and timeout/leak isolation.
