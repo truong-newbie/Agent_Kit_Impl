@@ -186,7 +186,7 @@ func TestTerminalInstallScriptWindows(t *testing.T) {
 	if _, err := runPS("0.4.0-rc.2"); err == nil {
 		t.Fatal("expected failure on duplicate SHA256SUMS entry")
 	}
-	if out, err := runPS("0.4.0-rc.2", "DTKIT_TEST_ARCH=Arm64"); err == nil || !strings.Contains(out, "Unsupported Windows architecture") {
+	if out, err := runPS("0.4.0-rc.2", "DTKIT_TEST_ARCH=Arm64"); err == nil || !strings.Contains(strings.Join(strings.Fields(out), " "), "Unsupported Windows architecture") {
 		t.Fatalf("expected unsupported arch rejection on Windows Arm64, got err=%v out=%s", err, out)
 	}
 
@@ -199,10 +199,10 @@ func TestTerminalInstallScriptWindows(t *testing.T) {
 	if lockErr != nil {
 		t.Fatalf("failed to lock destExe: %v", lockErr)
 	}
-	_, lockUpErr := runPS("0.4.0-rc.2")
+	lockOut, lockUpErr := runPS("0.4.0-rc.2")
 	_ = syscall.CloseHandle(h)
 	if lockUpErr == nil {
-		t.Fatal("expected upgrade failure while dtkit.exe is exclusively locked")
+		t.Fatalf("expected upgrade failure while dtkit.exe is exclusively locked; out=%s", lockOut)
 	}
 	afterFailBytes, err := os.ReadFile(destExe)
 	if err != nil || !bytes.Equal(afterFailBytes, v1OnDisk) {
