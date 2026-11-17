@@ -235,6 +235,18 @@ Next independent work: Fix `windows-latest` CI on `feat/release-hardening` and m
 
 ---
 
+ID: B03 (Project Profile Schema & `dtkit project inspect|init`)
+Status: verified (local Docker `verify-docker.ps1`; CI pending push)
+Baseline SHA / branch: `e5b4b0f` on `feat/v0.5`
+User-visible behavior and schema decisions: Added strict Project Profile v1 schema ([`schemas/project.schema.json`](../schemas/project.schema.json), ADR in [`docs/adr-project-profile.md`](./adr-project-profile.md)) forbidding unknown fields, absolute/traversal paths, shell wrappers (`sh -c`/`cmd /c`/`powershell`), and secret env vars, while computing canonical `CommandsTrustDigest` over `checks`. Added `dtkit project inspect [--path] [--json]` (strictly read-only discovery across Go `go.work`/`go.mod`, Node/TS `package.json` workspaces & lockfiles, Python `pyproject.toml`, `Makefile`, and `.github/workflows/*.yml`) and `dtkit project init [--path] [--dry-run|--yes] [--json]` (never overwrites existing `.dtkit/project.json`).
+Files changed: `schemas/project.schema.json`, `schemas/embed_test.go`, `docs/adr-project-profile.md`, `internal/project/{schema,inspect,init,project_test}.go`, `internal/cli/{cli,envelope,project,project_test}.go`, `docs/progress.md`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`internal/project` malformed/security/monorepo/symlink/no-execute-canary tests, `internal/cli` `TestCLIProjectInspectAndInitWorkflow`, `schemas` 4-schema validation).
+Live evidence: Local read-only inspection confirmed zero script execution against canary `Makefile` target and non-clobber preservation of user-edited `.dtkit/project.json`.
+Acceptance still missing / external blocker: Multi-OS CI run for `B03` commit (`windows-latest` installer fix also queued on `feat/release-hardening`).
+Next independent work: Harden `TestTerminalInstallScriptWindows` on `feat/release-hardening` & verify 5/5 CI, then execute `B04` (`engineer` `0.4.0` repository-neutral content revision).
+
+---
+
 ## Historical Implementation Log (Point-in-Time Snapshots)
 
 > The entries below were recorded at the time each dev milestone completed and are kept intact for historical context; refer to **Current Status** above for live release-gate truth.

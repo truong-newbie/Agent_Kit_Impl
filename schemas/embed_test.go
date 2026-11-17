@@ -11,8 +11,8 @@ func TestEmbeddedSchemasAreValidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 3 {
-		t.Fatalf("expected 3 schema files, got %d", len(entries))
+	if len(entries) != 4 {
+		t.Fatalf("expected 4 schema files, got %d", len(entries))
 	}
 	for _, entry := range entries {
 		b, err := fs.ReadFile(FS, entry.Name())

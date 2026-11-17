@@ -11,6 +11,7 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/project"
 )
 
 type KitSummary struct {
@@ -51,32 +52,34 @@ type DoctorCheck struct {
 }
 
 type Envelope struct {
-	SchemaVersion int                          `json:"schemaVersion"`
-	Command       string                       `json:"command"`
-	Ok            bool                         `json:"ok"`
-	DryRun        bool                         `json:"dryRun,omitempty"`
-	Runtime       string                       `json:"runtime,omitempty"`
-	Scope         string                       `json:"scope,omitempty"`
-	Capabilities  *adapter.Capabilities        `json:"capabilities,omitempty"`
-	Integration   *adapter.IntegrationEvidence `json:"integration,omitempty"`
-	Kit           *KitSummary                  `json:"kit,omitempty"`
-	Roots         map[string]string            `json:"roots,omitempty"`
-	Installed     *bool                        `json:"installed,omitempty"`
-	Generation    uint64                       `json:"generation,omitempty"`
-	Actions       []ActionView                 `json:"actions,omitempty"`
-	Summary       *ActionSummary               `json:"summary,omitempty"`
-	BuildInfo     *buildinfo.Info              `json:"buildInfo,omitempty"`
-	Packages      []PackageSummary             `json:"packages,omitempty"`
-	Package       *catalog.Package             `json:"package,omitempty"`
-	Checks        []DoctorCheck                `json:"checks,omitempty"`
-	Installations []installer.StatusReport     `json:"installations,omitempty"`
-	Hooks         []installer.HookStatusInfo   `json:"hooks,omitempty"`
-	Recovery      *installer.RecoverReport     `json:"recovery,omitempty"`
-	Pack          *dist.PackResult             `json:"pack,omitempty"`
-	CreateKit     *dist.CreateKitResult        `json:"createKit,omitempty"`
-	CreateSkill   *dist.CreateSkillResult      `json:"createSkill,omitempty"`
-	Warnings      []string                     `json:"warnings"`
-	Errors        []apperr.Error               `json:"errors"`
+	SchemaVersion  int                          `json:"schemaVersion"`
+	Command        string                       `json:"command"`
+	Ok             bool                         `json:"ok"`
+	DryRun         bool                         `json:"dryRun,omitempty"`
+	Runtime        string                       `json:"runtime,omitempty"`
+	Scope          string                       `json:"scope,omitempty"`
+	Capabilities   *adapter.Capabilities        `json:"capabilities,omitempty"`
+	Integration    *adapter.IntegrationEvidence `json:"integration,omitempty"`
+	Kit            *KitSummary                  `json:"kit,omitempty"`
+	Roots          map[string]string            `json:"roots,omitempty"`
+	Installed      *bool                        `json:"installed,omitempty"`
+	Generation     uint64                       `json:"generation,omitempty"`
+	Actions        []ActionView                 `json:"actions,omitempty"`
+	Summary        *ActionSummary               `json:"summary,omitempty"`
+	BuildInfo      *buildinfo.Info              `json:"buildInfo,omitempty"`
+	Packages       []PackageSummary             `json:"packages,omitempty"`
+	Package        *catalog.Package             `json:"package,omitempty"`
+	Checks         []DoctorCheck                `json:"checks,omitempty"`
+	Installations  []installer.StatusReport     `json:"installations,omitempty"`
+	Hooks          []installer.HookStatusInfo   `json:"hooks,omitempty"`
+	Recovery       *installer.RecoverReport     `json:"recovery,omitempty"`
+	Pack           *dist.PackResult             `json:"pack,omitempty"`
+	CreateKit      *dist.CreateKitResult        `json:"createKit,omitempty"`
+	CreateSkill    *dist.CreateSkillResult      `json:"createSkill,omitempty"`
+	ProjectInspect *project.InspectResult       `json:"projectInspect,omitempty"`
+	ProjectInit    *project.InitResult          `json:"projectInit,omitempty"`
+	Warnings       []string                     `json:"warnings"`
+	Errors         []apperr.Error               `json:"errors"`
 }
 
 // JSONReportedError wraps an error that was already serialized to stdout as JSON.

@@ -33,6 +33,7 @@ Usage:
   dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
   dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
+  dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit hooks <list|status|enable|disable> [args]
   dtkit hook run <id> --scope project|global --root <dir>
 
@@ -91,6 +92,8 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runRemove(ctx, args[1:], deps)
 	case "recover":
 		return runRecover(ctx, args[1:], deps)
+	case "project":
+		return runProject(ctx, args[1:], deps)
 	case "hooks":
 		return runHooks(ctx, args[1:], deps)
 	case "hook":
@@ -142,6 +145,9 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		return err
 	case "recover":
 		_, err := io.WriteString(out, "Usage: dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "project":
+		_, err := io.WriteString(out, "Usage: dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "hooks":
 		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
