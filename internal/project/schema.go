@@ -213,8 +213,11 @@ func validateExecutableAndArgv(exe string, argv []string) error {
 	if strings.ContainsAny(exe, "\r\n\x00;|&`$<>") {
 		return errors.New("executable contains forbidden shell metacharacters")
 	}
-	if filepath.IsAbs(exe) || strings.Contains(exe, "..") || strings.HasPrefix(exe, "~") {
-		return errors.New("executable must be a command name on PATH (not an absolute or traversal path)")
+	if filepath.IsAbs(exe) || strings.HasPrefix(exe, "/") || strings.HasPrefix(exe, `\`) ||
+		strings.Contains(exe, "/") || strings.Contains(exe, `\`) ||
+		(len(exe) >= 2 && ((exe[0] >= 'A' && exe[0] <= 'Z') || (exe[0] >= 'a' && exe[0] <= 'z')) && exe[1] == ':') ||
+		strings.Contains(exe, "..") || strings.HasPrefix(exe, "~") {
+		return errors.New("executable must be a command name on PATH (not a path or traversal)")
 	}
 	if argv == nil {
 		return errors.New("argv must be an array")

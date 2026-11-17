@@ -407,9 +407,10 @@ func executeOneCheck(ctx context.Context, repoRoot string, spec project.CheckSpe
 
 func filteredCheckEnv(allowExtra []string) []string {
 	safeBase := map[string]bool{
-		"PATH": true, "HOME": true, "USERPROFILE": true, "SYSTEMROOT": true, "WINDIR": true,
+		"PATH": true, "HOME": true, "USERPROFILE": true, "SYSTEMROOT": true, "SYSTEMDRIVE": true,
+		"WINDIR": true, "COMSPEC": true, "LOCALAPPDATA": true, "APPDATA": true,
 		"TMP": true, "TEMP": true, "TMPDIR": true, "GOPATH": true, "GOMODCACHE": true, "GOCACHE": true,
-		"GOTMPDIR": true, "LANG": true, "LC_ALL": true, "TERM": true, "PATHEXT": true,
+		"GOTMPDIR": true, "GOTOOLCHAIN": true, "LANG": true, "LC_ALL": true, "TERM": true, "PATHEXT": true,
 	}
 	allowed := map[string]bool{}
 	for k := range safeBase {

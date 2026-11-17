@@ -61,7 +61,7 @@ func TestRunCheckChangedGuardsAndGuardEdit(t *testing.T) {
 		SchemaVersion: 1,
 		Name:          "hk",
 		Roots:         []project.WorkspaceRoot{{Path: ".", Stack: "go"}},
-		Checks:        []project.CheckSpec{{ID: "go-test", Kind: "test", Executable: "go", Argv: []string{"test", "./..."}, Cwd: ".", TimeoutSec: 60}},
+		Checks:        []project.CheckSpec{{ID: "go-ver", Kind: "test", Executable: "go", Argv: []string{"version"}, Cwd: ".", TimeoutSec: 60}},
 	}
 	rawProf, _ := json.MarshalIndent(prof, "", "  ")
 	_ = os.MkdirAll(filepath.Join(repo, ".dtkit"), 0755)

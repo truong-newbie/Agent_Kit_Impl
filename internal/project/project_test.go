@@ -49,6 +49,7 @@ func TestParseAndValidateSecurityAndMalformedCases(t *testing.T) {
 		{"shell_wrapper_cmd", `{"schemaVersion":1,"roots":[],"checks":[{"id":"cmd","kind":"test","executable":"cmd.exe","argv":["/c","dir"],"cwd":".","timeoutSec":10}]}`},
 		{"shell_wrapper_pwsh", `{"schemaVersion":1,"roots":[],"checks":[{"id":"ps","kind":"test","executable":"powershell","argv":["-Command","ls"],"cwd":".","timeoutSec":10}]}`},
 		{"abs_exe_path", `{"schemaVersion":1,"roots":[],"checks":[{"id":"abs","kind":"test","executable":"/usr/bin/go","argv":["test"],"cwd":".","timeoutSec":10}]}`},
+		{"win_abs_exe_path", `{"schemaVersion":1,"roots":[],"checks":[{"id":"winabs","kind":"test","executable":"C:\\Go\\bin\\go.exe","argv":["test"],"cwd":".","timeoutSec":10}]}`},
 		{"cwd_traversal", `{"schemaVersion":1,"roots":[],"checks":[{"id":"trav","kind":"test","executable":"go","argv":["test"],"cwd":"../outside","timeoutSec":10}]}`},
 		{"windows_drive_cwd", `{"schemaVersion":1,"roots":[],"checks":[{"id":"drv","kind":"test","executable":"go","argv":["test"],"cwd":"C:\\repo","timeoutSec":10}]}`},
 		{"secret_allow_env", `{"schemaVersion":1,"roots":[],"checks":[{"id":"sec","kind":"test","executable":"go","argv":["test"],"cwd":".","timeoutSec":10,"allowEnv":["ANTHROPIC_API_KEY"]}]}`},

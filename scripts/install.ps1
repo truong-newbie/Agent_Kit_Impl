@@ -64,7 +64,18 @@ try {
         throw "Expected exactly 1 SHA256SUMS entry for $Archive, found $($matchingLines.Count); aborting."
     }
     $expectedHash = ($matchingLines[0] -split "\s+")[0].ToLowerInvariant()
-    $actualHash = (Get-FileHash -Path $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $archiveStream = [System.IO.File]::OpenRead($archivePath)
+        try {
+            $hashBytes = $sha256.ComputeHash($archiveStream)
+        } finally {
+            $archiveStream.Dispose()
+        }
+    } finally {
+        $sha256.Dispose()
+    }
+    $actualHash = ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
     if ($actualHash -ne $expectedHash) {
         throw "SHA256 checksum mismatch for ${Archive}: expected $expectedHash, got $actualHash; aborting before extraction."
     }
