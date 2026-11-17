@@ -4,7 +4,7 @@ DTKit is a single-binary Go CLI toolkit for packaging, validating, and safely in
 
 ## Current Status
 
-- **Branches:** `main` (`f81ce6e`) holds the Codex v0.1 baseline with zero published GitHub Releases or tags. Release-hardening candidate work (`N00`–`N12`, `A01`–`A04`) lives on `feat/release-hardening`; v0.5 agent engineering capabilities (`B01`–`B08`, built on top of release-hardening) live on `feat/v0.5`.
+- **Release Stream:** `main` integrates release-hardening (`N00`–`N12`, `A01`–`A04`) and v0.5 engineering (`B01`–`B08`, `engineer@0.4.0`), tracked for the `v0.5.0-rc.1` pre-release candidate (`release.yml` builds Windows/Linux/macOS archives + `SHA256SUMS` on tag push).
 - **Implemented (automated-tested in Go / Docker):**
   - Core CLI & safety engine (`version`, `help`, `list`, `info`, `validate`, `doctor`, `install`, `status`, `update`, `remove`, `recover`) with `--dry-run`, `--yes`, `--json`, `--preset` (`minimal`, `review-only`, `engineering`), `--components`, managed blocks, PID/token locks, transaction journals, and conditional rollback.
   - Project profile & quality runner (`dtkit project inspect|init`, `dtkit check [--changed|--all] [--allow-autofix]`) using strict argv-only `.dtkit/project.json` and explicit trust digests in `.dtkit/local/check-trust.json`.
@@ -14,18 +14,18 @@ DTKit is a single-binary Go CLI toolkit for packaging, validating, and safely in
 - **Verification & Benchmark Truthfulness Boundary:**
   - **Codex CLI (`0.169.0`, `project` + `$CODEX_HOME`):** Partial — project skill/instruction discovery & isolated `$CODEX_HOME/AGENTS.md` observed in [docs/verification/codex-0.169.0-2026-11-16.md](docs/verification/codex-0.169.0-2026-11-16.md); global layout kept per [docs/verification/codex-global-windows-decision-2026-11-17.md](docs/verification/codex-global-windows-decision-2026-11-17.md); sandboxed PS subcommands blocked by host policy; live session hook invocation unverified.
   - **OpenCode (`1.19.5`, `project` + `global`):** Partial — isolated project-only, global-only, combined 14-skill discovery alongside other runtimes, and clean removal observed in [docs/verification/opencode-1.19.5-2026-11-16.md](docs/verification/opencode-1.19.5-2026-11-16.md); live LLM turn blocked by absent isolated credentials.
-  - **Claude Code (`claude`), Gemini CLI (`gemini`), & Cursor (`cursor`):** Experimental (`unverified` live) — automated adapter, hook-merge, lifecycle, and coexistence tests pass in Go; live Claude Code hook/A/B evaluation awaits isolated credentials + model budget (`claude auth status` unauthenticated in isolated `$CLAUDE_CONFIG_DIR`), and `gemini`/`cursor` CLIs were absent on the verification host ([docs/verification/gemini-cursor-external-blocker-2026-11-16.md](docs/verification/gemini-cursor-external-blocker-2026-11-16.md)).
-  - **Evaluation harness (`internal/eval`):** Automated Go fixture grading (`engineer@0.3.0` frozen manifest in [docs/evaluation/manifest.json](docs/evaluation/manifest.json) and [docs/evaluation/pilot-report-2026-11-17.md](docs/evaluation/pilot-report-2026-11-17.md)) passes locally; live multi-run A/B model benchmarks (`engineer@0.3.0` vs. `engineer@0.4.0`) remain `blocked` pending owner-approved isolated credentials and budget.
+  - **Claude Code (`claude`), Gemini CLI (`gemini`), & Cursor (`cursor`):** Experimental (`unverified` live) — automated adapter, hook-merge, lifecycle, and coexistence tests pass in Go; live `claude 2.1.319` `--no-session-persistence --setting-sources project` probe returned `401 Invalid or expired API key` (`total_cost_usd: 0`), while `gemini` and `cursor` CLIs were absent on the verification host ([docs/verification/gemini-cursor-external-blocker-2026-11-16.md](docs/verification/gemini-cursor-external-blocker-2026-11-16.md)).
+  - **Evaluation harness (`internal/eval`):** Automated Go fixture grading (`engineer@0.3.0` frozen manifest in [docs/evaluation/manifest.json](docs/evaluation/manifest.json) and [docs/evaluation/pilot-report-2026-11-17.md](docs/evaluation/pilot-report-2026-11-17.md)) passes locally; live multi-run A/B model benchmarks (`engineer@0.3.0` vs. `engineer@0.4.0`) remain `blocked` pending valid isolated credentials and budget.
 
 See [docs/compatibility.md](docs/compatibility.md) for the per-runtime 4-layer evidence matrix, [docs/cli.md](docs/cli.md) for CLI contracts, [docs/release.md](docs/release.md) for terminal installation, changelog, and troubleshooting, [docs/support.md](docs/support.md) for support & incident response policy, and [docs/progress.md](docs/progress.md) for verified task records.
 
 ## Terminal Installation (Pinned Release Binary)
 
-Once a release tag (such as `v0.4.0-rc.1`) is published—or when building local archives via `.\scripts\package.ps1 -Version 0.4.0-rc.1`—follow the checksum-verified, user-local installation steps in [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) (never skip `SHA256SUMS` verification).
+For a published release/pre-release tag (such as `v0.5.0-rc.1`)—or when building local archives via `.\scripts\package.ps1 -Version 0.5.0-rc.1`—follow the checksum-verified, user-local installation steps in [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) using [scripts/install.sh](scripts/install.sh) or [scripts/install.ps1](scripts/install.ps1) (never skip `SHA256SUMS` verification).
 
 ## Build and Verification (Dev Source)
 
-Requires Go `1.27.4` or newer (or Docker Desktop if Windows Application Control / Device Guard blocks unsigned `go.exe`). No published release archive is tagged yet; build from source on `feat/release-hardening`:
+Requires Go `1.27.4` or newer (or Docker Desktop if Windows Application Control / Device Guard blocks unsigned `go.exe`):
 
 ```powershell
 # Docker-based formatting, race tests, vet, and Linux binary build:
@@ -41,7 +41,7 @@ go vet ./...
 go build -trimpath -o .\dist\dtkit ./cmd/dtkit
 ```
 
-*(Note: `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@latest` resolves `main` (`f81ce6e`, Codex v0.1 only) until multi-runtime changes are merged and tagged.)*
+*(Note: `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@latest` resolves `main`; for pinned reproducible builds use the checksum-verified archives attached to the GitHub Release.)*
 
 ## Quick Start
 

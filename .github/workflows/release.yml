@@ -179,6 +179,7 @@ jobs:
             printf '### Runtime Support Boundary\n'
             printf -- '- **Codex CLI (`codex`):** Partial (project discovery & isolated `CODEX_HOME` `AGENTS.md` verified; sandbox/hook trust caveats documented in `docs/compatibility.md`).\n'
             printf -- '- **OpenCode (`opencode`):** Partial (project/global/coexistence discovery verified; live LLM turn unverified without credentials).\n'
+            printf -- '- **Claude Code (`claude`):** Partial (adapter, `.claude/settings.json` hooks, preset lifecycle verified in automation; live session/A-B eval blocked on valid credentials & budget).\n'
             printf -- '- **Gemini CLI (`gemini`) & Cursor (`cursor`):** Experimental / `unverified` (absent on verification host).\n\n'
             printf '### Checksums\n```\n'
             cat dist/SHA256SUMS

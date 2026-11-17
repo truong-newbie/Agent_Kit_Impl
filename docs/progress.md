@@ -2,9 +2,9 @@
 
 ## Current Status
 
-- **Active Branches:** `feat/v0.5` (`B01`–`B08`, merging `feat/release-hardening` `2dfa0f1`) and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`). `main` (`f81ce6e`) sits at v0.1; remote tags/GitHub Releases count = `0`.
-- **CI Status:** `ubuntu-latest`, `macos-latest`, `race`, and `fuzz-smoke` pass on `feat/release-hardening` `2dfa0f1` ([Run 44016137202](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44016137202)) and `feat/v0.5` `d41105c` ([Run 44013510422](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44013510422)); `test (windows-latest)` fails since `84ad6ad` (`TestTerminalInstallScriptWindows`, while `scripts/install.ps1` scenarios pass locally in Windows 11 PowerShell with `-SkipBinaryExecCheck` — owner-authenticated CI log inspection needed for the runner-specific failure).
-- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), and Mốc B v0.5 (`B01`–`B08`) are implemented per [DTKIT-RC-AND-V05-PLAN.md](../DTKIT-RC-AND-V05-PLAN.md); live model A/B & live Claude session hooks remain gated on owner auth/budget, and `main` merge/tag awaits owner approval.
+- **Active Branches:** `feat/v0.5` (`B01`–`B08`, merging `feat/release-hardening` `2dfa0f1`) and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`).
+- **CI Status:** `feat/v0.5` (`2512004`, [Run 44018736691](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44018736691)) passed all **5/5 GitHub Actions jobs** (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`, `fuzz-smoke`).
+- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), and Mốc B v0.5 (`B01`–`B08`) are implemented and 5/5 CI-verified per [DTKIT-RC-AND-V05-PLAN.md](../DTKIT-RC-AND-V05-PLAN.md); live model A/B & live Claude session hooks remain `blocked` (host `claude 2.1.319` returned `401 Invalid or expired API key` during isolated `--no-session-persistence` live probe, `total_cost_usd: 0`).
 
 ### Hardening & Release Backlog Tracker (`N00`–`N12`)
 
@@ -296,14 +296,14 @@ Next independent work: Fix `TestTerminalInstallScriptWindows` cleanup on `feat/r
 ---
 
 ID: B08 (v0.5 Final Readiness, Docs & Evidence Reconciliation)
-Status: partial (code/schema/tests/docs complete and verified via local Docker `verify-docker.ps1` + 4/5 Linux/macOS/race/fuzz CI jobs; `test (windows-latest)` CI failure since `84ad6ad` + live model/hook checks remain open)
-Baseline SHA / branch: `d41105c` + `feat/release-hardening` (`2dfa0f1`) merge on `feat/v0.5`
-User-visible behavior and schema decisions: Synced `README.md`, `docs/cli.md`, and `docs/compatibility.md` to match the full v0.5 CLI & schema surface (`claude` runtime, `.claude/settings.json` hooks `check-changed`/`guard-edit`, `dtkit project inspect|init`, `dtkit check`, `engineer@0.4.0`, and `--preset`/`--components` selection) while keeping live-model / live-hook / remote-release / `windows-latest` CI gates honestly documented.
-Files changed: `README.md`, `docs/cli.md`, `docs/compatibility.md`, `docs/progress.md`, `internal/cli/terminal_install_windows_test.go`, `scripts/install.ps1`
-Tests completed: `gofmt` + `GOOS=windows go test -c ./internal/cli` + final `.\scripts\verify-docker.ps1` (`gofmt`, `go test -race ./...` across all 20 tested packages, `go vet ./...`, `go build ./cmd/dtkit`), plus local Windows 11 PowerShell matrix test of `scripts/install.ps1 -SkipBinaryExecCheck`.
-Live evidence: Offline lifecycle across all 5 runtimes (`codex`, `gemini`, `opencode`, `cursor`, `claude`), `0.3.0 -> 0.4.0` upgrades, preset switching, `dtkit project` + `dtkit check`, and eval Go fixture grading verified in automation; `4/5` GitHub Actions jobs pass on `feat/v0.5` (`44013510422`) and `feat/release-hardening` (`44016137202`).
-Acceptance still missing / external blocker: (1) Owner-authenticated inspection of `test (windows-latest)` log (`44016137202`, HTTP 403 unauthenticated); (2) Live isolated `claude`/`codex` 60-run A/B benchmark (`engineer@0.3.0` vs. `engineer@0.4.0`) and live Claude hook session invocation needing isolated credentials + model budget; (3) Owner merge/tag approval before merging to `main` or publishing a GitHub Release.
-Next independent work: Await owner CI log share / auth / release approval; ready to diagnose `windows-latest` immediately once the failing assertion line from `test (windows-latest)` log is available.
+Status: verified (offline/CI 5/5 green on `feat/v0.5` `2512004`; live model A/B & live Claude session hooks blocked on `401` expired auth)
+Baseline SHA / branch: `fc76ac8` -> `2512004` on `feat/v0.5`
+User-visible behavior and schema decisions: Synced `README.md`, `docs/cli.md`, `docs/compatibility.md`, `docs/progress.md`, and `.github/workflows/release.yml` to match the full v0.5 CLI & schema surface (`claude` runtime, `.claude/settings.json` hooks `check-changed`/`guard-edit`, `dtkit project inspect|init`, `dtkit check`, `engineer@0.4.0`, and `--preset`/`--components` selection). Fixed cross-OS CI failures (`Get-FileHash` replaced by pure .NET `SHA256` in `scripts/install.ps1`, `LOCALAPPDATA`/`APPDATA`/`SYSTEMDRIVE`/`COMSPEC`/`GOTOOLCHAIN` preserved in `internal/check/runner.go`, POSIX+Windows absolute/path-separator executable rejection in `internal/project/schema.go`, fast `go version` hook test in `internal/hooks/claude_hooks_test.go`).
+Files changed: `README.md`, `docs/{cli,compatibility,progress}.md`, `.github/workflows/release.yml`, `scripts/install.ps1`, `internal/check/runner.go`, `internal/project/{schema,project_test}.go`, `internal/hooks/claude_hooks_test.go`, `internal/cli/terminal_install_windows_test.go`
+Tests completed: `.\scripts\verify-docker.ps1` (exit `0`, all 20 packages pass with `-race`), Windows 11 PowerShell `.NET SHA256` `install.ps1` end-to-end check (`NET_SHA256_OK=True`), and GitHub Actions Run `44018736691` passing all **5/5** jobs (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`, `fuzz-smoke`).
+Live evidence: Attempted capped isolated live `claude 2.1.319` run (`-p --no-session-persistence --setting-sources project --strict-mcp-config --max-budget-usd 0.30`) against `testdata/evaluation/go-service` + `engineer@0.4.0` + `.dtkit/project.json`; failed closed cleanly with `api_error_status: 401 ("Invalid or expired API key")`, `total_cost_usd: 0`.
+Acceptance still missing / external blocker: Live isolated `claude`/`codex` 60-run A/B benchmark (`engineer@0.3.0` vs. `engineer@0.4.0`) and live Claude hook session firing await valid authenticated runtime credentials & budget.
+Next independent work: Merge `feat/v0.5` into `main` and push `v0.5.0-rc.1` tag to trigger `release.yml` pre-release packaging/publication per owner Phương án B approval.
 
 ---
 
