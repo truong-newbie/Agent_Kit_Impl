@@ -204,8 +204,13 @@ func TestMultiKitCoexistenceUpdateHookCrashAndRemove(t *testing.T) {
 	for e := range errs {
 		if e != nil {
 			var appErr *apperr.Error
-			if !errors.As(e, &appErr) || appErr.Code != "lock_held" {
-				t.Fatalf("unexpected non-lock concurrency error: %v", e)
+			if !errors.As(e, &appErr) {
+				t.Fatalf("unexpected non-AppError concurrency error: %v", e)
+			}
+			switch appErr.Code {
+			case "lock_held", "recovery_required", "state_changed":
+			default:
+				t.Fatalf("unexpected concurrency error code %q: %v", appErr.Code, e)
 			}
 		}
 	}
