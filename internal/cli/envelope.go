@@ -67,6 +67,16 @@ type ExplainView struct {
 	DriftFiles         int                    `json:"driftFiles,omitempty"`
 }
 
+type SyncKitResult struct {
+	KitID         string `json:"kitId"`
+	Version       string `json:"version"`
+	PackageDigest string `json:"packageDigest"`
+	ArchiveSHA256 string `json:"archiveSha256,omitempty"`
+	Action        string `json:"action"` // "install" | "update" | "noop"
+	Generation    uint64 `json:"generation,omitempty"`
+	ProvenanceKey string `json:"provenanceKey,omitempty"`
+}
+
 type Envelope struct {
 	SchemaVersion  int                          `json:"schemaVersion"`
 	Command        string                       `json:"command"`
@@ -94,6 +104,9 @@ type Envelope struct {
 	Recovery       *installer.RecoverReport     `json:"recovery,omitempty"`
 	Pack           *dist.PackResult             `json:"pack,omitempty"`
 	Fork           *dist.ForkResult             `json:"fork,omitempty"`
+	Lockfile       *dist.Lockfile               `json:"lockfile,omitempty"`
+	LockDiff       *dist.LockDiffReport         `json:"lockDiff,omitempty"`
+	SyncResults    []SyncKitResult              `json:"syncResults,omitempty"`
 	CreateKit      *dist.CreateKitResult        `json:"createKit,omitempty"`
 	CreateSkill    *dist.CreateSkillResult      `json:"createSkill,omitempty"`
 	ProjectInspect *project.InspectResult       `json:"projectInspect,omitempty"`

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DTKit Lockfile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kits"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "version", "packageDigest", "source", "runtimeTargets"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", "maxLength": 32 },
+          "version": { "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$" },
+          "packageDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "archiveSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind"],
+            "properties": {
+              "kind": { "enum": ["bundled", "local", "archive", "remote"] },
+              "ref": { "type": "string", "minLength": 1 }
+            }
+          },
+          "runtimeTargets": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "enum": ["codex", "gemini", "opencode", "cursor", "claude"] },
+            "uniqueItems": true
+          },
+          "adapterRevisions": {
+            "type": "object",
+            "additionalProperties": { "type": "string", "minLength": 1 }
+          },
+          "selection": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resolvedComponents"],
+            "properties": {
+              "preset": { "type": "string", "minLength": 1 },
+              "requestedComponents": { "type": "array", "items": { "type": "string" } },
+              "resolvedComponents": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+            }
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["keyId", "algorithm", "signedDigest", "signature"],
+            "properties": {
+              "keyId": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "algorithm": { "const": "ed25519" },
+              "signedDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+              "signature": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

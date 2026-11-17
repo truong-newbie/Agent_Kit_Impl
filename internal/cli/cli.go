@@ -37,6 +37,8 @@ Usage:
   dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]
+  dtkit lock <generate|verify|diff|sign|keygen> [options]
+  dtkit sync [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--lock <file>] [--trust <file>] [--require-signature] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [args]
   dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|claude>]
   dtkit completion <bash|zsh|powershell>
@@ -104,6 +106,10 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runProject(ctx, args[1:], deps)
 	case "check":
 		return runCheck(ctx, args[1:], deps)
+	case "lock":
+		return runLock(ctx, args[1:], deps)
+	case "sync":
+		return runSync(ctx, args[1:], deps)
 	case "hooks":
 		return runHooks(ctx, args[1:], deps)
 	case "hook":
@@ -169,6 +175,12 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		return err
 	case "check":
 		_, err := io.WriteString(out, "Usage: dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]\n")
+		return err
+	case "lock":
+		_, err := io.WriteString(out, "Usage: dtkit lock <generate|verify|diff|sign|keygen> [--path <dir>] [--runtime <...>] [--lock <file>] [--trust <file>] [--source-ref <kit=ref>] [--key-file <file>] [--key-id <id>] [--offline] [--require-signature] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "sync":
+		_, err := io.WriteString(out, "Usage: dtkit sync [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--lock <file>] [--trust <file>] [--require-signature] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]\n")
 		return err
 	case "hooks":
 		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")

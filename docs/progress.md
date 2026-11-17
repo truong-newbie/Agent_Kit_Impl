@@ -2,9 +2,9 @@
 
 ## Current Status
 
-- **Active Branches:** `feat/c02-diff-fork` (`C02`, branched from `feat/c01-multikit` @ `9b5fe7b`), `feat/c01-multikit` (`C01` + `C04a`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `feat/v0.5` (`B01`–`B08`), and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`).
-- **CI Status:** `feat/c01-multikit` (`9b5fe7b`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `main` (`b78a6b3`, [Run 44020170539](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44020170539)), and `v0.5.0-rc.1` (`44020171382` + `release.yml` Draft Pre-release `44020171501`) passed **5/5 GitHub Actions jobs**; `feat/c02-diff-fork` CI will run upon push.
-- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), and Milestone C `C01` + `C04a` + `C02` are implemented; live model A/B & live Claude session hooks remain `blocked` (host `claude 2.1.319` returned `401 Invalid or expired API key` during isolated `--no-session-persistence` live probe, `total_cost_usd: 0`).
+- **Active Branches:** `feat/c03-lockfile` (`C03`, branched from `feat/c02-diff-fork` @ `772b522`), `feat/c02-diff-fork` (`C02`, [Run 44034433728](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44034433728)), `feat/c01-multikit` (`C01` + `C04a`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `feat/v0.5` (`B01`–`B08`), and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`).
+- **CI Status:** `feat/c02-diff-fork` (`772b522`, [Run 44034433728](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44034433728)), `feat/c01-multikit` (`9b5fe7b`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `main` (`b78a6b3`, [Run 44020170539](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44020170539)), and `v0.5.0-rc.1` (`44020171382` + `release.yml` Draft Pre-release `44020171501`) passed **5/5 GitHub Actions jobs**; `feat/c03-lockfile` CI will run upon push.
+- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), and Milestone C `C01` + `C04a` + `C02` + `C03` are implemented; live model A/B & live Claude session hooks remain `blocked` (host `claude 2.1.319` returned `401 Invalid or expired API key` during isolated `--no-session-persistence` live probe, `total_cost_usd: 0`).
 
 ### Hardening & Release Backlog Tracker (`N00`–`N12`)
 
@@ -319,13 +319,24 @@ Next independent work: Implement `C02` (`dtkit diff`, `dtkit fork`, `--diff`/`--
 ---
 
 ID: C02 (Preview Content Diff, Explain & Controlled Kit Fork)
-Status: verified (local Docker `verify-docker.ps1`; CI pending push on `feat/c02-diff-fork`)
-Baseline SHA / branch: `9b5fe7b` -> `feat/c02-diff-fork`
+Status: verified (`verify-docker.ps1` + GitHub Actions CI [Run 44034433728](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44034433728) 5/5 green)
+Baseline SHA / branch: `9b5fe7b` -> `feat/c02-diff-fork` (`772b522`)
 User-visible behavior and schema decisions: Added `planner.ExtractBlockForRuntime` (`internal/planner/block.go`) and `planner.ComputePlanDiff` / `planner.UnifiedDiff` (`internal/planner/diff.go`) generating bounded (`16 KiB`/file, `64 KiB` total), binary-safe unified diffs that isolate DTKit's own managed block without exposing user instructions outside managed blocks or unowned/conflicting files, and without auto-adopting direct drift edits. Added `dist.ForkKit` (`internal/dist/fork.go`) exporting verified kits into clean local directories (`package.json` with non-null slices, zero host/URL leakage, `duplicate_kit_id` guard unless `--same-id` with bumped semver, validated via `catalog.LoadDir` and multi-runtime render). Added `dtkit diff`, `dtkit fork`, `--diff`/`--redact` on `install` and `update`, and updated `dtkit completion` + `Envelope` (`Explain`, `Diff`, `Fork`).
 Files changed: `internal/planner/{block,diff,diff_test}.go`, `internal/dist/{fork,fork_test}.go`, `internal/cli/{cli,completion,diff,diff_fork_test,doctor,envelope,fork,install,update}.go`, `docs/{cli,progress}.md`
-Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (20/20 packages with `-race`), covering managed-block privacy, unowned-file silence, bounded diff truncation, binary guard, duplicate IDs, `--same-id` patch bump + repeat updates after fork, local resource resolution, and `--redact` home/token scrubbing.
-Acceptance still missing / external blocker: Multi-OS CI confirmation on `feat/c02-diff-fork`; next Milestone C slices `C03` (`dtkit.lock`), `C05`, and `C06`.
-Next independent work: Push `feat/c02-diff-fork` for 5/5 GitHub Actions CI, then proceed to `C03` (`dtkit.lock` reproducible lockfile).
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (20/20 packages with `-race`), plus GitHub Actions CI Run `44034433728` (5/5 jobs `success`).
+Acceptance still missing / external blocker: None for `C02`.
+Next independent work: Implement `C03` (`dtkit.lock`, reproducible sync & trust policy).
+
+---
+
+ID: C03 (Portable `dtkit.lock`, Reproducible Sync & Ed25519 Trust Policy)
+Status: verified (local Docker `verify-docker.ps1`; CI pending push on `feat/c03-lockfile`)
+Baseline SHA / branch: `772b522` -> `feat/c03-lockfile`
+User-visible behavior and schema decisions: Added [`docs/adr-lockfile-trust.md`](./adr-lockfile-trust.md) and [`schemas/lock.schema.json`](../schemas/lock.schema.json) (`schemaVersion: 1`) separating portable project declarations from machine-local state/journals. Rejects absolute/home/traversal paths, URL query secrets/userinfo, duplicate kits, and unknown fields (`dist.ParseAndValidateLockfile`). Added pure Go stdlib `crypto/ed25519` trust root & provenance helpers (`internal/dist/provenance.go`) supporting key generation, signing, multiple active keys (rotation), explicit `revoked` keys, RFC3339 `notAfter` expiration, `allowedKits` scoping, and verify-before-mutation (`VerifyProvenance`). Added `dtkit lock <generate|verify|diff|sign|keygen>` and `dtkit sync [--offline] [--require-signature] [--dry-run] [--diff]` installing/updating multi-kit locked projects deterministically from verified cache/relative/remote sources via `ExecuteTx`.
+Files changed: `docs/adr-lockfile-trust.md`, `schemas/{lock.schema.json,embed_test.go}`, `internal/dist/{lockfile,lockfile_test,provenance}.go`, `internal/cli/{cli,completion,envelope,lock,lock_sync_test,sync}.go`, `docs/{cli,progress}.md`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`20/20` packages with `-race`), verifying portability rejection, key rotation/revocation/expiration, offline verified cache hits vs misses, Machine A -> Machine B fresh-clone byte-identical offline `dtkit sync`, idempotent second sync, and verify-before-mutation fail-closed checks on revoked keys.
+Acceptance still missing / external blocker: Multi-OS CI confirmation on `feat/c03-lockfile`; remaining Milestone C slices `C04` (export/import onboarding), `C05` (additional runtime hook integrations), and `C06` (periodic compatibility & perf tracking).
+Next independent work: Push `feat/c03-lockfile` for 5/5 GitHub Actions CI, then proceed to `C04` (portable team onboarding export/import & repo template).
 
 ---
 
