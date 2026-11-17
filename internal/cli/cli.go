@@ -37,6 +37,7 @@ Usage:
   dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]
   dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [args]
   dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|claude>]
+  dtkit completion <bash|zsh|powershell>
 
 Examples:
   dtkit doctor
@@ -101,6 +102,8 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runHooks(ctx, args[1:], deps)
 	case "hook":
 		return runHookExec(ctx, args[1:], deps)
+	case "completion":
+		return runCompletion(args[1:], deps)
 	default:
 		if strings.HasPrefix(args[0], "-") {
 			err := apperr.Usage("unknown_option", fmt.Sprintf("unknown option %q", args[0]))
@@ -157,6 +160,9 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		return err
 	case "hooks":
 		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "completion":
+		_, err := io.WriteString(out, "Usage: dtkit completion <bash|zsh|powershell>\n")
 		return err
 	default:
 		_, err := io.WriteString(out, helpText)

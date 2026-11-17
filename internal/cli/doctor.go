@@ -13,7 +13,6 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 )
@@ -212,11 +211,6 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 		})
 	}
 
-	pkg, source, err := catalog.Engineer()
-	if err != nil {
-		return fail(err)
-	}
-
 	scopesToCheck := []string{scope}
 	if scope == "" {
 		scopesToCheck = []string{"project", "global"}
@@ -283,11 +277,7 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 			}
 		}
 
-		artifacts, err := adapter.RenderForRuntime(profile.ID, pkg, source, sc)
-		if err != nil {
-			return fail(err)
-		}
-		report, err := installer.InspectRuntime(profile.ID, sc, roots, artifacts)
+		reports, err := installer.InspectRuntimeAll(profile.ID, sc, roots)
 		if err != nil {
 			stateFailed = true
 			checks = append(checks, DoctorCheck{
@@ -298,37 +288,39 @@ func runDoctor(ctx context.Context, args []string, deps Deps) error {
 			})
 			continue
 		}
-		if report.RecoveryNeeded {
-			stateFailed = true
-			checks = append(checks, DoctorCheck{
-				Name:    "interrupted_transaction",
-				Scope:   sc,
-				Status:  "fail",
-				Message: report.Detail,
-				Hint:    fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", sc, profile.ID),
-			})
-		} else if !report.Installed {
-			checks = append(checks, DoctorCheck{
-				Name:    "installation_state",
-				Scope:   sc,
-				Status:  "pass",
-				Message: "not installed",
-			})
-		} else if report.ProfileMismatch || !report.Healthy {
-			stateFailed = true
-			checks = append(checks, DoctorCheck{
-				Name:    "installation_state",
-				Scope:   sc,
-				Status:  "fail",
-				Message: fmt.Sprintf("installed %s %s has drift or profile mismatch", report.KitID, report.KitVersion),
-			})
-		} else {
-			checks = append(checks, DoctorCheck{
-				Name:    "installation_state",
-				Scope:   sc,
-				Status:  "pass",
-				Message: fmt.Sprintf("healthy (%s %s)", report.KitID, report.KitVersion),
-			})
+		for _, report := range reports {
+			if report.RecoveryNeeded {
+				stateFailed = true
+				checks = append(checks, DoctorCheck{
+					Name:    "interrupted_transaction",
+					Scope:   sc,
+					Status:  "fail",
+					Message: report.Detail,
+					Hint:    fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", sc, profile.ID),
+				})
+			} else if !report.Installed {
+				checks = append(checks, DoctorCheck{
+					Name:    "installation_state",
+					Scope:   sc,
+					Status:  "pass",
+					Message: "not installed",
+				})
+			} else if report.ProfileMismatch || !report.Healthy {
+				stateFailed = true
+				checks = append(checks, DoctorCheck{
+					Name:    "installation_state",
+					Scope:   sc,
+					Status:  "fail",
+					Message: fmt.Sprintf("installed %s %s has drift or profile mismatch", report.KitID, report.KitVersion),
+				})
+			} else {
+				checks = append(checks, DoctorCheck{
+					Name:    "installation_state",
+					Scope:   sc,
+					Status:  "pass",
+					Message: fmt.Sprintf("healthy (%s %s)", report.KitID, report.KitVersion),
+				})
+			}
 		}
 	}
 

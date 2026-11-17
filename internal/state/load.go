@@ -23,6 +23,23 @@ func LoadFile(statePath, expectedScope string) (*Installation, bool, error) {
 
 // LoadFileForRuntime reads and strictly validates an existing state file for scope and optional runtime.
 func LoadFileForRuntime(statePath, expectedScope, expectedRuntime string) (*Installation, bool, error) {
+	reg, exists, err := LoadRegistryForRuntime(statePath, expectedScope, expectedRuntime)
+	if err != nil || !exists {
+		return nil, exists, err
+	}
+	if len(reg.Kits) != 1 {
+		return nil, true, apperr.WithPath(apperr.Conflict("multi_kit_state", "installation state contains multiple kits; use a multi-kit registry loader"), statePath)
+	}
+	id := reg.KitIDs()[0]
+	inst := reg.Kits[id]
+	if len(reg.Hooks) > 0 && len(inst.Hooks) == 0 {
+		inst.Hooks = reg.AllHooks()
+	}
+	return &inst, true, nil
+}
+
+// LoadRegistryForRuntime reads and strictly validates v1/v2 single-kit or v3 multi-kit state files.
+func LoadRegistryForRuntime(statePath, expectedScope, expectedRuntime string) (*Registry, bool, error) {
 	info, err := os.Lstat(statePath)
 	if os.IsNotExist(err) {
 		return nil, false, nil
@@ -51,14 +68,67 @@ func LoadFileForRuntime(statePath, expectedScope, expectedRuntime string) (*Inst
 	if len(data) > MaxStateBytes {
 		return nil, true, apperr.WithPath(apperr.Conflict("state_too_large", "installation state exceeds 4 MiB"), statePath)
 	}
-	inst, err := ParseAndValidate(data, expectedScope)
+	reg, err := ParseSnapshot(data, expectedScope)
 	if err != nil {
 		return nil, true, apperr.WithPath(apperr.Wrap(apperr.ExitConflict, "invalid_state", err.Error(), err), statePath)
 	}
-	if expectedRuntime != "" && inst.Runtime != expectedRuntime {
-		return nil, true, apperr.WithPath(apperr.Conflict("runtime_mismatch", fmt.Sprintf("installation state runtime %q does not match requested %q", inst.Runtime, expectedRuntime)), statePath)
+	if expectedRuntime != "" && reg.Runtime != expectedRuntime {
+		return nil, true, apperr.WithPath(apperr.Conflict("runtime_mismatch", fmt.Sprintf("installation state runtime %q does not match requested %q", reg.Runtime, expectedRuntime)), statePath)
 	}
-	return &inst, true, nil
+	return &reg, true, nil
+}
+
+// ParseSnapshot strictly decodes and validates v1/v2 Installation or v3 Registry JSON bytes into a Registry.
+func ParseSnapshot(data []byte, expectedScope string) (Registry, error) {
+	var reg Registry
+	if !utf8.Valid(data) {
+		return reg, fmt.Errorf("installation state is not valid UTF-8")
+	}
+	if err := rejectDuplicateJSONKeys(data); err != nil {
+		return reg, fmt.Errorf("invalid installation state JSON: %w", err)
+	}
+	var header struct {
+		SchemaVersion int `json:"schemaVersion"`
+	}
+	if err := json.Unmarshal(data, &header); err != nil {
+		return reg, fmt.Errorf("invalid installation state: %w", err)
+	}
+	if header.SchemaVersion == 3 {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&reg); err != nil {
+			return reg, fmt.Errorf("invalid installation registry: %w", err)
+		}
+		if err := dec.Decode(new(any)); err != io.EOF {
+			return reg, fmt.Errorf("installation state must contain one JSON object")
+		}
+		if expectedScope != "" && reg.Scope != expectedScope {
+			return reg, fmt.Errorf("installation state scope %q does not match requested %q", reg.Scope, expectedScope)
+		}
+		if err := reg.ValidateSelf(); err != nil {
+			return reg, err
+		}
+		return reg, nil
+	}
+
+	inst, err := ParseAndValidate(data, expectedScope)
+	if err != nil {
+		return reg, err
+	}
+	reg = Registry{
+		SchemaVersion:     inst.SchemaVersion,
+		ManagedBy:         "dtkit",
+		Scope:             inst.Scope,
+		Runtime:           inst.Runtime,
+		AdapterRevision:   inst.AdapterRevision,
+		CodexHome:         inst.CodexHome,
+		RuntimeHome:       inst.RuntimeHome,
+		Kits:              map[string]Installation{inst.Kit.ID: inst},
+		Hooks:             append([]HookRegistration(nil), inst.Hooks...),
+		LastTransactionID: inst.LastTransactionID,
+		UpdatedAt:         inst.UpdatedAt,
+	}
+	return reg, nil
 }
 
 // ParseAndValidate strictly decodes and validates state JSON bytes.

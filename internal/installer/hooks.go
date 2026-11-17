@@ -80,16 +80,20 @@ func InspectHooksForRuntime(runtimeName, scope string, roots map[string]string) 
 	if err != nil {
 		return nil, err
 	}
-	existing, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
+	existingReg, exists, err := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
 	if err != nil {
 		return nil, err
 	}
-	if !exists || len(existing.Hooks) == 0 {
+	hooksList := []state.HookRegistration(nil)
+	if exists {
+		hooksList = existingReg.AllHooks()
+	}
+	if !exists || len(hooksList) == 0 {
 		return defaultHooksForRuntime(profile.ID, scope), nil
 	}
 
-	out := make([]HookStatusInfo, 0, len(existing.Hooks))
-	for _, reg := range existing.Hooks {
+	out := make([]HookStatusInfo, 0, len(hooksList))
+	for _, reg := range hooksList {
 		st := HookStatusInfo{
 			ID:             reg.ID,
 			Runtime:        profile.ID,
@@ -197,14 +201,14 @@ func EnableHookForRuntime(runtimeName, scope, hookID string, roots, otherScopeRo
 	if err != nil {
 		return res, false, err
 	}
-	existing, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
+	existingReg, exists, err := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
 	if err != nil {
 		return res, false, err
 	}
-	if !exists {
+	if !exists || len(existingReg.Kits) == 0 {
 		return res, false, apperr.WithHint(apperr.Conflict("not_installed", fmt.Sprintf("DTKit is not installed in %s scope (%s)", scope, profile.ID)), fmt.Sprintf("run dtkit install engineer --%s --runtime %s --yes first", scope, profile.ID))
 	}
-	if err := checkGlobalHomeBinding(profile, scope, existing.GlobalHome(), roots); err != nil {
+	if err := checkGlobalHomeBinding(profile, scope, existingReg.GlobalHome(), roots); err != nil {
 		return res, false, err
 	}
 
@@ -215,8 +219,8 @@ func EnableHookForRuntime(runtimeName, scope, hookID string, roots, otherScopeRo
 			otherScope = "project"
 		}
 		if otherStatePath, rErr := runtimeStateTarget(profile.ID, otherScope, otherScopeRoots); rErr == nil {
-			if otherInst, otherExists, oErr := state.LoadFileForRuntime(otherStatePath, otherScope, profile.ID); oErr == nil && otherExists {
-				for _, h := range otherInst.Hooks {
+			if otherReg, otherExists, oErr := state.LoadRegistryForRuntime(otherStatePath, otherScope, profile.ID); oErr == nil && otherExists {
+				for _, h := range otherReg.AllHooks() {
 					if h.ID == hookID {
 						return res, false, apperr.WithHint(
 							apperr.Conflict("hook_scope_conflict", fmt.Sprintf("hook %q is already enabled in %s scope (%s); enabling both scopes causes duplicate execution", hookID, otherScope, profile.ID)),
@@ -228,7 +232,7 @@ func EnableHookForRuntime(runtimeName, scope, hookID string, roots, otherScopeRo
 		}
 	}
 
-	for _, h := range existing.Hooks {
+	for _, h := range existingReg.AllHooks() {
 		if h.ID == hookID {
 			if h.Executable == exePath {
 				statuses, sErr := InspectHooksForRuntime(profile.ID, scope, roots)
@@ -325,24 +329,16 @@ func EnableHookForRuntime(runtimeName, scope, hookID string, roots, otherScopeRo
 		return res, true, nil
 	}
 
-	nextState := *existing
-	nextState.SchemaVersion = 2
-	nextState.Generation = existing.Generation + 1
-	nextState.UpdatedAt = now.UTC().Format(time.RFC3339)
-	nextState.Hooks = append(append([]state.HookRegistration(nil), existing.Hooks...), reg)
-	if err := nextState.ValidateSelf(); err != nil {
-		return res, false, err
-	}
-
+	primaryKitID := existingReg.KitIDs()[0]
 	kind := "create"
 	if targetExisted {
 		kind = "update"
 	}
-	_, err = ExecuteTx(TxRequest{
+	txReq := TxRequest{
 		Runtime:   profile.ID,
 		Operation: "update",
 		Scope:     scope,
-		KitID:     existing.Kit.ID,
+		KitID:     primaryKitID,
 		Roots:     roots,
 		Actions: []TxAction{{
 			Root:     rootKey,
@@ -354,11 +350,29 @@ func EnableHookForRuntime(runtimeName, scope, hookID string, roots, otherScopeRo
 			After:    merged,
 			Mode:     mode,
 		}},
-		PrevState: existing,
-		NextState: &nextState,
-		Now:       now,
-		Hooks:     txHooks,
-	})
+		Now:   now,
+		Hooks: txHooks,
+	}
+	if len(existingReg.Kits) >= 2 {
+		nextReg := cloneRegistry(*existingReg)
+		nextReg.UpdatedAt = now.UTC().Format(time.RFC3339)
+		nextReg.Hooks = append(existingReg.AllHooks(), reg)
+		txReq.PrevRegistry = existingReg
+		txReq.NextRegistry = &nextReg
+	} else {
+		sole := existingReg.Kits[primaryKitID]
+		nextState := sole
+		nextState.SchemaVersion = 2
+		nextState.Generation = sole.Generation + 1
+		nextState.UpdatedAt = now.UTC().Format(time.RFC3339)
+		nextState.Hooks = append(existingReg.AllHooks(), reg)
+		if err := nextState.ValidateSelf(); err != nil {
+			return res, false, err
+		}
+		txReq.PrevState = &sole
+		txReq.NextState = &nextState
+	}
+	_, err = ExecuteTx(txReq)
 	if err != nil {
 		return res, false, err
 	}
@@ -404,19 +418,20 @@ func DisableHookForRuntime(runtimeName, scope, hookID string, roots map[string]s
 	if err != nil {
 		return res, false, err
 	}
-	existing, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
+	existingReg, exists, err := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
 	if err != nil {
 		return res, false, err
 	}
-	if !exists {
+	if !exists || len(existingReg.Kits) == 0 {
 		return res, false, nil
 	}
-	if err := checkGlobalHomeBinding(profile, scope, existing.GlobalHome(), roots); err != nil {
+	if err := checkGlobalHomeBinding(profile, scope, existingReg.GlobalHome(), roots); err != nil {
 		return res, false, err
 	}
 
+	hooksList := existingReg.AllHooks()
 	idx := -1
-	for i, h := range existing.Hooks {
+	for i, h := range hooksList {
 		if h.ID == hookID {
 			idx = i
 			break
@@ -425,7 +440,7 @@ func DisableHookForRuntime(runtimeName, scope, hookID string, roots map[string]s
 	if idx < 0 {
 		return res, false, nil
 	}
-	reg := existing.Hooks[idx]
+	reg := hooksList[idx]
 	res.Root = reg.Root
 	res.Path = reg.Path
 
@@ -437,27 +452,39 @@ func DisableHookForRuntime(runtimeName, scope, hookID string, roots map[string]s
 		return res, true, nil
 	}
 
-	nextState := *existing
-	nextState.Generation = existing.Generation + 1
-	nextState.UpdatedAt = now.UTC().Format(time.RFC3339)
-	nextState.Hooks = append([]state.HookRegistration(nil), existing.Hooks[:idx]...)
-	nextState.Hooks = append(nextState.Hooks, existing.Hooks[idx+1:]...)
-	if err := nextState.ValidateSelf(); err != nil {
-		return res, false, err
-	}
+	primaryKitID := existingReg.KitIDs()[0]
+	updatedHooks := append([]state.HookRegistration(nil), hooksList[:idx]...)
+	updatedHooks = append(updatedHooks, hooksList[idx+1:]...)
 
-	_, err = ExecuteTx(TxRequest{
+	txReq := TxRequest{
 		Runtime:   profile.ID,
 		Operation: "update",
 		Scope:     scope,
-		KitID:     existing.Kit.ID,
+		KitID:     primaryKitID,
 		Roots:     roots,
 		Actions:   []TxAction{action},
-		PrevState: existing,
-		NextState: &nextState,
 		Now:       now,
 		Hooks:     txHooks,
-	})
+	}
+	if len(existingReg.Kits) >= 2 {
+		nextReg := cloneRegistry(*existingReg)
+		nextReg.UpdatedAt = now.UTC().Format(time.RFC3339)
+		nextReg.Hooks = updatedHooks
+		txReq.PrevRegistry = existingReg
+		txReq.NextRegistry = &nextReg
+	} else {
+		sole := existingReg.Kits[primaryKitID]
+		nextState := sole
+		nextState.Generation = sole.Generation + 1
+		nextState.UpdatedAt = now.UTC().Format(time.RFC3339)
+		nextState.Hooks = updatedHooks
+		if err := nextState.ValidateSelf(); err != nil {
+			return res, false, err
+		}
+		txReq.PrevState = &sole
+		txReq.NextState = &nextState
+	}
+	_, err = ExecuteTx(txReq)
 	if err != nil {
 		return res, false, err
 	}

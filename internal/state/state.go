@@ -4,9 +4,11 @@ package state
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
@@ -77,6 +79,185 @@ func (s Installation) GlobalHome() string {
 	return s.RuntimeHome
 }
 
+// Registry tracks one or more installed kits in a single (runtime, scope).
+// Single-kit registries serialize as v1/v2 Installation for backward compatibility;
+// multi-kit registries serialize as schemaVersion 3.
+type Registry struct {
+	SchemaVersion     int                     `json:"schemaVersion"`
+	ManagedBy         string                  `json:"managedBy"`
+	Scope             string                  `json:"scope"`
+	Runtime           string                  `json:"runtime"`
+	AdapterRevision   string                  `json:"adapterRevision"`
+	CodexHome         string                  `json:"codexHome,omitempty"`
+	RuntimeHome       string                  `json:"runtimeHome,omitempty"`
+	Kits              map[string]Installation `json:"kits"`
+	Hooks             []HookRegistration      `json:"hooks,omitempty"`
+	LastTransactionID string                  `json:"lastTransactionID,omitempty"`
+	UpdatedAt         string                  `json:"updatedAt"`
+}
+
+func (r Registry) GlobalHome() string {
+	if r.CodexHome != "" {
+		return r.CodexHome
+	}
+	return r.RuntimeHome
+}
+
+// KitIDs returns sorted installed kit IDs in this registry.
+func (r Registry) KitIDs() []string {
+	ids := make([]string, 0, len(r.Kits))
+	for id := range r.Kits {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// AllHooks returns active hook registrations for this (runtime, scope).
+func (r Registry) AllHooks() []HookRegistration {
+	if len(r.Hooks) > 0 {
+		return append([]HookRegistration(nil), r.Hooks...)
+	}
+	for _, id := range r.KitIDs() {
+		if len(r.Kits[id].Hooks) > 0 {
+			return append([]HookRegistration(nil), r.Kits[id].Hooks...)
+		}
+	}
+	return nil
+}
+
+// PeerOwnedWholeFiles returns a map of normalized Root+"\x00"+Path -> ownerKitID for
+// whole-file artifacts owned by kits other than excludeKitID.
+func (r Registry) PeerOwnedWholeFiles(excludeKitID string) map[string]string {
+	out := map[string]string{}
+	for _, kitID := range r.KitIDs() {
+		if kitID == excludeKitID {
+			continue
+		}
+		for _, a := range r.Kits[kitID].Artifacts {
+			if a.Strategy == "whole-file" {
+				out[strings.ToLower(a.Root+"\x00"+a.Path)] = kitID
+			}
+		}
+	}
+	return out
+}
+
+// ValidateSelf verifies structural, allowlist, and cross-kit disjoint ownership invariants of a v3 Registry.
+func (r Registry) ValidateSelf() error {
+	if r.SchemaVersion != 3 {
+		return fmt.Errorf("unsupported installation registry schemaVersion %d (expected 3)", r.SchemaVersion)
+	}
+	if r.ManagedBy != "dtkit" || r.Runtime == "" {
+		return fmt.Errorf("unsupported or invalid installation registry metadata")
+	}
+	profile, ok := adapter.Profile(r.Runtime)
+	if !ok || r.AdapterRevision != profile.Revision {
+		return fmt.Errorf("unsupported or invalid installation registry metadata")
+	}
+	if !profile.SupportsScope(r.Scope) {
+		return fmt.Errorf("invalid installation registry scope")
+	}
+	if err := validateHomeBinding(profile, r.Scope, r.CodexHome, r.RuntimeHome); err != nil {
+		return err
+	}
+	if r.UpdatedAt == "" {
+		return fmt.Errorf("missing installation registry timestamp")
+	}
+	if len(r.Kits) < 2 {
+		return fmt.Errorf("v3 multi-kit registry requires at least 2 installed kits")
+	}
+	if err := validateHookList(profile, r.Scope, "engineer", r.Hooks); err != nil {
+		return err
+	}
+	wholeOwners := map[string]string{}
+	for mapKey, inst := range r.Kits {
+		if mapKey != inst.Kit.ID {
+			return fmt.Errorf("registry kit key %q does not match installation kit.id %q", mapKey, inst.Kit.ID)
+		}
+		if err := inst.ValidateSelf(); err != nil {
+			return fmt.Errorf("registry kit %q invalid: %w", mapKey, err)
+		}
+		if inst.Scope != r.Scope || inst.Runtime != r.Runtime || inst.AdapterRevision != r.AdapterRevision {
+			return fmt.Errorf("registry kit %q metadata mismatches scope/runtime/revision", mapKey)
+		}
+		if inst.GlobalHome() != r.GlobalHome() {
+			return fmt.Errorf("registry kit %q home binding mismatches registry", mapKey)
+		}
+		if len(inst.Hooks) > 0 {
+			return fmt.Errorf("registry kit %q cannot carry per-kit hooks in v3 (use top-level hooks)", mapKey)
+		}
+		for _, a := range inst.Artifacts {
+			if a.Strategy != "whole-file" {
+				continue
+			}
+			k := strings.ToLower(a.Root + "\x00" + a.Path)
+			if prev, exists := wholeOwners[k]; exists {
+				return fmt.Errorf("whole-file artifact %s:%s claimed by multiple kits (%s and %s)", a.Root, a.Path, prev, mapKey)
+			}
+			wholeOwners[k] = mapKey
+		}
+	}
+	return nil
+}
+
+// MarshalSnapshot serializes reg deterministically: 0 kits -> (nil, nil), 1 kit -> v1/v2 Installation,
+// >= 2 kits -> v3 Registry.
+func (r Registry) MarshalSnapshot(txID string) ([]byte, error) {
+	if len(r.Kits) == 0 {
+		return nil, nil
+	}
+	if len(r.Kits) == 1 {
+		id := r.KitIDs()[0]
+		inst := r.Kits[id]
+		hooks := r.AllHooks()
+		inst.Hooks = hooks
+		if len(hooks) > 0 {
+			inst.SchemaVersion = 2
+		} else if inst.SchemaVersion == 0 || inst.SchemaVersion == 3 || inst.SchemaVersion == 2 {
+			inst.SchemaVersion = 1
+		}
+		if txID != "" {
+			inst.LastTransactionID = txID
+		}
+		return json.MarshalIndent(inst, "", "  ")
+	}
+
+	out := Registry{
+		SchemaVersion:     3,
+		ManagedBy:         "dtkit",
+		Scope:             r.Scope,
+		Runtime:           r.Runtime,
+		AdapterRevision:   r.AdapterRevision,
+		CodexHome:         r.CodexHome,
+		RuntimeHome:       r.RuntimeHome,
+		Kits:              make(map[string]Installation, len(r.Kits)),
+		Hooks:             r.AllHooks(),
+		LastTransactionID: txID,
+		UpdatedAt:         r.UpdatedAt,
+	}
+	if out.LastTransactionID == "" {
+		out.LastTransactionID = r.LastTransactionID
+	}
+	latestUpdated := out.UpdatedAt
+	for _, id := range r.KitIDs() {
+		inst := r.Kits[id]
+		inst.Hooks = nil
+		if inst.SchemaVersion == 0 || inst.SchemaVersion == 3 || inst.SchemaVersion == 2 {
+			inst.SchemaVersion = 1
+		}
+		if latestUpdated == "" || inst.UpdatedAt > latestUpdated {
+			latestUpdated = inst.UpdatedAt
+		}
+		out.Kits[id] = inst
+	}
+	out.UpdatedAt = latestUpdated
+	if err := out.ValidateSelf(); err != nil {
+		return nil, err
+	}
+	return json.MarshalIndent(out, "", "  ")
+}
+
 var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 var kitIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
@@ -97,16 +278,8 @@ func (s Installation) validateCommon() error {
 	if !profile.SupportsScope(s.Scope) {
 		return fmt.Errorf("invalid installation scope")
 	}
-	if profile.UsesCodexHome {
-		if (s.Scope == "project" && (s.CodexHome != "" || s.RuntimeHome != "")) || (s.Scope == "global" && (!filepath.IsAbs(s.CodexHome) || s.RuntimeHome != "")) {
-			return fmt.Errorf("invalid Codex home binding")
-		}
-	} else if profile.GlobalHomeKey != "" {
-		if (s.Scope == "project" && (s.RuntimeHome != "" || s.CodexHome != "")) || (s.Scope == "global" && (!filepath.IsAbs(s.RuntimeHome) || s.CodexHome != "")) {
-			return fmt.Errorf("invalid %s home binding", profile.DisplayName)
-		}
-	} else if s.CodexHome != "" || s.RuntimeHome != "" {
-		return fmt.Errorf("unexpected runtime home binding for %s", profile.DisplayName)
+	if err := validateHomeBinding(profile, s.Scope, s.CodexHome, s.RuntimeHome); err != nil {
+		return err
 	}
 	if !kitIDPattern.MatchString(s.Kit.ID) || len(s.Kit.ID) > 32 || !versionPattern.MatchString(s.Kit.Version) || !validDigest(s.Kit.Digest) {
 		return fmt.Errorf("invalid installed kit")
@@ -131,12 +304,31 @@ func (s Installation) validateCommon() error {
 	return s.validateHooks(profile)
 }
 
+func validateHomeBinding(profile adapter.RuntimeProfile, scope, codexHome, runtimeHome string) error {
+	if profile.UsesCodexHome {
+		if (scope == "project" && (codexHome != "" || runtimeHome != "")) || (scope == "global" && (!filepath.IsAbs(codexHome) || runtimeHome != "")) {
+			return fmt.Errorf("invalid Codex home binding")
+		}
+	} else if profile.GlobalHomeKey != "" {
+		if (scope == "project" && (runtimeHome != "" || codexHome != "")) || (scope == "global" && (!filepath.IsAbs(runtimeHome) || codexHome != "")) {
+			return fmt.Errorf("invalid %s home binding", profile.DisplayName)
+		}
+	} else if codexHome != "" || runtimeHome != "" {
+		return fmt.Errorf("unexpected runtime home binding for %s", profile.DisplayName)
+	}
+	return nil
+}
+
 func (s Installation) validateHooks(profile adapter.RuntimeProfile) error {
-	if !profile.HooksSupported && len(s.Hooks) > 0 {
-		return fmt.Errorf("hooks are not supported for runtime %q", s.Runtime)
+	return validateHookList(profile, s.Scope, s.Kit.ID, s.Hooks)
+}
+
+func validateHookList(profile adapter.RuntimeProfile, scope, kitID string, hooks []HookRegistration) error {
+	if !profile.HooksSupported && len(hooks) > 0 {
+		return fmt.Errorf("hooks are not supported for runtime %q", profile.ID)
 	}
 	seenIDs := map[string]bool{}
-	for _, h := range s.Hooks {
+	for _, h := range hooks {
 		if !kitIDPattern.MatchString(h.ID) || !kitIDPattern.MatchString(h.HandlerID) {
 			return fmt.Errorf("invalid hook id %q", h.ID)
 		}
@@ -147,7 +339,7 @@ func (s Installation) validateHooks(profile adapter.RuntimeProfile) error {
 			return fmt.Errorf("duplicate hook %q", h.ID)
 		}
 		seenIDs[h.ID] = true
-		if !IsAllowedRuntimeArtifactPath(s.Runtime, s.Scope, s.Kit.ID, h.Root, h.Path, "hooks-json") {
+		if !IsAllowedRuntimeArtifactPath(profile.ID, scope, kitID, h.Root, h.Path, "hooks-json") {
 			return fmt.Errorf("hook target %s:%s outside allowlist", h.Root, h.Path)
 		}
 		if strings.TrimSpace(h.Command) == "" || strings.TrimSpace(h.CommandWindows) == "" || !filepath.IsAbs(h.Executable) {

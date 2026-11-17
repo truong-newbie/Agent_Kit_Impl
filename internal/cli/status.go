@@ -8,7 +8,6 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
@@ -70,11 +69,6 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 	env.Runtime = primaryProfile.ID
 	env.Scope = scope
 
-	pkg, source, err := catalog.Engineer()
-	if err != nil {
-		return fail(err)
-	}
-
 	scopesToCheck := []string{scope}
 	if scope == "" {
 		scopesToCheck = []string{"project", "global"}
@@ -113,29 +107,27 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 			if isPrimary {
 				env.Warnings = append(env.Warnings, rootWarnings...)
 			}
-			artifacts, rRenderErr := adapter.RenderForRuntime(rtProfile.ID, pkg, source, sc)
-			if rRenderErr != nil {
-				return fail(rRenderErr)
-			}
-			report, inspectErr := installer.InspectRuntime(rtProfile.ID, sc, roots, artifacts)
+			rtReports, inspectErr := installer.InspectRuntimeAll(rtProfile.ID, sc, roots)
 			if inspectErr != nil {
 				return fail(inspectErr)
 			}
-			if !isPrimary && !report.Installed && !report.RecoveryNeeded {
-				continue
-			}
-			if runtimeArg == rtProfile.ID || report.Installed {
-				if report.Capabilities != nil && !report.Capabilities.Instructions.DTKitSupported && report.Capabilities.Instructions.Note != "" {
-					appendUniqueWarning(&env.Warnings, report.Capabilities.Instructions.Note)
+			for _, report := range rtReports {
+				if !isPrimary && !report.Installed && !report.RecoveryNeeded {
+					continue
 				}
-				if _, lookErr := deps.LookPath(rtProfile.Binary); lookErr != nil {
-					appendUniqueWarning(&env.Warnings, fmt.Sprintf("%s executable not found on PATH; files will still be installed", rtProfile.Binary))
+				if runtimeArg == rtProfile.ID || report.Installed {
+					if report.Capabilities != nil && !report.Capabilities.Instructions.DTKitSupported && report.Capabilities.Instructions.Note != "" {
+						appendUniqueWarning(&env.Warnings, report.Capabilities.Instructions.Note)
+					}
+					if _, lookErr := deps.LookPath(rtProfile.Binary); lookErr != nil {
+						appendUniqueWarning(&env.Warnings, fmt.Sprintf("%s executable not found on PATH; files will still be installed", rtProfile.Binary))
+					}
 				}
+				if report.RecoveryNeeded || (report.Installed && (!report.Healthy || report.ProfileMismatch)) {
+					hasDrift = true
+				}
+				reports = append(reports, report)
 			}
-			if report.RecoveryNeeded || (report.Installed && (!report.Healthy || report.ProfileMismatch)) {
-				hasDrift = true
-			}
-			reports = append(reports, report)
 		}
 	}
 

@@ -42,53 +42,65 @@ func PlanUpdate(scope string, roots map[string]string, pkg catalog.Package, pkgD
 
 // PlanUpdateForRuntime checks version/digest/adapter rules for runtimeName and reconciles state, disk, and desired artifacts.
 func PlanUpdateForRuntime(runtimeName, scope string, roots map[string]string, pkg catalog.Package, pkgDigest string, desired []adapter.Artifact, adapterRev string) (planner.InstallPlan, *state.Installation, bool, error) {
+	plan, _, existing, adapterMigration, err := planUpdateWithRegistry(runtimeName, scope, roots, pkg, pkgDigest, desired, adapterRev)
+	return plan, existing, adapterMigration, err
+}
+
+func planUpdateWithRegistry(runtimeName, scope string, roots map[string]string, pkg catalog.Package, pkgDigest string, desired []adapter.Artifact, adapterRev string) (planner.InstallPlan, *state.Registry, *state.Installation, bool, error) {
 	profile, pErr := runtimeProfile(runtimeName)
 	if pErr != nil {
-		return planner.InstallPlan{}, nil, false, pErr
+		return planner.InstallPlan{}, nil, nil, false, pErr
 	}
 	if adapterRev == "" {
 		adapterRev = profile.Revision
 	}
 	if !profile.SupportsScope(scope) {
-		return planner.InstallPlan{}, nil, false, apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", scope))
+		return planner.InstallPlan{}, nil, nil, false, apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", scope))
 	}
 	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
-		return planner.InstallPlan{}, nil, false, err
+		return planner.InstallPlan{}, nil, nil, false, err
 	}
 	if len(pending) > 0 || lockStatus.Present {
-		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", scope, profile.ID))
+		return planner.InstallPlan{}, nil, nil, false, apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", scope, profile.ID))
 	}
 
 	statePath, err := runtimeStateTarget(profile.ID, scope, roots)
 	if err != nil {
-		return planner.InstallPlan{}, nil, false, err
+		return planner.InstallPlan{}, nil, nil, false, err
 	}
-	existing, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
+	reg, exists, err := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
 	if err != nil {
-		return planner.InstallPlan{}, nil, false, err
+		return planner.InstallPlan{}, nil, nil, false, err
 	}
 	if !exists {
-		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("not_installed", fmt.Sprintf("kit %q is not installed in %s scope (%s)", pkg.ID, scope, profile.ID)), fmt.Sprintf("run dtkit install %s --%s --runtime %s", pkg.ID, scope, profile.ID))
+		return planner.InstallPlan{}, nil, nil, false, apperr.WithHint(apperr.Conflict("not_installed", fmt.Sprintf("kit %q is not installed in %s scope (%s)", pkg.ID, scope, profile.ID)), fmt.Sprintf("run dtkit install %s --%s --runtime %s", pkg.ID, scope, profile.ID))
 	}
-	if existing.Kit.ID != pkg.ID {
-		return planner.InstallPlan{}, existing, false, apperr.Conflict("kit_id_mismatch", fmt.Sprintf("installed kit %q does not match requested %q", existing.Kit.ID, pkg.ID))
+	if err := checkGlobalHomeBinding(profile, scope, reg.GlobalHome(), roots); err != nil {
+		return planner.InstallPlan{}, reg, nil, false, err
 	}
-	if err := checkGlobalHomeBinding(profile, scope, existing.GlobalHome(), roots); err != nil {
-		return planner.InstallPlan{}, existing, false, err
+	existingVal, ok := reg.Kits[pkg.ID]
+	if !ok {
+		if len(reg.Kits) == 1 {
+			soleID := reg.KitIDs()[0]
+			sole := reg.Kits[soleID]
+			return planner.InstallPlan{}, reg, &sole, false, apperr.Conflict("kit_id_mismatch", fmt.Sprintf("installed kit %q does not match requested %q", soleID, pkg.ID))
+		}
+		return planner.InstallPlan{}, reg, nil, false, apperr.WithHint(apperr.Conflict("not_installed", fmt.Sprintf("kit %q is not installed in %s scope (%s)", pkg.ID, scope, profile.ID)), fmt.Sprintf("run dtkit install %s --%s --runtime %s", pkg.ID, scope, profile.ID))
 	}
+	existing := &existingVal
 
 	cmp, err := compareSemver(pkg.Version, existing.Kit.Version)
 	if err != nil {
-		return planner.InstallPlan{}, existing, false, err
+		return planner.InstallPlan{}, reg, existing, false, err
 	}
 	if cmp < 0 {
-		return planner.InstallPlan{}, existing, false, apperr.Conflict("downgrade_not_supported", fmt.Sprintf("cannot downgrade %s from %s to %s (downgrades are not supported)", pkg.ID, existing.Kit.Version, pkg.Version))
+		return planner.InstallPlan{}, reg, existing, false, apperr.Conflict("downgrade_not_supported", fmt.Sprintf("cannot downgrade %s from %s to %s (downgrades are not supported)", pkg.ID, existing.Kit.Version, pkg.Version))
 	}
 	adapterMigration := false
 	if cmp == 0 {
 		if pkgDigest != existing.Kit.Digest {
-			return planner.InstallPlan{}, existing, false, apperr.WithHint(
+			return planner.InstallPlan{}, reg, existing, false, apperr.WithHint(
 				apperr.Conflict("immutable_version", fmt.Sprintf("package version %s has a different digest than installed state; bump package version to update", pkg.Version)),
 				"bump kit version in package.json; to replace an unreleased dev snapshot at the same version, run 'dtkit remove' then 'dtkit install'",
 			)
@@ -98,11 +110,12 @@ func PlanUpdateForRuntime(runtimeName, scope string, roots map[string]string, pk
 		}
 	}
 
-	plan, err := planner.PlanDesiredForRuntime(profile.ID, scope, pkg.ID, roots, existing, desired)
+	peerWhole := reg.PeerOwnedWholeFiles(pkg.ID)
+	plan, err := planner.PlanDesiredWithPeersForRuntime(profile.ID, scope, pkg.ID, roots, existing, peerWhole, desired)
 	if err != nil {
-		return planner.InstallPlan{}, existing, adapterMigration, err
+		return planner.InstallPlan{}, reg, existing, adapterMigration, err
 	}
-	return plan, existing, adapterMigration, nil
+	return plan, reg, existing, adapterMigration, nil
 }
 
 // Update upgrades or migrates an existing installation inside a P1 transaction.
@@ -124,7 +137,7 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 		return res, err
 	}
 
-	plan, existing, adapterMigration, err := PlanUpdateForRuntime(profile.ID, scope, roots, pkg, pkgDigest, desired, adapterRev)
+	plan, existingReg, existing, adapterMigration, err := planUpdateWithRegistry(profile.ID, scope, roots, pkg, pkgDigest, desired, adapterRev)
 	res.Plan = plan
 	res.AdapterMigration = adapterMigration
 	if err != nil {
@@ -303,18 +316,29 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 		}
 	}
 
-	txRes, err := ExecuteTx(TxRequest{
+	txReq := TxRequest{
 		Runtime:   profile.ID,
 		Operation: "update",
 		Scope:     scope,
 		KitID:     pkg.ID,
 		Roots:     roots,
 		Actions:   txActions,
-		PrevState: existing,
-		NextState: &nextState,
 		Now:       now,
 		Hooks:     opts.Hooks,
-	})
+	}
+	if len(existingReg.Kits) >= 2 {
+		nextReg := cloneRegistry(*existingReg)
+		nextStateCopy := nextState
+		nextStateCopy.Hooks = nil
+		nextReg.Kits[pkg.ID] = nextStateCopy
+		nextReg.UpdatedAt = nextStateCopy.UpdatedAt
+		txReq.PrevRegistry = existingReg
+		txReq.NextRegistry = &nextReg
+	} else {
+		txReq.PrevState = existing
+		txReq.NextState = &nextState
+	}
+	txRes, err := ExecuteTx(txReq)
 	if err != nil {
 		return res, err
 	}

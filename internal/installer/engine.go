@@ -44,16 +44,18 @@ type TxAction struct {
 }
 
 type TxRequest struct {
-	Runtime   string // optional; defaults to codex
-	Operation string // install | update | remove
-	Scope     string // project | global
-	KitID     string
-	Roots     map[string]string
-	Actions   []TxAction
-	PrevState *state.Installation
-	NextState *state.Installation
-	Now       time.Time
-	Hooks     *TxHooks
+	Runtime      string // optional; defaults to codex
+	Operation    string // install | update | remove
+	Scope        string // project | global
+	KitID        string
+	Roots        map[string]string
+	Actions      []TxAction
+	PrevState    *state.Installation
+	NextState    *state.Installation
+	PrevRegistry *state.Registry
+	NextRegistry *state.Registry
+	Now          time.Time
+	Hooks        *TxHooks
 }
 
 type TxResult struct {
@@ -141,29 +143,41 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 		return res, err
 	}
 
-	// Re-verify complete state snapshot matches expected PrevState under lock.
+	// Re-verify complete state snapshot matches expected PrevState/PrevRegistry under lock.
 	var prevStateBytes []byte
 	prevStateExists := false
 	if existingState, readErr := readRegularLimited(statePath, maxStateBytes); readErr == nil {
 		prevStateExists = true
 		prevStateBytes = existingState
-		if req.PrevState == nil {
-			return res, apperr.WithPath(apperr.Conflict("state_appeared", "installation state appeared after preview"), statePath)
-		}
-		currentState, parseErr := state.ParseAndValidate(existingState, req.Scope)
-		if parseErr != nil || currentState.Runtime != profile.ID {
-			return res, apperr.Wrap(apperr.ExitConflict, "invalid_state", "existing installation state is invalid", parseErr)
-		}
-		curCanon, mErr1 := json.Marshal(currentState)
-		prevCopy := *req.PrevState
-		prevCopy.Runtime = adapter.NormalizeRuntime(prevCopy.Runtime)
-		prevCanon, mErr2 := json.Marshal(prevCopy)
-		if mErr1 != nil || mErr2 != nil || !bytes.Equal(curCanon, prevCanon) {
-			return res, apperr.Conflict("state_changed", "installation state changed after preview")
+		if req.PrevRegistry != nil {
+			currentReg, parseErr := state.ParseSnapshot(existingState, req.Scope)
+			if parseErr != nil || currentReg.Runtime != profile.ID {
+				return res, apperr.Wrap(apperr.ExitConflict, "invalid_state", "existing installation state is invalid", parseErr)
+			}
+			curCanon, mErr1 := currentReg.MarshalSnapshot("")
+			prevCanon, mErr2 := req.PrevRegistry.MarshalSnapshot("")
+			if mErr1 != nil || mErr2 != nil || !bytes.Equal(curCanon, prevCanon) {
+				return res, apperr.Conflict("state_changed", "installation state changed after preview")
+			}
+		} else {
+			if req.PrevState == nil {
+				return res, apperr.WithPath(apperr.Conflict("state_appeared", "installation state appeared after preview"), statePath)
+			}
+			currentState, parseErr := state.ParseAndValidate(existingState, req.Scope)
+			if parseErr != nil || currentState.Runtime != profile.ID {
+				return res, apperr.Wrap(apperr.ExitConflict, "invalid_state", "existing installation state is invalid", parseErr)
+			}
+			curCanon, mErr1 := json.Marshal(currentState)
+			prevCopy := *req.PrevState
+			prevCopy.Runtime = adapter.NormalizeRuntime(prevCopy.Runtime)
+			prevCanon, mErr2 := json.Marshal(prevCopy)
+			if mErr1 != nil || mErr2 != nil || !bytes.Equal(curCanon, prevCanon) {
+				return res, apperr.Conflict("state_changed", "installation state changed after preview")
+			}
 		}
 	} else if !os.IsNotExist(readErr) {
 		return res, readErr
-	} else if req.PrevState != nil {
+	} else if req.PrevRegistry != nil || req.PrevState != nil {
 		return res, apperr.WithPath(apperr.Conflict("state_missing", "installation state disappeared after preview"), statePath)
 	}
 
@@ -179,7 +193,15 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 	}
 
 	var nextStateBytes []byte
-	if req.NextState != nil {
+	if req.NextRegistry != nil {
+		rawNext, mErr := req.NextRegistry.MarshalSnapshot(txID)
+		if mErr != nil {
+			return res, mErr
+		}
+		if len(rawNext) > 0 {
+			nextStateBytes = append(rawNext, '\n')
+		}
+	} else if req.NextState != nil {
 		nextStateCopy := *req.NextState
 		nextStateCopy.LastTransactionID = txID
 		nextStateBytes, err = json.MarshalIndent(nextStateCopy, "", "  ")
@@ -187,6 +209,8 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 			return res, err
 		}
 		nextStateBytes = append(nextStateBytes, '\n')
+	}
+	if len(nextStateBytes) > 0 {
 		j.NextState = JournalStateRef{
 			Existed: true,
 			Backup:  "state-after.bin",
@@ -354,7 +378,7 @@ func ExecuteTx(req TxRequest) (res TxResult, err error) {
 	if err = ensureTrackedDirs(profile.ID, req.Scope, req.KitID, req.Roots[scopeRoot(req.Scope)], scopeRoot(req.Scope), profile.StateDir(), &j.CreatedDirs, seenDirs); err != nil {
 		return res, err
 	}
-	if req.NextState != nil {
+	if len(nextStateBytes) > 0 {
 		if err = atomicWrite(statePath, nextStateBytes, 0600); err != nil {
 			return res, err
 		}

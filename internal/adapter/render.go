@@ -161,7 +161,7 @@ func RenderKitSelection(profile RuntimeProfile, p catalog.Package, source fs.FS,
 	for _, c := range p.Components {
 		if c.Kind == "skill" {
 			slug := strings.TrimPrefix(c.ID, "skill/")
-			skillNames[slug] = skillLoc.Prefix + slug
+			skillNames[slug] = SkillDirName(skillLoc.Prefix, p.ID, slug)
 		} else {
 			resourcePaths[c.ID] = path.Join(resourceDisplayPrefix, c.Source)
 		}
@@ -301,6 +301,16 @@ func RenderKitSelection(profile RuntimeProfile, p catalog.Package, source fs.FS,
 		return artifacts[i].Path < artifacts[j].Path
 	})
 	return artifacts, nil
+}
+
+// SkillDirName computes the target skill directory and frontmatter name for (prefix, kitID, slug).
+// Historical "engineer" kits keep <prefix><slug> to preserve existing prompts/aliases; other kits
+// automatically include <kitID> to prevent cross-kit collisions.
+func SkillDirName(prefix, kitID, slug string) string {
+	if kitID == "" || kitID == "engineer" {
+		return prefix + slug
+	}
+	return prefix + kitID + "-" + slug
 }
 
 func contains(list []string, target string) bool {

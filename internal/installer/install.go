@@ -38,19 +38,39 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 	if err != nil {
 		return result, err
 	}
-	plan, err := planner.InstallPreviewForRuntime(profile.ID, scope, roots, artifacts)
-	if err != nil {
-		return result, err
-	}
-	if plan.Conflicts != 0 {
-		return result, apperr.Conflict("install_conflicts", fmt.Sprintf("install has %d conflict(s)", plan.Conflicts))
-	}
 	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
 		return result, err
 	}
 	if len(pending) > 0 || lockStatus.Present {
 		return result, apperr.Conflict("recovery_required", "unresolved transaction or lock exists; run dtkit recover first")
+	}
+
+	statePath, err := runtimeStateTarget(profile.ID, scope, roots)
+	if err != nil {
+		return result, err
+	}
+	existingReg, regExists, err := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
+	if err != nil {
+		return result, err
+	}
+	var peerWhole map[string]string
+	if regExists {
+		if err := checkGlobalHomeBinding(profile, scope, existingReg.GlobalHome(), roots); err != nil {
+			return result, err
+		}
+		if prevInst, exists := existingReg.Kits[pkg.ID]; exists {
+			return result, apperr.WithHint(apperr.Conflict("already_installed", fmt.Sprintf("%s %s is already installed in %s scope (%s)", pkg.ID, prevInst.Kit.Version, scope, profile.ID)), fmt.Sprintf("run dtkit update %s --%s --runtime %s", pkg.ID, scope, profile.ID))
+		}
+		peerWhole = existingReg.PeerOwnedWholeFiles(pkg.ID)
+	}
+
+	plan, err := planner.PlanDesiredWithPeersForRuntime(profile.ID, scope, pkg.ID, roots, nil, peerWhole, artifacts)
+	if err != nil {
+		return result, err
+	}
+	if plan.Conflicts != 0 {
+		return result, apperr.Conflict("install_conflicts", fmt.Sprintf("install has %d conflict(s)", plan.Conflicts))
 	}
 
 	pkgDigest, err := catalog.Digest(source)
@@ -163,23 +183,44 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 		return result, err
 	}
 
-	txRes, err := ExecuteTx(TxRequest{
+	txReq := TxRequest{
 		Runtime:   profile.ID,
 		Operation: "install",
 		Scope:     scope,
 		KitID:     pkg.ID,
 		Roots:     roots,
 		Actions:   txActions,
-		PrevState: nil,
-		NextState: &result,
 		Now:       now,
 		Hooks:     opts.Hooks,
-	})
+	}
+	if regExists {
+		nextReg := cloneRegistry(*existingReg)
+		nextReg.Kits[pkg.ID] = result
+		nextReg.UpdatedAt = result.UpdatedAt
+		txReq.PrevRegistry = existingReg
+		txReq.NextRegistry = &nextReg
+	} else {
+		txReq.PrevState = nil
+		txReq.NextState = &result
+	}
+	txRes, err := ExecuteTx(txReq)
 	if err != nil {
 		return result, err
 	}
 	result.LastTransactionID = txRes.TransactionID
 	return result, nil
+}
+
+func cloneRegistry(r state.Registry) state.Registry {
+	out := r
+	out.Kits = make(map[string]state.Installation, len(r.Kits))
+	for k, v := range r.Kits {
+		out.Kits[k] = v
+	}
+	if len(r.Hooks) > 0 {
+		out.Hooks = append([]state.HookRegistration(nil), r.Hooks...)
+	}
+	return out
 }
 
 func cloneSelection(s *catalog.SelectionSpec) *catalog.SelectionSpec {

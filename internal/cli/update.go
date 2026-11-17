@@ -135,13 +135,15 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 		if spErr != nil {
 			return fail(spErr)
 		}
-		existingState, stateExists, stErr := state.LoadFileForRuntime(statePath, scope, profile.ID)
+		existingReg, regExists, stErr := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
 		if stErr != nil {
 			return fail(stErr)
 		}
-		if stateExists && existingState.Selection != nil {
-			preset = existingState.Selection.Preset
-			requestedComponents = existingState.Selection.RequestedComponents
+		if regExists {
+			if existingState, ok := existingReg.Kits[pkg.ID]; ok && existingState.Selection != nil {
+				preset = existingState.Selection.Preset
+				requestedComponents = existingState.Selection.RequestedComponents
+			}
 		}
 	}
 

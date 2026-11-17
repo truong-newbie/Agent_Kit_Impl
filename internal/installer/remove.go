@@ -31,62 +31,75 @@ func PlanRemove(scope, kitID string, roots map[string]string) (planner.InstallPl
 
 // PlanRemoveForRuntime inspects state and disk for runtime to build a safe removal plan.
 func PlanRemoveForRuntime(runtimeName, scope, kitID string, roots map[string]string) (planner.InstallPlan, *state.Installation, bool, error) {
+	plan, _, existing, exists, err := planRemoveWithRegistry(runtimeName, scope, kitID, roots)
+	return plan, existing, exists, err
+}
+
+func planRemoveWithRegistry(runtimeName, scope, kitID string, roots map[string]string) (planner.InstallPlan, *state.Registry, *state.Installation, bool, error) {
 	if scope != "project" && scope != "global" {
-		return planner.InstallPlan{}, nil, false, apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", scope))
+		return planner.InstallPlan{}, nil, nil, false, apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", scope))
 	}
 	profile, err := runtimeProfile(runtimeName)
 	if err != nil {
-		return planner.InstallPlan{}, nil, false, err
+		return planner.InstallPlan{}, nil, nil, false, err
 	}
 	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
-		return planner.InstallPlan{}, nil, false, err
+		return planner.InstallPlan{}, nil, nil, false, err
 	}
 	if len(pending) > 0 || lockStatus.Present {
-		return planner.InstallPlan{}, nil, false, apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", scope, profile.ID))
+		return planner.InstallPlan{}, nil, nil, false, apperr.WithHint(apperr.Conflict("recovery_required", "unfinished transaction or lock exists"), fmt.Sprintf("run dtkit recover --%s --runtime %s --dry-run", scope, profile.ID))
 	}
 	statePath, err := runtimeStateTarget(profile.ID, scope, roots)
 	if err != nil {
-		return planner.InstallPlan{}, nil, false, err
+		return planner.InstallPlan{}, nil, nil, false, err
 	}
-	existing, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
+	reg, exists, err := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
 	if err != nil {
-		return planner.InstallPlan{}, nil, false, err
+		return planner.InstallPlan{}, nil, nil, false, err
 	}
 	if !exists {
-		return planner.InstallPlan{}, nil, false, nil
+		return planner.InstallPlan{}, nil, nil, false, nil
 	}
-	if existing.Kit.ID != kitID {
-		return planner.InstallPlan{}, existing, true, apperr.Conflict("kit_id_mismatch", fmt.Sprintf("installed kit %q does not match requested %q", existing.Kit.ID, kitID))
+	if err := checkGlobalHomeBinding(profile, scope, reg.GlobalHome(), roots); err != nil {
+		return planner.InstallPlan{}, reg, nil, true, err
 	}
-	if err := checkGlobalHomeBinding(profile, scope, existing.GlobalHome(), roots); err != nil {
-		return planner.InstallPlan{}, existing, true, err
+	existingVal, kitFound := reg.Kits[kitID]
+	if !kitFound {
+		if len(reg.Kits) == 1 {
+			sole := reg.Kits[reg.KitIDs()[0]]
+			return planner.InstallPlan{}, reg, &sole, true, apperr.Conflict("kit_id_mismatch", fmt.Sprintf("installed kit %q does not match requested %q", sole.Kit.ID, kitID))
+		}
+		return planner.InstallPlan{}, reg, nil, false, nil
 	}
+	existing := &existingVal
 
 	plan, err := planner.PlanRemove(scope, roots, existing)
 	if err != nil {
-		return planner.InstallPlan{}, existing, true, err
+		return planner.InstallPlan{}, reg, existing, true, err
 	}
-	for _, reg := range existing.Hooks {
-		hAct, hErr := buildHookRemovalAction(roots, reg)
-		if hErr != nil {
-			plan.Conflicts++
-			plan.Actions = append(plan.Actions, planner.Action{
-				Root:   reg.Root,
-				Path:   reg.Path,
-				Kind:   "conflict",
-				Reason: "hook_entry_conflict",
-			})
-		} else {
-			plan.Actions = append(plan.Actions, planner.Action{
-				Root:   hAct.Root,
-				Path:   hAct.Path,
-				Kind:   hAct.Kind,
-				Reason: "unregister_hook",
-			})
+	if len(reg.Kits) == 1 {
+		for _, hookReg := range reg.AllHooks() {
+			hAct, hErr := buildHookRemovalAction(roots, hookReg)
+			if hErr != nil {
+				plan.Conflicts++
+				plan.Actions = append(plan.Actions, planner.Action{
+					Root:   hookReg.Root,
+					Path:   hookReg.Path,
+					Kind:   "conflict",
+					Reason: "hook_entry_conflict",
+				})
+			} else {
+				plan.Actions = append(plan.Actions, planner.Action{
+					Root:   hAct.Root,
+					Path:   hAct.Path,
+					Kind:   hAct.Kind,
+					Reason: "unregister_hook",
+				})
+			}
 		}
 	}
-	return plan, existing, true, nil
+	return plan, reg, existing, true, nil
 }
 
 // Remove executes a conflict-free removal transaction using state metadata only.
@@ -95,7 +108,7 @@ func Remove(scope, kitID string, roots map[string]string, now time.Time, opts Re
 	if now.IsZero() {
 		now = time.Now()
 	}
-	plan, existing, exists, err := PlanRemoveForRuntime(opts.Runtime, scope, kitID, roots)
+	plan, reg, existing, exists, err := planRemoveWithRegistry(opts.Runtime, scope, kitID, roots)
 	res.Plan = plan
 	if err != nil {
 		return res, err
@@ -191,26 +204,38 @@ func Remove(scope, kitID string, roots map[string]string, now time.Time, opts Re
 		})
 	}
 
-	for _, reg := range existing.Hooks {
-		hAct, hErr := buildHookRemovalAction(roots, reg)
-		if hErr != nil {
-			return res, hErr
+	removingLastKit := len(reg.Kits) == 1
+	if removingLastKit {
+		for _, hookReg := range reg.AllHooks() {
+			hAct, hErr := buildHookRemovalAction(roots, hookReg)
+			if hErr != nil {
+				return res, hErr
+			}
+			txActions = append(txActions, hAct)
 		}
-		txActions = append(txActions, hAct)
 	}
 
-	txRes, err := ExecuteTx(TxRequest{
+	txReq := TxRequest{
 		Runtime:   existing.Runtime,
 		Operation: "remove",
 		Scope:     scope,
 		KitID:     existing.Kit.ID,
 		Roots:     roots,
 		Actions:   txActions,
-		PrevState: existing,
-		NextState: nil,
 		Now:       now,
 		Hooks:     opts.Hooks,
-	})
+	}
+	if removingLastKit {
+		txReq.PrevState = existing
+		txReq.NextState = nil
+	} else {
+		nextReg := cloneRegistry(*reg)
+		delete(nextReg.Kits, existing.Kit.ID)
+		nextReg.UpdatedAt = now.UTC().Format(time.RFC3339)
+		txReq.PrevRegistry = reg
+		txReq.NextRegistry = &nextReg
+	}
+	txRes, err := ExecuteTx(txReq)
 	if err != nil {
 		return res, err
 	}

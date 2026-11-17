@@ -25,6 +25,12 @@ func PlanDesired(scope, kitID string, roots map[string]string, existing *state.I
 // PlanDesiredForRuntime reconciles existing state, on-disk files, and desired artifacts
 // for a specific runtime according to the DTKit planner decision matrix.
 func PlanDesiredForRuntime(runtimeName, scope, kitID string, roots map[string]string, existing *state.Installation, desired []adapter.Artifact) (InstallPlan, error) {
+	return PlanDesiredWithPeersForRuntime(runtimeName, scope, kitID, roots, existing, nil, desired)
+}
+
+// PlanDesiredWithPeersForRuntime reconciles existing state, peer-owned whole files from other kits
+// in the same (runtime, scope), on-disk files, and desired artifacts.
+func PlanDesiredWithPeersForRuntime(runtimeName, scope, kitID string, roots map[string]string, existing *state.Installation, peerWholeOwners map[string]string, desired []adapter.Artifact) (InstallPlan, error) {
 	var plan InstallPlan
 	profile, ok := adapter.Profile(runtimeName)
 	if !ok {
@@ -89,6 +95,15 @@ func PlanDesiredForRuntime(runtimeName, scope, kitID string, roots map[string]st
 		}
 
 		action := Action{Root: rootKey, Path: relPath}
+
+		if strategy == "whole-file" && hasDesired {
+			if owner, taken := peerWholeOwners[k]; taken && owner != kitID {
+				action.Kind, action.Reason = "conflict", fmt.Sprintf("artifact_owned_by_%s", owner)
+				plan.Conflicts++
+				plan.Actions = append(plan.Actions, action)
+				continue
+			}
+		}
 
 		if strategy == "managed-block" && hasDesired {
 			if overrideRel := profile.OverrideCheckPath(scope, relPath); overrideRel != "" {

@@ -65,130 +65,156 @@ func Inspect(scope string, roots map[string]string, expected []adapter.Artifact)
 // InspectRuntime reads DTKit state for runtimeName and compares its owned bytes with disk.
 // It never repairs, removes, or creates anything.
 func InspectRuntime(runtimeName, scope string, roots map[string]string, _ []adapter.Artifact) (StatusReport, error) {
-	profile, pErr := runtimeProfile(runtimeName)
-	report := StatusReport{Runtime: adapter.NormalizeRuntime(runtimeName), Scope: scope, Roots: roots, Classification: "not_installed"}
-	if pErr != nil {
-		return report, pErr
+	reports, err := InspectRuntimeAll(runtimeName, scope, roots)
+	if err != nil {
+		if len(reports) > 0 {
+			return reports[0], err
+		}
+		return StatusReport{Runtime: adapter.NormalizeRuntime(runtimeName), Scope: scope, Roots: roots, Classification: "not_installed"}, err
 	}
-	report.Runtime = profile.ID
+	if len(reports) == 0 {
+		return StatusReport{Runtime: adapter.NormalizeRuntime(runtimeName), Scope: scope, Roots: roots, Classification: "not_installed"}, nil
+	}
+	return reports[0], nil
+}
+
+// InspectRuntimeAll reads all installed kits in (runtimeName, scope) and compares their owned bytes with disk.
+func InspectRuntimeAll(runtimeName, scope string, roots map[string]string) ([]StatusReport, error) {
+	profile, pErr := runtimeProfile(runtimeName)
+	baseReport := StatusReport{Runtime: adapter.NormalizeRuntime(runtimeName), Scope: scope, Roots: roots, Classification: "not_installed"}
+	if pErr != nil {
+		return []StatusReport{baseReport}, pErr
+	}
+	baseReport.Runtime = profile.ID
 	if capPlan, err := adapter.EvaluateCapabilities(profile, scope, nil); err == nil {
 		capCopy := capPlan.Capabilities
-		report.Capabilities = &capCopy
-		report.IntegrationStatus = capPlan.Integration.Status
-		report.IntegrationNote = capPlan.Integration.Note
+		baseReport.Capabilities = &capCopy
+		baseReport.IntegrationStatus = capPlan.Integration.Status
+		baseReport.IntegrationNote = capPlan.Integration.Note
 	} else {
-		report.IntegrationStatus = adapter.IntegrationUnverified
+		baseReport.IntegrationStatus = adapter.IntegrationUnverified
 	}
 	pending, lockStatus, err := InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
-		return report, err
+		return []StatusReport{baseReport}, err
 	}
 	if len(pending) > 0 || lockStatus.Present {
-		report.RecoveryNeeded = true
-		report.Classification = "recovery_required"
-		report.PendingTransactions = pending
-		report.Detail = "unfinished transaction or lock detected; run dtkit recover"
+		baseReport.RecoveryNeeded = true
+		baseReport.Classification = "recovery_required"
+		baseReport.PendingTransactions = pending
+		baseReport.Detail = "unfinished transaction or lock detected; run dtkit recover"
 	}
 
 	statePath, err := runtimeStateTarget(profile.ID, scope, roots)
 	if err != nil {
-		return report, err
+		return []StatusReport{baseReport}, err
 	}
-	installed, exists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
+	reg, exists, err := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
 	if err != nil {
-		return report, err
+		return []StatusReport{baseReport}, err
 	}
-	if !exists {
-		if !report.RecoveryNeeded {
-			report.Detail = "no DTKit state found"
+	if !exists || len(reg.Kits) == 0 {
+		if !baseReport.RecoveryNeeded {
+			baseReport.Detail = "no DTKit state found"
 		}
-		return report, nil
-	}
-
-	report.Installed = true
-	report.Healthy = !report.RecoveryNeeded
-	report.KitID = installed.Kit.ID
-	report.KitVersion = installed.Kit.Version
-	report.KitDigest = installed.Kit.Digest
-	report.AdapterRevision = installed.AdapterRevision
-	report.Selection = cloneSelection(installed.Selection)
-
-	if err := checkGlobalHomeBinding(profile, scope, installed.GlobalHome(), roots); err != nil {
-		report.Healthy = false
-		report.ProfileMismatch = true
-		report.Classification = "profile_mismatch"
-		report.Detail = err.Error()
-		return report, nil
+		return []StatusReport{baseReport}, nil
 	}
 
-	hasMissing := false
-	hasModified := false
-	hasConflict := false
-	seenSkillDirs := map[string]bool{}
+	var hookStatuses []HookStatusInfo
+	if hooksList := reg.AllHooks(); len(hooksList) > 0 {
+		hookStatuses, err = InspectHooksForRuntime(profile.ID, scope, roots)
+		if err != nil {
+			return []StatusReport{baseReport}, err
+		}
+	}
 
-	for _, artifact := range installed.Artifacts {
-		target, err := planner.ResolveTarget(roots[artifact.Root], artifact.Path)
-		if err != nil {
-			return report, err
+	kitIDs := reg.KitIDs()
+	reports := make([]StatusReport, 0, len(kitIDs))
+	for _, kitID := range kitIDs {
+		installed := reg.Kits[kitID]
+		report := baseReport
+		report.Installed = true
+		report.Healthy = !baseReport.RecoveryNeeded
+		report.KitID = installed.Kit.ID
+		report.KitVersion = installed.Kit.Version
+		report.KitDigest = installed.Kit.Digest
+		report.AdapterRevision = installed.AdapterRevision
+		report.Selection = cloneSelection(installed.Selection)
+		if len(hookStatuses) > 0 {
+			report.Hooks = append([]HookStatusInfo(nil), hookStatuses...)
 		}
-		item := ArtifactStatus{Root: artifact.Root, Path: artifact.Path, Status: "healthy"}
-		tInfo, err := os.Lstat(target)
-		if os.IsNotExist(err) {
-			item.Status, item.Detail, report.Healthy = "missing", "owned file is missing", false
-			hasMissing = true
-			report.Artifacts = append(report.Artifacts, item)
+
+		if err := checkGlobalHomeBinding(profile, scope, reg.GlobalHome(), roots); err != nil {
+			report.Healthy = false
+			report.ProfileMismatch = true
+			report.Classification = "profile_mismatch"
+			report.Detail = err.Error()
+			reports = append(reports, report)
 			continue
 		}
-		if err != nil {
-			return report, err
-		}
-		if paths.IsReparseOrSymlink(tInfo) || !tInfo.Mode().IsRegular() {
-			item.Status, item.Detail, report.Healthy = "conflicted", "target is not a regular file", false
-			hasConflict = true
-			report.Artifacts = append(report.Artifacts, item)
-			continue
-		}
-		if tInfo.Size() > maxArtifactBytes {
-			item.Status, item.Detail, report.Healthy = "conflicted", "target exceeds 8 MiB size limit", false
-			hasConflict = true
-			report.Artifacts = append(report.Artifacts, item)
-			continue
-		}
-		content, err := readRegularLimited(target, maxArtifactBytes)
-		if err != nil {
-			return report, err
-		}
-		if artifact.Strategy == "managed-block" {
-			actual, bErr := planner.BlockDigestForRuntime(installed.Runtime, installed.Kit.ID, content, scope)
-			if bErr != nil {
-				item.Status, item.Detail, report.Healthy = "conflicted", bErr.Error(), false
+
+		hasMissing := false
+		hasModified := false
+		hasConflict := false
+		seenSkillDirs := map[string]bool{}
+
+		for _, artifact := range installed.Artifacts {
+			target, err := planner.ResolveTarget(roots[artifact.Root], artifact.Path)
+			if err != nil {
+				return reports, err
+			}
+			item := ArtifactStatus{Root: artifact.Root, Path: artifact.Path, Status: "healthy"}
+			tInfo, err := os.Lstat(target)
+			if os.IsNotExist(err) {
+				item.Status, item.Detail, report.Healthy = "missing", "owned file is missing", false
+				hasMissing = true
+				report.Artifacts = append(report.Artifacts, item)
+				continue
+			}
+			if err != nil {
+				return reports, err
+			}
+			if paths.IsReparseOrSymlink(tInfo) || !tInfo.Mode().IsRegular() {
+				item.Status, item.Detail, report.Healthy = "conflicted", "target is not a regular file", false
 				hasConflict = true
-			} else if actual != artifact.Digest {
-				item.Status, item.Detail, report.Healthy = "modified", "managed block differs from recorded state", false
-				hasModified = true
+				report.Artifacts = append(report.Artifacts, item)
+				continue
 			}
-		} else {
-			if sha256Hex(content) != artifact.Digest {
-				item.Status, item.Detail, report.Healthy = "modified", "owned content differs from recorded state", false
-				hasModified = true
+			if tInfo.Size() > maxArtifactBytes {
+				item.Status, item.Detail, report.Healthy = "conflicted", "target exceeds 8 MiB size limit", false
+				hasConflict = true
+				report.Artifacts = append(report.Artifacts, item)
+				continue
 			}
-			if profile.IsSkillArtifact(scope, artifact.Path) {
-				skillDirRel := path.Dir(artifact.Path)
-				if !seenSkillDirs[skillDirRel] {
-					seenSkillDirs[skillDirRel] = true
-					collectUnknownSkillFiles(roots[artifact.Root], skillDirRel, &report.UnknownFiles)
+			content, err := readRegularLimited(target, maxArtifactBytes)
+			if err != nil {
+				return reports, err
+			}
+			if artifact.Strategy == "managed-block" {
+				actual, bErr := planner.BlockDigestForRuntime(installed.Runtime, installed.Kit.ID, content, scope)
+				if bErr != nil {
+					item.Status, item.Detail, report.Healthy = "conflicted", bErr.Error(), false
+					hasConflict = true
+				} else if actual != artifact.Digest {
+					item.Status, item.Detail, report.Healthy = "modified", "managed block differs from recorded state", false
+					hasModified = true
+				}
+			} else {
+				if sha256Hex(content) != artifact.Digest {
+					item.Status, item.Detail, report.Healthy = "modified", "owned content differs from recorded state", false
+					hasModified = true
+				}
+				if profile.IsSkillArtifact(scope, artifact.Path) {
+					skillDirRel := path.Dir(artifact.Path)
+					if !seenSkillDirs[skillDirRel] {
+						seenSkillDirs[skillDirRel] = true
+						collectUnknownSkillFiles(roots[artifact.Root], skillDirRel, &report.UnknownFiles)
+					}
 				}
 			}
+			report.Artifacts = append(report.Artifacts, item)
 		}
-		report.Artifacts = append(report.Artifacts, item)
-	}
 
-	if len(installed.Hooks) > 0 {
-		hookStatuses, hErr := InspectHooksForRuntime(installed.Runtime, scope, roots)
-		if hErr != nil {
-			return report, hErr
-		}
-		report.Hooks = hookStatuses
 		for _, hs := range hookStatuses {
 			switch hs.Status {
 			case "missing":
@@ -202,22 +228,23 @@ func InspectRuntime(runtimeName, scope string, roots map[string]string, _ []adap
 				hasConflict = true
 			}
 		}
-	}
 
-	sort.Strings(report.UnknownFiles)
-	if !report.RecoveryNeeded {
-		switch {
-		case hasConflict:
-			report.Classification = "conflicted"
-		case hasMissing:
-			report.Classification = "missing"
-		case hasModified:
-			report.Classification = "modified"
-		default:
-			report.Classification = "healthy"
+		sort.Strings(report.UnknownFiles)
+		if !report.RecoveryNeeded {
+			switch {
+			case hasConflict:
+				report.Classification = "conflicted"
+			case hasMissing:
+				report.Classification = "missing"
+			case hasModified:
+				report.Classification = "modified"
+			default:
+				report.Classification = "healthy"
+			}
 		}
+		reports = append(reports, report)
 	}
-	return report, nil
+	return reports, nil
 }
 
 func collectUnknownSkillFiles(rootAbs, skillDirRel string, out *[]string) {

@@ -99,7 +99,7 @@ func TestAuthoringPackInstallUpdateOfflineAndRemoveFlow(t *testing.T) {
 	if err := RunWithDeps(context.Background(), []string{"install", "acme@0.1.0", "--project", "--source", srv.URL + "/index.json", "--yes", "--json"}, deps); err != nil {
 		t.Fatalf("remote install failed: %v (%s)", err, out.String())
 	}
-	if _, err := os.Stat(filepath.Join(proj, ".agents", "skills", "dtkit-project-audit", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(proj, ".agents", "skills", "dtkit-project-acme-audit", "SKILL.md")); err != nil {
 		t.Fatalf("custom kit skill missing after remote install: %v", err)
 	}
 

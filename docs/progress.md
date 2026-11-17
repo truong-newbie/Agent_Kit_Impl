@@ -2,9 +2,9 @@
 
 ## Current Status
 
-- **Active Branches:** `feat/v0.5` (`B01`–`B08`, merging `feat/release-hardening` `2dfa0f1`) and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`).
-- **CI Status:** `feat/v0.5` (`2512004`, [Run 44018736691](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44018736691)) passed all **5/5 GitHub Actions jobs** (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`, `fuzz-smoke`).
-- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), and Mốc B v0.5 (`B01`–`B08`) are implemented and 5/5 CI-verified per [DTKIT-RC-AND-V05-PLAN.md](../DTKIT-RC-AND-V05-PLAN.md); live model A/B & live Claude session hooks remain `blocked` (host `claude 2.1.319` returned `401 Invalid or expired API key` during isolated `--no-session-persistence` live probe, `total_cost_usd: 0`).
+- **Active Branches:** `feat/c01-multikit` (`C01` + `C04a`, branched from `main` @ `b78a6b3` / `v0.5.0-rc.1`), `feat/v0.5` (`B01`–`B08`), and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`).
+- **CI Status:** `main` (`b78a6b3`, [Run 44020170539](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44020170539)) and `v0.5.0-rc.1` (`44020171382` + `release.yml` Draft Pre-release `44020171501`) passed **5/5 GitHub Actions jobs**; `feat/c01-multikit` CI will run upon push.
+- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), and Milestone C foundation (`C01` multi-kit v3 registry + `C04a` shell completion) are implemented; live model A/B & live Claude session hooks remain `blocked` (host `claude 2.1.319` returned `401 Invalid or expired API key` during isolated `--no-session-persistence` live probe, `total_cost_usd: 0`).
 
 ### Hardening & Release Backlog Tracker (`N00`–`N12`)
 
@@ -304,6 +304,17 @@ Tests completed: `.\scripts\verify-docker.ps1` (exit `0`, all 20 packages pass w
 Live evidence: Attempted capped isolated live `claude 2.1.319` run (`-p --no-session-persistence --setting-sources project --strict-mcp-config --max-budget-usd 0.30`) against `testdata/evaluation/go-service` + `engineer@0.4.0` + `.dtkit/project.json`; failed closed cleanly with `api_error_status: 401 ("Invalid or expired API key")`, `total_cost_usd: 0`.
 Acceptance still missing / external blocker: Live isolated `claude`/`codex` 60-run A/B benchmark (`engineer@0.3.0` vs. `engineer@0.4.0`) and live Claude hook session firing await valid authenticated runtime credentials & budget.
 Next independent work: Merge `feat/v0.5` into `main` and push `v0.5.0-rc.1` tag to trigger `release.yml` pre-release packaging/publication per owner Phương án B approval.
+
+---
+
+ID: C01 & C04a (Multi-Kit State Registry v3 & Shell Completion)
+Status: verified (local Docker `verify-docker.ps1`; CI pending push on `feat/c01-multikit`)
+Baseline SHA / branch: `b78a6b3` -> `feat/c01-multikit`
+User-visible behavior and schema decisions: Implemented [`docs/adr-multikit-v3.md`](./adr-multikit-v3.md) and [`schemas/state.schema.json`](../schemas/state.schema.json) `oneOf` v1/v2 `installation` and v3 `registryV3` (`kits` registry + shared top-level `hooks`). Single-kit installs/updates/demotions keep v1/v2 JSON compatibility while 2+ installed kits in one `(runtime, scope)` promote atomically via `ExecuteTx` to `schemaVersion: 3` with byte-exact crash rollback (`state-before.bin`). Added `adapter.SkillDirName` (`<prefix><kitID>-<slug>` for non-`engineer` kits, keeping `<prefix><slug>` compatibility for `engineer`), cross-kit disjoint `whole-file` ownership enforcement (`artifact_owned_by_<kit>` in `planner.PlanDesiredWithPeersForRuntime`), shared `hooks` preservation when removing one kit while peers remain, and `installer.InspectRuntimeAll` (`dtkit status` / `dtkit doctor` listing all kits). Added `C04a` `dtkit completion <bash|zsh|powershell>`.
+Files changed: `docs/adr-multikit-v3.md`, `schemas/state.schema.json`, `internal/state/{state,load,multikit_test}.go`, `internal/adapter/render.go`, `internal/planner/plan.go`, `internal/installer/{engine,install,update,remove,hooks,status,multikit_test}.go`, `internal/cli/{cli,completion,completion_test,doctor,install,status,update,dist_test,multikit_test}.go`, `docs/{cli,progress}.md`
+Tests completed: `.\scripts\verify-docker.ps1` (`gofmt`, `go test -race ./...` across all 20 packages, `go vet ./...`, `go build ./cmd/dtkit`), including `state` v1/v2/v3 round-trip and whole-file collision validation, `installer` multi-kit coexistence, update, shared-hook preservation, crash rollback across `v2 <-> v3`, concurrent install lock serialization, and `cli` completion & multi-kit end-to-end flows.
+Acceptance still missing / external blocker: Multi-OS CI confirmation on `feat/c01-multikit`; remaining Milestone C slices (`C02` diff/fork/override, `C03` `dtkit.lock`, `C05` registry distribution, `C06` MCP/custom hooks) queued next.
+Next independent work: Push `feat/c01-multikit` for 5/5 GitHub Actions CI, then proceed to `C02` (`dtkit diff` / `kit fork` & override model).
 
 ---
 

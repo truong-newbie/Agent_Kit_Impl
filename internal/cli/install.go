@@ -151,47 +151,49 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	if err != nil {
 		return fail(err)
 	}
-	existing, stateExists, err := state.LoadFileForRuntime(statePath, scope, profile.ID)
+	reg, regExists, err := state.LoadRegistryForRuntime(statePath, scope, profile.ID)
 	if err != nil {
 		return fail(err)
 	}
 
-	if stateExists {
-		if existing.Kit.ID != pkg.ID {
-			return fail(apperr.WithHint(apperr.Conflict("different_kit_installed", fmt.Sprintf("kit %q is already installed in %s scope (%s)", existing.Kit.ID, scope, profile.ID)), fmt.Sprintf("run dtkit remove %s --%s --runtime %s first", existing.Kit.ID, scope, profile.ID)))
-		}
-		if err := checkRuntimeHomeBinding(profile, scope, existing, roots); err != nil {
+	var peerWhole map[string]string
+	if regExists {
+		sole := reg.Kits[reg.KitIDs()[0]]
+		if err := checkRuntimeHomeBinding(profile, scope, &sole, roots); err != nil {
 			return fail(err)
 		}
-		if existing.Kit.Version != pkg.Version || existing.Kit.Digest != pkgDigest || existing.AdapterRevision != profile.Revision || !catalog.SelectionsEqual(existing.Selection, selectionSpec) {
-			return fail(apperr.WithHint(apperr.Conflict("already_installed", fmt.Sprintf("%s %s is already installed with different version, selection, or content", existing.Kit.ID, existing.Kit.Version)), fmt.Sprintf("run dtkit update %s --%s --runtime %s", pkg.ID, scope, profile.ID)))
+		if existing, kitInstalled := reg.Kits[pkg.ID]; kitInstalled {
+			if existing.Kit.Version != pkg.Version || existing.Kit.Digest != pkgDigest || existing.AdapterRevision != profile.Revision || !catalog.SelectionsEqual(existing.Selection, selectionSpec) {
+				return fail(apperr.WithHint(apperr.Conflict("already_installed", fmt.Sprintf("%s %s is already installed with different version, selection, or content", existing.Kit.ID, existing.Kit.Version)), fmt.Sprintf("run dtkit update %s --%s --runtime %s", pkg.ID, scope, profile.ID)))
+			}
+			plan, err := planner.PlanDesiredForRuntime(profile.ID, scope, pkg.ID, roots, &existing, artifacts)
+			if err != nil {
+				return fail(err)
+			}
+			env.Actions, env.Summary = summarizeActions(plan.Actions)
+			if plan.Conflicts != 0 {
+				return fail(apperr.Conflict("installation_drift", fmt.Sprintf("existing installation has %d conflict(s) or drifted artifact(s)", plan.Conflicts)))
+			}
+			installedFlag := true
+			env.Installed = &installedFlag
+			env.Generation = existing.Generation
+			if jsonOutput {
+				return writeEnvelope(deps.Stdout, env)
+			}
+			for _, w := range env.Warnings {
+				fmt.Fprintf(deps.Stderr, "warning: %s\n", w)
+			}
+			if dryRun {
+				fmt.Fprintf(deps.Stdout, "Read-only preview: %s %s (%s) is already up to date (%d noop).\n", pkg.ID, scope, roots[scopeRoot(scope)], len(plan.Actions))
+			} else {
+				fmt.Fprintf(deps.Stdout, "Already installed and up to date: %s %s (%s, generation %d).\n", pkg.ID, pkg.Version, scope, existing.Generation)
+			}
+			return nil
 		}
-		plan, err := planner.PlanDesiredForRuntime(profile.ID, scope, pkg.ID, roots, existing, artifacts)
-		if err != nil {
-			return fail(err)
-		}
-		env.Actions, env.Summary = summarizeActions(plan.Actions)
-		if plan.Conflicts != 0 {
-			return fail(apperr.Conflict("installation_drift", fmt.Sprintf("existing installation has %d conflict(s) or drifted artifact(s)", plan.Conflicts)))
-		}
-		installedFlag := true
-		env.Installed = &installedFlag
-		env.Generation = existing.Generation
-		if jsonOutput {
-			return writeEnvelope(deps.Stdout, env)
-		}
-		for _, w := range env.Warnings {
-			fmt.Fprintf(deps.Stderr, "warning: %s\n", w)
-		}
-		if dryRun {
-			fmt.Fprintf(deps.Stdout, "Read-only preview: %s %s (%s) is already up to date (%d noop).\n", pkg.ID, scope, roots[scopeRoot(scope)], len(plan.Actions))
-		} else {
-			fmt.Fprintf(deps.Stdout, "Already installed and up to date: %s %s (%s, generation %d).\n", pkg.ID, pkg.Version, scope, existing.Generation)
-		}
-		return nil
+		peerWhole = reg.PeerOwnedWholeFiles(pkg.ID)
 	}
 
-	plan, err := planner.PlanDesiredForRuntime(profile.ID, scope, pkg.ID, roots, nil, artifacts)
+	plan, err := planner.PlanDesiredWithPeersForRuntime(profile.ID, scope, pkg.ID, roots, nil, peerWhole, artifacts)
 	if err != nil {
 		return fail(err)
 	}

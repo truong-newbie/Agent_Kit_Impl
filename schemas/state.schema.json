@@ -1,99 +1,144 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "DTKit Installation State v1/v2",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "managedBy",
-    "generation",
-    "scope",
-    "runtime",
-    "adapterRevision",
-    "kit",
-    "artifacts",
-    "installedAt",
-    "updatedAt"
-  ],
-  "properties": {
-    "schemaVersion": { "enum": [1, 2] },
-    "managedBy": { "const": "dtkit" },
-    "generation": { "type": "integer", "minimum": 1 },
-    "scope": { "enum": ["project", "global"] },
-    "runtime": { "enum": ["codex", "gemini", "opencode", "cursor", "claude"] },
-    "adapterRevision": { "const": "1" },
-    "codexHome": { "type": "string" },
-    "runtimeHome": { "type": "string" },
-    "kit": {
+  "title": "DTKit Installation State v1/v2 or Multi-Kit Registry v3",
+  "$defs": {
+    "hookRegistration": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "version", "digest"],
+      "required": ["id", "event", "handlerId", "root", "path", "command", "commandWindows", "executable", "entryDigest", "timeoutSec", "createdFile"],
       "properties": {
         "id": { "type": "string" },
-        "version": { "type": "string" },
-        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "archiveSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "sourceKind": { "enum": ["bundled", "local", "archive", "remote"] }
+        "event": { "enum": ["SessionStart", "PostToolUse", "PreToolUse"] },
+        "handlerId": { "enum": ["session-context", "check-changed", "guard-edit"] },
+        "root": { "enum": ["project", "codex-home", "claude-home"] },
+        "path": { "enum": [".codex/hooks.json", "hooks.json", ".claude/settings.json", "settings.json"] },
+        "command": { "type": "string" },
+        "commandWindows": { "type": "string" },
+        "executable": { "type": "string" },
+        "entryDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "timeoutSec": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "createdFile": { "type": "boolean" }
       }
     },
-    "artifacts": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["root", "path", "strategy", "digest"],
-        "properties": {
-          "root": { "enum": ["project", "user-home", "codex-home", "gemini-home", "opencode-home", "claude-home"] },
-          "path": { "type": "string", "minLength": 1 },
-          "strategy": { "enum": ["whole-file", "managed-block"] },
-          "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-          "block": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["digest", "separator", "createdFile"],
-            "properties": {
-              "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-              "separator": { "enum": ["", "\n", "\r\n"] },
-              "createdFile": { "type": "boolean" }
-            }
-          }
-        }
-      }
-    },
-    "hooks": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "event", "handlerId", "root", "path", "command", "commandWindows", "executable", "entryDigest", "timeoutSec", "createdFile"],
-        "properties": {
-          "id": { "type": "string" },
-          "event": { "enum": ["SessionStart", "PostToolUse", "PreToolUse"] },
-          "handlerId": { "enum": ["session-context", "check-changed", "guard-edit"] },
-          "root": { "enum": ["project", "codex-home", "claude-home"] },
-          "path": { "enum": [".codex/hooks.json", "hooks.json", ".claude/settings.json", "settings.json"] },
-          "command": { "type": "string" },
-          "commandWindows": { "type": "string" },
-          "executable": { "type": "string" },
-          "entryDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-          "timeoutSec": { "type": "integer", "minimum": 1, "maximum": 30 },
-          "createdFile": { "type": "boolean" }
-        }
-      }
-    },
-    "lastTransactionID": { "type": "string" },
-    "selection": {
+    "installation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["resolvedComponents"],
+      "required": [
+        "schemaVersion",
+        "managedBy",
+        "generation",
+        "scope",
+        "runtime",
+        "adapterRevision",
+        "kit",
+        "artifacts",
+        "installedAt",
+        "updatedAt"
+      ],
       "properties": {
-        "preset": { "type": "string", "minLength": 1 },
-        "requestedComponents": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
-        "resolvedComponents": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+        "schemaVersion": { "enum": [1, 2] },
+        "managedBy": { "const": "dtkit" },
+        "generation": { "type": "integer", "minimum": 1 },
+        "scope": { "enum": ["project", "global"] },
+        "runtime": { "enum": ["codex", "gemini", "opencode", "cursor", "claude"] },
+        "adapterRevision": { "const": "1" },
+        "codexHome": { "type": "string" },
+        "runtimeHome": { "type": "string" },
+        "kit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "version", "digest"],
+          "properties": {
+            "id": { "type": "string" },
+            "version": { "type": "string" },
+            "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "archiveSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "sourceKind": { "enum": ["bundled", "local", "archive", "remote"] }
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["root", "path", "strategy", "digest"],
+            "properties": {
+              "root": { "enum": ["project", "user-home", "codex-home", "gemini-home", "opencode-home", "claude-home"] },
+              "path": { "type": "string", "minLength": 1 },
+              "strategy": { "enum": ["whole-file", "managed-block"] },
+              "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "block": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["digest", "separator", "createdFile"],
+                "properties": {
+                  "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                  "separator": { "enum": ["", "\n", "\r\n"] },
+                  "createdFile": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "hooks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hookRegistration" }
+        },
+        "lastTransactionID": { "type": "string" },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["resolvedComponents"],
+          "properties": {
+            "preset": { "type": "string", "minLength": 1 },
+            "requestedComponents": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "resolvedComponents": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "installedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
-    "installedAt": { "type": "string", "format": "date-time" },
-    "updatedAt": { "type": "string", "format": "date-time" }
-  }
+    "registryV3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "managedBy",
+        "scope",
+        "runtime",
+        "adapterRevision",
+        "kits",
+        "updatedAt"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 3 },
+        "managedBy": { "const": "dtkit" },
+        "scope": { "enum": ["project", "global"] },
+        "runtime": { "enum": ["codex", "gemini", "opencode", "cursor", "claude"] },
+        "adapterRevision": { "const": "1" },
+        "codexHome": { "type": "string" },
+        "runtimeHome": { "type": "string" },
+        "kits": {
+          "type": "object",
+          "minProperties": 2,
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$": { "$ref": "#/$defs/installation" }
+          }
+        },
+        "hooks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hookRegistration" }
+        },
+        "lastTransactionID": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/installation" },
+    { "$ref": "#/$defs/registryV3" }
+  ]
 }
