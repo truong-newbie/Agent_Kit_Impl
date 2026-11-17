@@ -40,6 +40,7 @@ Usage:
   dtkit lock <generate|verify|diff|sign|keygen> [options]
   dtkit sync [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--lock <file>] [--trust <file>] [--require-signature] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit team <export|import|template> [options]
+  dtkit compat <snapshot|diff> [--out <file>] [--baseline <file>] [--json]
   dtkit hooks <list|status|enable|disable> [--runtime <codex|gemini|opencode|cursor|claude>] [args]
   dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|gemini|opencode|cursor|claude>]
   dtkit completion <bash|zsh|powershell>
@@ -113,6 +114,8 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runSync(ctx, args[1:], deps)
 	case "team":
 		return runTeam(ctx, args[1:], deps)
+	case "compat":
+		return runCompat(args[1:], deps)
 	case "hooks":
 		return runHooks(ctx, args[1:], deps)
 	case "hook":
@@ -187,6 +190,9 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		return err
 	case "team":
 		_, err := io.WriteString(out, "Usage: dtkit team <export|import|template> [--path <dir>] [--runtime <...>] [--out <file>] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "compat":
+		_, err := io.WriteString(out, "Usage: dtkit compat <snapshot|diff> [--out <file>] [--baseline <file>] [--json]\n")
 		return err
 	case "hooks":
 		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")

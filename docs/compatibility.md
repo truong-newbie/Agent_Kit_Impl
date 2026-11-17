@@ -1,6 +1,6 @@
 # DTKit Runtime Compatibility and Evidence Matrix
 
-> **Honesty rule:** Automated tests and runtime discovery do **not** equal end-to-end live task verification. Until `N08` and `N09` pass on real runtimes with real tool/model execution, no runtime/scope below is labeled `verified (live task)`.
+> **Honesty rule:** Automated tests and runtime discovery do **not** equal end-to-end live task verification. Until `N08` and `N09` pass on real runtimes with real tool/model execution, no runtime/scope below is labeled `verified (live task)`. See [docs/compatibility-policy.md](compatibility-policy.md) for version pinning, deprecation windows, and [last-known-good-compat.json](verification/last-known-good-compat.json) baseline snapshots.
 
 ## 1. Runtime × Scope Four-Layer Evidence Matrix
 

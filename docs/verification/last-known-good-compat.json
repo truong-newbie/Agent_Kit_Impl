@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 1,
+  "kitId": "engineer",
+  "kitVersion": "0.4.0",
+  "kitDigest": "578e94eec977f31b7ecb390e9fddab3d8bdca7c4a25d87a6610dbc15d5bd17f1",
+  "entries": [
+    {
+      "runtime": "codex",
+      "scope": "project",
+      "adapterRevision": "1",
+      "binary": "codex",
+      "instructionStrategy": "managed-block",
+      "instructionPath": "AGENTS.md",
+      "skillPrefix": ".agents/skills/dtkit-project-",
+      "hooksSupported": true,
+      "hookConfigPath": ".codex/hooks.json",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "AGENTS.md managed block"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": ".agents/skills/dtkit-project-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in .codex/hooks.json SessionStart"
+        }
+      },
+      "integration": {
+        "status": "partial",
+        "note": "project skill discovery verified on codex-cli 0.169.0; live sandboxed tool execution and hook trust blocked/pending in host policy"
+      },
+      "renderedDigest": "4c851db9eed390c624b98d3068602125ff21b2cf989ff112b8a034587a00f2b1",
+      "artifactCount": 15
+    },
+    {
+      "runtime": "codex",
+      "scope": "global",
+      "adapterRevision": "1",
+      "binary": "codex",
+      "instructionStrategy": "managed-block",
+      "instructionPath": "AGENTS.md",
+      "skillPrefix": ".agents/skills/dtkit-global-",
+      "hooksSupported": true,
+      "hookConfigPath": "codex-home:hooks.json",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "$CODEX_HOME/AGENTS.md managed block"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "~/.agents/skills/dtkit-global-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in $CODEX_HOME/hooks.json SessionStart"
+        }
+      },
+      "integration": {
+        "status": "partial",
+        "note": "isolated CODEX_HOME AGENTS.md verified on codex-cli 0.169.0; Windows user-profile ~/.agents/skills and live task execution pending"
+      },
+      "renderedDigest": "9a17953e73f84328cdacffcb244480b456296112665992a9e7c6a2d4483a0f17",
+      "artifactCount": 15
+    },
+    {
+      "runtime": "gemini",
+      "scope": "project",
+      "adapterRevision": "1",
+      "binary": "gemini",
+      "instructionStrategy": "managed-block",
+      "instructionPath": "GEMINI.md",
+      "skillPrefix": ".gemini/skills/dtkit-gemini-project-",
+      "hooksSupported": true,
+      "hookConfigPath": ".gemini/settings.json",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "GEMINI.md managed block"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": ".gemini/skills/dtkit-gemini-project-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in quality hooks (check-changed AfterTool, guard-edit BeforeTool) in .gemini/settings.json"
+        }
+      },
+      "integration": {
+        "status": "unverified",
+        "note": "rendered and schema-checked only; live Gemini CLI verification pending"
+      },
+      "renderedDigest": "51233deec564db57ebceaf6fabc800dfc6f819dc9e882866978f97737156b959",
+      "artifactCount": 15
+    },
+    {
+      "runtime": "gemini",
+      "scope": "global",
+      "adapterRevision": "1",
+      "binary": "gemini",
+      "instructionStrategy": "managed-block",
+      "instructionPath": "GEMINI.md",
+      "skillPrefix": "skills/dtkit-gemini-global-",
+      "hooksSupported": true,
+      "hookConfigPath": "gemini-home:settings.json",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "~/.gemini/GEMINI.md managed block"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "~/.gemini/skills/dtkit-gemini-global-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in quality hooks in ~/.gemini/settings.json"
+        }
+      },
+      "integration": {
+        "status": "unverified",
+        "note": "rendered and schema-checked only; live Gemini CLI verification pending"
+      },
+      "renderedDigest": "ff3f784c7043bd751d2712af79619150888f692d585012300179aab293f8d83c",
+      "artifactCount": 15
+    },
+    {
+      "runtime": "opencode",
+      "scope": "project",
+      "adapterRevision": "1",
+      "binary": "opencode",
+      "instructionStrategy": "managed-block",
+      "instructionPath": "AGENTS.md",
+      "skillPrefix": ".opencode/skills/dtkit-opencode-project-",
+      "hooksSupported": true,
+      "hookConfigPath": ".opencode/plugins/dtkit-quality.js",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "AGENTS.md runtime-namespaced managed block"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": ".opencode/skills/dtkit-opencode-project-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in standalone JS plugin (.opencode/plugins/dtkit-quality.js) on tool.execute.after"
+        }
+      },
+      "integration": {
+        "status": "partial",
+        "note": "project, coexistence, and removal verified on opencode 1.19.5; live LLM turn blocked (no isolated provider credentials)"
+      },
+      "renderedDigest": "b68795e2838bb903a6691f5730bda6b2e0c65ddf15f4acc598260d1615a79314",
+      "artifactCount": 15
+    },
+    {
+      "runtime": "opencode",
+      "scope": "global",
+      "adapterRevision": "1",
+      "binary": "opencode",
+      "instructionStrategy": "managed-block",
+      "instructionPath": "AGENTS.md",
+      "skillPrefix": "skills/dtkit-opencode-global-",
+      "hooksSupported": true,
+      "hookConfigPath": "opencode-home:plugins/dtkit-quality.js",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "~/.config/opencode/AGENTS.md managed block"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "~/.config/opencode/skills/dtkit-opencode-global-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in standalone JS plugin (~/.config/opencode/plugins/dtkit-quality.js) on tool.execute.after"
+        }
+      },
+      "integration": {
+        "status": "partial",
+        "note": "global and combined 14-skill discovery verified on opencode 1.19.5; live LLM turn blocked (no isolated provider credentials)"
+      },
+      "renderedDigest": "22baf15a1d4af024edd0a140605050ec0abf41a784fcaf7ab49ea6fce6b6d39d",
+      "artifactCount": 15
+    },
+    {
+      "runtime": "cursor",
+      "scope": "project",
+      "adapterRevision": "1",
+      "binary": "cursor",
+      "instructionStrategy": "whole-file",
+      "instructionPath": ".cursor/rules/dtkit-engineer.mdc",
+      "skillPrefix": ".cursor/skills/dtkit-cursor-project-",
+      "hooksSupported": true,
+      "hookConfigPath": ".cursor/hooks.json",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": ".cursor/rules/dtkit-\u003ckit\u003e.mdc alwaysApply project rule"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": ".cursor/skills/dtkit-cursor-project-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in quality hook (check-changed afterFileEdit) in .cursor/hooks.json (version 1)"
+        }
+      },
+      "integration": {
+        "status": "unverified",
+        "note": "rendered and schema-checked only; live Cursor verification pending"
+      },
+      "renderedDigest": "a50cda40d6dcd7e62b13cf74611531eb84018d35e38431ed4d2330e2b0739fb4",
+      "artifactCount": 15
+    },
+    {
+      "runtime": "cursor",
+      "scope": "global",
+      "adapterRevision": "1",
+      "binary": "cursor",
+      "skillPrefix": ".cursor/skills/dtkit-cursor-global-",
+      "hooksSupported": true,
+      "hookConfigPath": "user-home:.cursor/hooks.json",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": false,
+          "note": "Cursor global User Rules are configured in Cursor Settings UI; DTKit installs global skills (~/.cursor/skills/) and resources only"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "~/.cursor/skills/dtkit-cursor-global-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in quality hook (check-changed afterFileEdit) in ~/.cursor/hooks.json (version 1)"
+        }
+      },
+      "integration": {
+        "status": "unverified",
+        "note": "rendered and schema-checked only (skills-only fallback; global User Rules managed in Cursor Settings UI); live Cursor verification pending"
+      },
+      "renderedDigest": "13f737d4decae117d053fdf5769aa20f73523c33f9300da7977378562629e481",
+      "artifactCount": 14
+    },
+    {
+      "runtime": "claude",
+      "scope": "project",
+      "adapterRevision": "1",
+      "binary": "claude",
+      "instructionStrategy": "managed-block",
+      "instructionPath": "CLAUDE.md",
+      "skillPrefix": ".claude/skills/dtkit-claude-project-",
+      "hooksSupported": true,
+      "hookConfigPath": ".claude/settings.json",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "CLAUDE.md managed block"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": ".claude/skills/dtkit-claude-project-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in quality hooks (check-changed, guard-edit) in .claude/settings.json"
+        }
+      },
+      "integration": {
+        "status": "unverified",
+        "note": "rendered and schema-checked only; live Claude Code verification pending"
+      },
+      "renderedDigest": "b43efcbab25f0bae8c2083005e203fbfa500ac160eff9332c3cbac941eb02c3c",
+      "artifactCount": 15
+    },
+    {
+      "runtime": "claude",
+      "scope": "global",
+      "adapterRevision": "1",
+      "binary": "claude",
+      "instructionStrategy": "managed-block",
+      "instructionPath": "CLAUDE.md",
+      "skillPrefix": "skills/dtkit-claude-global-",
+      "hooksSupported": true,
+      "hookConfigPath": "claude-home:settings.json",
+      "capabilities": {
+        "instructions": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "$CLAUDE_CONFIG_DIR/CLAUDE.md or ~/.claude/CLAUDE.md managed block"
+        },
+        "skills": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "$CLAUDE_CONFIG_DIR/skills/dtkit-claude-global-* or ~/.claude/skills/dtkit-claude-global-*"
+        },
+        "hooks": {
+          "runtimeSupported": true,
+          "dtkitSupported": true,
+          "note": "opt-in quality hooks in $CLAUDE_CONFIG_DIR/settings.json or ~/.claude/settings.json"
+        }
+      },
+      "integration": {
+        "status": "unverified",
+        "note": "rendered and schema-checked only; live Claude Code verification pending"
+      },
+      "renderedDigest": "9543561af7cb83cc28d0397da83abb03df17a67509adea2336ef062b2b62e384",
+      "artifactCount": 15
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+name: Periodic Compatibility & Layout Check
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      report_label:
+        description: 'Optional label for this compatibility snapshot'
+        required: false
+        default: 'periodic'
+
+permissions:
+  contents: read
+
+jobs:
+  compat-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - name: Run discovery, adapter, hook, eval, and schema suites (no API keys required)
+        run: go test ./internal/adapter/... ./internal/paths ./internal/hooks ./internal/eval ./schemas
+      - name: Generate snapshot and diff against last-known-good compatibility baseline
+        run: |
+          mkdir -p .compat-out
+          go run ./cmd/dtkit compat snapshot --out .compat-out/compat-snapshot.json --json > .compat-out/snapshot-envelope.json
+          go run ./cmd/dtkit compat diff --baseline docs/verification/last-known-good-compat.json --json > .compat-out/compat-diff.json
+          echo "## Compatibility Report (${{ github.event.inputs.report_label || 'scheduled' }})" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          go run ./cmd/dtkit compat diff --baseline docs/verification/last-known-good-compat.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dtkit-compat-report
+          path: .compat-out/
+          retention-days: 30

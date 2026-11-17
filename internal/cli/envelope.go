@@ -127,6 +127,8 @@ type Envelope struct {
 	ProjectInspect *project.InspectResult       `json:"projectInspect,omitempty"`
 	ProjectInit    *project.InitResult          `json:"projectInit,omitempty"`
 	CheckReport    *check.Report                `json:"checkReport,omitempty"`
+	CompatReport   *adapter.CompatibilityReport `json:"compatReport,omitempty"`
+	CompatDiff     *adapter.CompatibilityDiff   `json:"compatDiff,omitempty"`
 	Warnings       []string                     `json:"warnings"`
 	Errors         []apperr.Error               `json:"errors"`
 }
