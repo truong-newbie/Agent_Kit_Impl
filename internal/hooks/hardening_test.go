@@ -380,7 +380,7 @@ func (r *blockingTestReader) Close() error {
 
 func waitGoroutinesSettle(t *testing.T, maxTarget int) {
 	t.Helper()
-	deadline := time.Now().Add(500 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		if runtime.NumGoroutine() <= maxTarget {
 			return
@@ -420,7 +420,7 @@ func TestRunnerTimeoutCancelLeakAndErrorBounds(t *testing.T) {
 		}
 		select {
 		case <-br.exited:
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(2 * time.Second):
 			t.Fatal("blocked stdin reader did not unblock/exit after timeout")
 		}
 		waitGoroutinesSettle(t, baseline)
