@@ -35,8 +35,8 @@ Usage:
   dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]
-  dtkit hooks <list|status|enable|disable> [args]
-  dtkit hook run <id> --scope project|global --root <dir>
+  dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [args]
+  dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|claude>]
 
 Examples:
   dtkit doctor
@@ -156,7 +156,7 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]\n")
 		return err
 	case "hooks":
-		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
 		return err
 	default:
 		_, err := io.WriteString(out, helpText)

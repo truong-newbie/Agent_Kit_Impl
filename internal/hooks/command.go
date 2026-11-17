@@ -104,10 +104,64 @@ func QuotePowerShell(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
+// HookSpec describes a DTKit-managed hook handler for a specific runtime.
+type HookSpec struct {
+	ID            string
+	Event         string
+	Matcher       string
+	TimeoutSec    int
+	StatusMessage string
+}
+
+// ResolveHookSpec validates and returns metadata for (runtimeID, hookID).
+func ResolveHookSpec(runtimeID, hookID string) (HookSpec, error) {
+	switch runtimeID {
+	case "", "codex":
+		if hookID == "session-context" {
+			return HookSpec{
+				ID:            "session-context",
+				Event:         EventSessionStart,
+				Matcher:       "startup|resume|clear|compact",
+				TimeoutSec:    DefaultTimeoutSec,
+				StatusMessage: "DTKit session context",
+			}, nil
+		}
+		return HookSpec{}, apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported Codex hook %q (supported: session-context)", hookID))
+	case "claude":
+		switch hookID {
+		case "check-changed":
+			return HookSpec{
+				ID:            "check-changed",
+				Event:         EventPostToolUse,
+				Matcher:       "Edit|Write|MultiEdit",
+				TimeoutSec:    15,
+				StatusMessage: "DTKit changed-files quality check",
+			}, nil
+		case "guard-edit":
+			return HookSpec{
+				ID:            "guard-edit",
+				Event:         EventPreToolUse,
+				Matcher:       "Edit|Write|MultiEdit",
+				TimeoutSec:    5,
+				StatusMessage: "DTKit path/secret edit guard",
+			}, nil
+		default:
+			return HookSpec{}, apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported Claude hook %q (supported: check-changed, guard-edit)", hookID))
+		}
+	default:
+		return HookSpec{}, apperr.Usage("hooks_not_supported", fmt.Sprintf("hooks are not supported for runtime %q", runtimeID))
+	}
+}
+
 // FormatCommands renders OS-specific native hook commands for Codex hooks.json.
 func FormatCommands(executable, hookID, scope, stateRoot string) (posixCmd, winCmd string, err error) {
-	if hookID != "session-context" {
-		return "", "", apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported hook %q", hookID))
+	return FormatCommandsForRuntime("codex", executable, hookID, scope, stateRoot)
+}
+
+// FormatCommandsForRuntime renders shell-quoted native commands for the named runtime hook handler.
+func FormatCommandsForRuntime(runtimeID, executable, hookID, scope, stateRoot string) (posixCmd, winCmd string, err error) {
+	if _, err := ResolveHookSpec(runtimeID, hookID); err != nil {
+		return "", "", err
 	}
 	if scope != "project" && scope != "global" {
 		return "", "", apperr.Usage("invalid_scope", fmt.Sprintf("invalid scope %q", scope))
@@ -115,9 +169,13 @@ func FormatCommands(executable, hookID, scope, stateRoot string) (posixCmd, winC
 	if !filepath.IsAbs(executable) || !filepath.IsAbs(stateRoot) {
 		return "", "", apperr.Usage("invalid_hook_paths", "hook executable and root must be absolute paths")
 	}
-	posixCmd = fmt.Sprintf("%s hook run %s --scope %s --root %s",
-		QuotePOSIX(executable), hookID, scope, QuotePOSIX(stateRoot))
-	winCmd = fmt.Sprintf("& %s hook run %s --scope %s --root %s",
-		QuotePowerShell(executable), hookID, scope, QuotePowerShell(stateRoot))
+	rtFlag := ""
+	if runtimeID != "" && runtimeID != "codex" {
+		rtFlag = " --runtime " + runtimeID
+	}
+	posixCmd = fmt.Sprintf("%s hook run %s --scope %s --root %s%s",
+		QuotePOSIX(executable), hookID, scope, QuotePOSIX(stateRoot), rtFlag)
+	winCmd = fmt.Sprintf("& %s hook run %s --scope %s --root %s%s",
+		QuotePowerShell(executable), hookID, scope, QuotePowerShell(stateRoot), rtFlag)
 	return posixCmd, winCmd, nil
 }

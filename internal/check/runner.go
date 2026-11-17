@@ -48,6 +48,7 @@ type Options struct {
 	All          bool
 	Yes          bool
 	AllowAutofix bool
+	ExtraEnv     []string
 	LookPath     func(string) (string, error)
 	Now          func() time.Time
 }
@@ -258,7 +259,7 @@ func Run(ctx context.Context, env paths.Environment, opts Options) (Report, erro
 			continue
 		}
 
-		res := executeOneCheck(ctx, root, p.spec, lookPathFn)
+		res := executeOneCheck(ctx, root, p.spec, opts.ExtraEnv, lookPathFn)
 		rep.Results = append(rep.Results, res)
 		switch res.Status {
 		case StatusPass:
@@ -283,7 +284,7 @@ func Run(ctx context.Context, env paths.Environment, opts Options) (Report, erro
 	return rep, nil
 }
 
-func executeOneCheck(ctx context.Context, repoRoot string, spec project.CheckSpec, lookPathFn func(string) (string, error)) CheckResult {
+func executeOneCheck(ctx context.Context, repoRoot string, spec project.CheckSpec, extraEnv []string, lookPathFn func(string) (string, error)) CheckResult {
 	res := CheckResult{
 		ID:         spec.ID,
 		Kind:       spec.Kind,
@@ -334,7 +335,7 @@ func executeOneCheck(ctx context.Context, repoRoot string, spec project.CheckSpe
 
 	cmd := exec.Command(exePath, spec.Argv...)
 	cmd.Dir = workDir
-	cmd.Env = filteredCheckEnv(spec.AllowEnv)
+	cmd.Env = append(filteredCheckEnv(spec.AllowEnv), extraEnv...)
 	configureCommandProcess(cmd)
 
 	buf := &boundedBuffer{limit: MaxOutputBytes}

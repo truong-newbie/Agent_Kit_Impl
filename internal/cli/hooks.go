@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/hooks"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
 func runHooks(ctx context.Context, args []string, deps Deps) error {
@@ -73,7 +73,8 @@ func runHooksInspect(ctx context.Context, sub string, args []string, deps Deps, 
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown hooks %s option %q", sub, args[i])))
 		}
 	}
-	if err := checkHooksRuntime(runtimeArg); err != nil {
+	profile, err := checkHooksRuntime(runtimeArg)
+	if err != nil {
 		return fail(err)
 	}
 	if scope == "global" && projectPath != "" {
@@ -82,6 +83,7 @@ func runHooksInspect(ctx context.Context, sub string, args []string, deps Deps, 
 	if scope == "" && projectPath != "" {
 		scope = "project"
 	}
+	env.Runtime = profile.ID
 	env.Scope = scope
 
 	scopesToCheck := []string{scope}
@@ -91,30 +93,19 @@ func runHooksInspect(ctx context.Context, sub string, args []string, deps Deps, 
 	var all []installer.HookStatusInfo
 	hasBrokenOrModified := false
 	for _, sc := range scopesToCheck {
-		var roots map[string]string
-		if sc == "project" {
-			res, err := paths.ResolveProject(ctx, deps.Env, projectPath)
-			if err != nil {
-				if scope == "" {
-					var appErr *apperr.Error
-					if errors.As(err, &appErr) && (appErr.Code == "home_as_project" || appErr.Code == "filesystem_root") {
-						env.Warnings = append(env.Warnings, fmt.Sprintf("project hooks check skipped: %s", appErr.Message))
-						continue
-					}
+		roots, rootWarnings, err := resolveScopeRoots(ctx, deps, profile, sc, projectPath)
+		if err != nil {
+			if sc == "project" && scope == "" {
+				var appErr *apperr.Error
+				if errors.As(err, &appErr) && (appErr.Code == "home_as_project" || appErr.Code == "filesystem_root") {
+					env.Warnings = append(env.Warnings, fmt.Sprintf("project hooks check skipped: %s", appErr.Message))
+					continue
 				}
-				return fail(err)
 			}
-			roots = map[string]string{"project": res.Root}
-			env.Warnings = append(env.Warnings, res.Warnings...)
-		} else {
-			res, err := paths.ResolveGlobal(deps.Env)
-			if err != nil {
-				return fail(err)
-			}
-			roots = map[string]string{"user-home": res.UserHome, "codex-home": res.CodexHome}
-			env.Warnings = append(env.Warnings, res.Warnings...)
+			return fail(err)
 		}
-		items, err := installer.InspectHooks(sc, roots)
+		env.Warnings = append(env.Warnings, rootWarnings...)
+		items, err := installer.InspectHooksForRuntime(profile.ID, sc, roots)
 		if err != nil {
 			return fail(err)
 		}
@@ -195,10 +186,12 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown hooks enable option %q", args[i])))
 		}
 	}
-	if err := checkHooksRuntime(runtimeArg); err != nil {
+	profile, err := checkHooksRuntime(runtimeArg)
+	if err != nil {
 		return fail(err)
 	}
 	env.DryRun = dryRun
+	env.Runtime = profile.ID
 	env.Scope = scope
 
 	if scope == "" {
@@ -208,7 +201,7 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
 	}
 
-	roots, otherRoots, warnings, err := resolveHookAndSiblingRoots(ctx, deps, scope, projectPath)
+	roots, otherRoots, warnings, err := resolveHookAndSiblingRoots(ctx, deps, profile, scope, projectPath)
 	if err != nil {
 		return fail(err)
 	}
@@ -220,7 +213,7 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 		return fail(err)
 	}
 
-	preview, changed, err := installer.EnableHook(scope, hookID, roots, otherRoots, stableExe, true, deps.Now(), nil)
+	preview, changed, err := installer.EnableHookForRuntime(profile.ID, scope, hookID, roots, otherRoots, stableExe, true, deps.Now(), nil)
 	if err != nil {
 		return fail(err)
 	}
@@ -248,7 +241,7 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 		return fail(apperr.WithHint(apperr.Usage("confirmation_required", "non-interactive hooks enable requires --yes; run --dry-run first"), "run with --dry-run first, then pass --yes"))
 	}
 	if !yes {
-		confirmed, err := confirmPrompt(ctx, deps, fmt.Sprintf("Register Codex hook %s in %s (%s:%s)?", hookID, scope, preview.Root, preview.Path))
+		confirmed, err := confirmPrompt(ctx, deps, fmt.Sprintf("Register %s hook %s in %s (%s:%s)?", profile.DisplayName, hookID, scope, preview.Root, preview.Path))
 		if err != nil {
 			return fail(err)
 		}
@@ -260,7 +253,7 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 		return fail(apperr.Cancelled("hook enable cancelled"))
 	}
 
-	applied, _, err := installer.EnableHook(scope, hookID, roots, otherRoots, stableExe, false, deps.Now(), nil)
+	applied, _, err := installer.EnableHookForRuntime(profile.ID, scope, hookID, roots, otherRoots, stableExe, false, deps.Now(), nil)
 	if err != nil {
 		return fail(err)
 	}
@@ -318,10 +311,12 @@ func runHooksDisable(ctx context.Context, args []string, deps Deps, env Envelope
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown hooks disable option %q", args[i])))
 		}
 	}
-	if err := checkHooksRuntime(runtimeArg); err != nil {
+	profile, err := checkHooksRuntime(runtimeArg)
+	if err != nil {
 		return fail(err)
 	}
 	env.DryRun = dryRun
+	env.Runtime = profile.ID
 	env.Scope = scope
 
 	if scope == "" {
@@ -331,14 +326,14 @@ func runHooksDisable(ctx context.Context, args []string, deps Deps, env Envelope
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
 	}
 
-	roots, _, warnings, err := resolveHookAndSiblingRoots(ctx, deps, scope, projectPath)
+	roots, _, warnings, err := resolveHookAndSiblingRoots(ctx, deps, profile, scope, projectPath)
 	if err != nil {
 		return fail(err)
 	}
 	env.Warnings = append(env.Warnings, warnings...)
 	env.Roots = roots
 
-	preview, changed, err := installer.DisableHook(scope, hookID, roots, true, deps.Now(), nil)
+	preview, changed, err := installer.DisableHookForRuntime(profile.ID, scope, hookID, roots, true, deps.Now(), nil)
 	if err != nil {
 		return fail(err)
 	}
@@ -364,7 +359,7 @@ func runHooksDisable(ctx context.Context, args []string, deps Deps, env Envelope
 		return fail(apperr.WithHint(apperr.Usage("confirmation_required", "non-interactive hooks disable requires --yes; run --dry-run first"), "run with --dry-run first, then pass --yes"))
 	}
 	if !yes {
-		confirmed, err := confirmPrompt(ctx, deps, fmt.Sprintf("Disable Codex hook %s in %s?", hookID, scope))
+		confirmed, err := confirmPrompt(ctx, deps, fmt.Sprintf("Disable %s hook %s in %s?", profile.DisplayName, hookID, scope))
 		if err != nil {
 			return fail(err)
 		}
@@ -376,7 +371,7 @@ func runHooksDisable(ctx context.Context, args []string, deps Deps, env Envelope
 		return fail(apperr.Cancelled("hook disable cancelled"))
 	}
 
-	applied, _, err := installer.DisableHook(scope, hookID, roots, false, deps.Now(), nil)
+	applied, _, err := installer.DisableHookForRuntime(profile.ID, scope, hookID, roots, false, deps.Now(), nil)
 	if err != nil {
 		return fail(err)
 	}
@@ -388,54 +383,41 @@ func runHooksDisable(ctx context.Context, args []string, deps Deps, env Envelope
 	return nil
 }
 
-func resolveHookAndSiblingRoots(ctx context.Context, deps Deps, scope, projectPath string) (roots map[string]string, sibling map[string]string, warnings []string, err error) {
-	if scope == "project" {
-		res, err := paths.ResolveProject(ctx, deps.Env, projectPath)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		roots = map[string]string{"project": res.Root}
-		warnings = append(warnings, res.Warnings...)
-		if gRes, gErr := paths.ResolveGlobal(deps.Env); gErr == nil {
-			sibling = map[string]string{"user-home": gRes.UserHome, "codex-home": gRes.CodexHome}
-		}
-		return roots, sibling, warnings, nil
-	}
-	res, err := paths.ResolveGlobal(deps.Env)
+func resolveHookAndSiblingRoots(ctx context.Context, deps Deps, profile adapter.RuntimeProfile, scope, projectPath string) (roots map[string]string, sibling map[string]string, warnings []string, err error) {
+	roots, warnings, err = resolveScopeRoots(ctx, deps, profile, scope, projectPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	roots = map[string]string{"user-home": res.UserHome, "codex-home": res.CodexHome}
-	warnings = append(warnings, res.Warnings...)
-	if pRes, pErr := paths.ResolveProject(ctx, deps.Env, ""); pErr == nil {
-		sibling = map[string]string{"project": pRes.Root}
+	otherScope := "global"
+	if scope == "global" {
+		otherScope = "project"
+	}
+	if other, _, oErr := resolveScopeRoots(ctx, deps, profile, otherScope, ""); oErr == nil {
+		sibling = other
 	}
 	return roots, sibling, warnings, nil
 }
 
-func checkHooksRuntime(runtimeArg string) error {
+func checkHooksRuntime(runtimeArg string) (adapter.RuntimeProfile, error) {
 	profile, err := resolveRuntimeProfile(runtimeArg)
 	if err != nil {
-		return err
+		return profile, err
 	}
 	if !profile.HooksSupported {
-		return apperr.WithHint(
+		return profile, apperr.WithHint(
 			apperr.Usage("hooks_not_supported", fmt.Sprintf("DTKit does not manage hooks for %s", profile.DisplayName)),
-			"DTKit hooks currently support Codex CLI (--runtime codex) only",
+			"DTKit hooks currently support Codex CLI (--runtime codex) and Claude Code (--runtime claude)",
 		)
 	}
-	return nil
+	return profile, nil
 }
 
 func runHookExec(ctx context.Context, args []string, deps Deps) error {
 	if len(args) < 2 || args[0] != "run" {
-		return apperr.Usage("invalid_hook_usage", "usage: dtkit hook run <id> --scope project|global --root <dir>")
+		return apperr.Usage("invalid_hook_usage", "usage: dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|claude>]")
 	}
 	hookID := args[1]
-	if hookID != "session-context" {
-		return apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported hook handler %q", hookID))
-	}
-	var scope, rootDir string
+	var scope, rootDir, runtimeArg string
 	for i := 2; i < len(args); i++ {
 		switch args[i] {
 		case "--scope":
@@ -450,9 +432,27 @@ func runHookExec(ctx context.Context, args []string, deps Deps) error {
 				return apperr.Usage("missing_flag_value", "--root requires a value")
 			}
 			rootDir = args[i]
+		case "--runtime":
+			i++
+			if i >= len(args) {
+				return apperr.Usage("missing_flag_value", "--runtime requires a value")
+			}
+			runtimeArg = args[i]
 		default:
 			return apperr.Usage("unknown_option", fmt.Sprintf("unknown hook run option %q", args[i]))
 		}
 	}
-	return hooks.RunSessionContext(ctx, deps.Stdin, deps.Stdout, deps.Stderr, scope, rootDir)
+	if _, err := hooks.ResolveHookSpec(runtimeArg, hookID); err != nil {
+		return err
+	}
+	switch hookID {
+	case "session-context":
+		return hooks.RunSessionContext(ctx, deps.Stdin, deps.Stdout, deps.Stderr, scope, rootDir)
+	case "check-changed":
+		return hooks.RunCheckChanged(ctx, deps.Stdin, deps.Stdout, deps.Stderr, scope, rootDir)
+	case "guard-edit":
+		return hooks.RunGuardEdit(ctx, deps.Stdin, deps.Stdout, deps.Stderr, scope, rootDir)
+	default:
+		return apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported hook handler %q", hookID))
+	}
 }

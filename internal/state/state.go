@@ -130,7 +130,7 @@ func (s Installation) validateHooks(profile adapter.RuntimeProfile) error {
 		if !kitIDPattern.MatchString(h.ID) || !kitIDPattern.MatchString(h.HandlerID) {
 			return fmt.Errorf("invalid hook id %q", h.ID)
 		}
-		if h.HandlerID != "session-context" || h.Event != "SessionStart" {
+		if !validHookForRuntime(profile.ID, h.HandlerID, h.Event) {
 			return fmt.Errorf("unsupported hook handler or event: %s/%s", h.HandlerID, h.Event)
 		}
 		if seenIDs[h.ID] {
@@ -148,6 +148,18 @@ func (s Installation) validateHooks(profile adapter.RuntimeProfile) error {
 		}
 	}
 	return nil
+}
+
+func validHookForRuntime(runtimeID, handlerID, event string) bool {
+	switch runtimeID {
+	case "codex":
+		return handlerID == "session-context" && event == "SessionStart"
+	case "claude":
+		return (handlerID == "check-changed" && event == "PostToolUse") ||
+			(handlerID == "guard-edit" && event == "PreToolUse")
+	default:
+		return false
+	}
 }
 
 // Validate checks metadata against the known output mapping of the adapter.

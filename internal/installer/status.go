@@ -181,7 +181,7 @@ func InspectRuntime(runtimeName, scope string, roots map[string]string, _ []adap
 	}
 
 	if len(installed.Hooks) > 0 {
-		hookStatuses, hErr := InspectHooks(scope, roots)
+		hookStatuses, hErr := InspectHooksForRuntime(installed.Runtime, scope, roots)
 		if hErr != nil {
 			return report, hErr
 		}

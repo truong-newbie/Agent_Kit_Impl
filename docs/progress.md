@@ -271,6 +271,18 @@ Next independent work: Implement `B06` (opt-in Claude Code `.claude/settings.jso
 
 ---
 
+ID: B06 (Opt-In Claude Code Quality Hooks)
+Status: partial (unit, structural merge/unmerge, recursion/debounce/trust/lock/guardrail tests & local `verify-docker.ps1` passing; live Claude Code CLI hook trigger execution remains gated on isolated OAuth/API key)
+Baseline SHA / branch: `d8468ce` on `feat/v0.5`
+User-visible behavior and schema decisions: Enabled `HooksSupported: true` for `claude` (`HookProjectPath: ".claude/settings.json"`, `HookGlobalRoot: "claude-home"`, `HookGlobalPath: "settings.json"`). Generalized `internal/hooks/merge.go`, `internal/hooks/command.go`, `internal/state/state.go`, `schemas/state.schema.json`, `internal/installer/hooks.go`, and `internal/cli/hooks.go` across `codex` and `claude`. Added `PostToolUse` (`check-changed` on `Edit|Write|MultiEdit` calling `dtkit check --changed` with `DTKIT_HOOK_ACTIVE=1` loop prevention, 2s debounce window, lock safety, non-bypassable `.dtkit/local/check-trust.json` verification, and 2 KiB output cap) and optional `PreToolUse` (`guard-edit` blocking secret `.env*`, `.dtkit/local/`, `.git/`, and traversal edits).
+Files changed: `internal/adapter/adapter.go`, `internal/check/runner.go`, `internal/hooks/{merge,command,claude_runner,claude_hooks_test}.go`, `internal/state/state.go`, `schemas/state.schema.json`, `internal/installer/hooks.go`, `internal/cli/{cli,hooks,claude_hooks_test}.go`, `docs/progress.md`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (testing `.claude/settings.json` merge/unmerge preserving `permissions`/`mcpServers`/`env` and user hooks, `DTKIT_HOOK_ACTIVE=1`, 2s debounce, untrusted-check reminder vs trusted execution, `guard-edit` deny cases, `$CLAUDE_CONFIG_DIR/settings.json` global lifecycle, and clean `remove` unmerge).
+Live evidence: Offline structural settings merge, CLI hook handlers, and rollback invariants verified; live Claude Code interactive hook firing awaits isolated authenticated Claude session (`claude auth status` unauthenticated in isolated `CLAUDE_CONFIG_DIR`).
+Acceptance still missing / external blocker: Live `claude` tool-use session firing `.claude/settings.json` hook end-to-end (needs isolated Claude auth + owner model budget); multi-OS CI run for `B06`.
+Next independent work: Implement `B07` (`--preset minimal|review-only|engineering` & `--components` selection with state migration/update).
+
+---
+
 ## Historical Implementation Log (Point-in-Time Snapshots)
 
 > The entries below were recorded at the time each dev milestone completed and are kept intact for historical context; refer to **Current Status** above for live release-gate truth.

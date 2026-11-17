@@ -15,6 +15,8 @@ import (
 
 const (
 	EventSessionStart = "SessionStart"
+	EventPostToolUse  = "PostToolUse"
+	EventPreToolUse   = "PreToolUse"
 	DefaultTimeoutSec = 3
 	MaxHooksJSONBytes = 4 * 1024 * 1024
 )
@@ -37,6 +39,24 @@ func BuildSessionContextEntry(posixCmd, winCmd string, timeoutSec int) map[strin
 	}
 }
 
+// BuildClaudeHookEntry constructs a Claude Code settings.json hook matcher group.
+func BuildClaudeHookEntry(command, matcher string, timeoutSec int, statusMessage string) map[string]any {
+	if timeoutSec <= 0 {
+		timeoutSec = 10
+	}
+	return map[string]any{
+		"matcher": matcher,
+		"hooks": []any{
+			map[string]any{
+				"type":          "command",
+				"command":       command,
+				"timeout":       timeoutSec,
+				"statusMessage": statusMessage,
+			},
+		},
+	}
+}
+
 // CanonicalEntryDigest hashes the canonical JSON serialization of a Codex hook matcher group.
 // DTKit tracks ownership in state.json rather than injecting non-standard keys into hooks.json.
 func CanonicalEntryDigest(entry any) (string, error) {
@@ -48,15 +68,20 @@ func CanonicalEntryDigest(entry any) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// MergeHooksJSON structurally inserts entry into Codex hooks.json while preserving
-// all unrelated top-level keys, events, and user-authored hooks.
+// MergeHooksJSON structurally inserts entry into Codex hooks.json SessionStart while preserving all user config.
 func MergeHooksJSON(existing []byte, exists bool, entry map[string]any) (out []byte, digest string, err error) {
+	return MergeEventHookJSON(existing, exists, EventSessionStart, entry)
+}
+
+// MergeEventHookJSON structurally inserts entry under hooks.<eventName> while preserving
+// all unrelated top-level settings, events, and user-authored hooks.
+func MergeEventHookJSON(existing []byte, exists bool, eventName string, entry map[string]any) (out []byte, digest string, err error) {
 	digest, err = CanonicalEntryDigest(entry)
 	if err != nil {
 		return nil, "", err
 	}
 	if exists && len(existing) > MaxHooksJSONBytes {
-		return nil, "", apperr.Conflict("hooks_json_too_large", "hooks.json exceeds 4 MiB limit")
+		return nil, "", apperr.Conflict("hooks_json_too_large", "hooks config exceeds 4 MiB limit")
 	}
 	var root map[string]any
 	if !exists || len(bytes.TrimSpace(existing)) == 0 {
@@ -72,7 +97,7 @@ func MergeHooksJSON(existing []byte, exists bool, entry map[string]any) (out []b
 	if rawHooks, ok := root["hooks"]; ok {
 		hm, ok := rawHooks.(map[string]any)
 		if !ok {
-			return nil, "", apperr.Conflict("unsupported_hooks_schema", "existing hooks.json 'hooks' field is not an object")
+			return nil, "", apperr.Conflict("unsupported_hooks_schema", "existing config 'hooks' field is not an object")
 		}
 		hooksMap = hm
 	} else {
@@ -80,22 +105,22 @@ func MergeHooksJSON(existing []byte, exists bool, entry map[string]any) (out []b
 		root["hooks"] = hooksMap
 	}
 
-	var sessionList []any
-	if rawSession, ok := hooksMap[EventSessionStart]; ok {
-		sl, ok := rawSession.([]any)
+	var evList []any
+	if rawEv, ok := hooksMap[eventName]; ok {
+		sl, ok := rawEv.([]any)
 		if !ok {
-			return nil, "", apperr.Conflict("unsupported_hooks_schema", "existing hooks.json 'SessionStart' field is not an array")
+			return nil, "", apperr.Conflict("unsupported_hooks_schema", fmt.Sprintf("existing config '%s' field is not an array", eventName))
 		}
 		for _, item := range sl {
 			itemDig, dErr := CanonicalEntryDigest(item)
 			if dErr == nil && itemDig == digest {
-				return nil, "", apperr.Conflict("hook_already_present", "matching DTKit hook entry already exists in hooks.json without matching state")
+				return nil, "", apperr.Conflict("hook_already_present", fmt.Sprintf("matching DTKit hook entry already exists under %s without matching state", eventName))
 			}
 		}
-		sessionList = append([]any{}, sl...)
+		evList = append([]any{}, sl...)
 	}
-	sessionList = append(sessionList, entry)
-	hooksMap[EventSessionStart] = sessionList
+	evList = append(evList, entry)
+	hooksMap[eventName] = evList
 
 	encoded, err := json.MarshalIndent(root, "", "  ")
 	if err != nil {
@@ -104,32 +129,37 @@ func MergeHooksJSON(existing []byte, exists bool, entry map[string]any) (out []b
 	return append(encoded, '\n'), digest, nil
 }
 
-// UnmergeHooksJSON removes only the DTKit entry matching expectedDigest, preserving all user config.
+// UnmergeHooksJSON removes only the DTKit SessionStart entry matching expectedDigest.
 func UnmergeHooksJSON(existing []byte, expectedDigest string, createdFile bool) (out []byte, deleteFile bool, err error) {
+	return UnmergeEventHookJSON(existing, EventSessionStart, expectedDigest, createdFile)
+}
+
+// UnmergeEventHookJSON removes only the DTKit entry under hooks.<eventName> matching expectedDigest.
+func UnmergeEventHookJSON(existing []byte, eventName, expectedDigest string, createdFile bool) (out []byte, deleteFile bool, err error) {
 	root, err := parseHooksObject(existing)
 	if err != nil {
 		return nil, false, err
 	}
 	rawHooks, ok := root["hooks"]
 	if !ok {
-		return nil, false, apperr.Conflict("hook_entry_missing", "hooks.json is missing 'hooks' object")
+		return nil, false, apperr.Conflict("hook_entry_missing", "config is missing 'hooks' object")
 	}
 	hooksMap, ok := rawHooks.(map[string]any)
 	if !ok {
-		return nil, false, apperr.Conflict("unsupported_hooks_schema", "hooks.json 'hooks' field is not an object")
+		return nil, false, apperr.Conflict("unsupported_hooks_schema", "config 'hooks' field is not an object")
 	}
-	rawSession, ok := hooksMap[EventSessionStart]
+	rawEv, ok := hooksMap[eventName]
 	if !ok {
-		return nil, false, apperr.Conflict("hook_entry_missing", "hooks.json is missing 'SessionStart' array")
+		return nil, false, apperr.Conflict("hook_entry_missing", fmt.Sprintf("config is missing '%s' array", eventName))
 	}
-	sessionList, ok := rawSession.([]any)
+	evList, ok := rawEv.([]any)
 	if !ok {
-		return nil, false, apperr.Conflict("unsupported_hooks_schema", "hooks.json 'SessionStart' field is not an array")
+		return nil, false, apperr.Conflict("unsupported_hooks_schema", fmt.Sprintf("config '%s' field is not an array", eventName))
 	}
 
-	kept := make([]any, 0, len(sessionList))
+	kept := make([]any, 0, len(evList))
 	removedCount := 0
-	for _, item := range sessionList {
+	for _, item := range evList {
 		d, dErr := CanonicalEntryDigest(item)
 		if dErr == nil && d == expectedDigest {
 			removedCount++
@@ -138,19 +168,19 @@ func UnmergeHooksJSON(existing []byte, expectedDigest string, createdFile bool) 
 		kept = append(kept, item)
 	}
 	if removedCount == 0 {
-		return nil, false, apperr.Conflict("hook_entry_modified", "DTKit hook entry in hooks.json was modified or removed externally")
+		return nil, false, apperr.Conflict("hook_entry_modified", "DTKit hook entry in hooks config was modified or removed externally")
 	}
 	if removedCount > 1 {
 		return nil, false, apperr.WithHint(
-			apperr.Conflict("hook_entry_ambiguous", fmt.Sprintf("multiple (%d) hooks.json entries share digest %s; cannot safely disambiguate ownership", removedCount, expectedDigest)),
-			"remove duplicate entries in hooks.json manually before disabling or uninstalling",
+			apperr.Conflict("hook_entry_ambiguous", fmt.Sprintf("multiple (%d) entries share digest %s; cannot safely disambiguate ownership", removedCount, expectedDigest)),
+			"remove duplicate entries manually before disabling or uninstalling",
 		)
 	}
 
 	if len(kept) == 0 {
-		delete(hooksMap, EventSessionStart)
+		delete(hooksMap, eventName)
 	} else {
-		hooksMap[EventSessionStart] = kept
+		hooksMap[eventName] = kept
 	}
 	if len(hooksMap) == 0 {
 		delete(root, "hooks")
@@ -166,8 +196,13 @@ func UnmergeHooksJSON(existing []byte, expectedDigest string, createdFile bool) 
 	return append(encoded, '\n'), false, nil
 }
 
-// InspectHooksJSON checks whether expectedDigest is intact in hooks.json.
+// InspectHooksJSON checks whether expectedDigest is intact in Codex hooks.json SessionStart.
 func InspectHooksJSON(existing []byte, expectedDigest string) (present bool, err error) {
+	return InspectEventHooksJSON(existing, EventSessionStart, expectedDigest)
+}
+
+// InspectEventHooksJSON checks whether expectedDigest is intact under hooks.<eventName>.
+func InspectEventHooksJSON(existing []byte, eventName, expectedDigest string) (present bool, err error) {
 	root, err := parseHooksObject(existing)
 	if err != nil {
 		return false, err
@@ -178,24 +213,24 @@ func InspectHooksJSON(existing []byte, expectedDigest string) (present bool, err
 	}
 	hooksMap, ok := rawHooks.(map[string]any)
 	if !ok {
-		return false, apperr.Conflict("unsupported_hooks_schema", "hooks.json 'hooks' field is not an object")
+		return false, apperr.Conflict("unsupported_hooks_schema", "config 'hooks' field is not an object")
 	}
-	rawSession, ok := hooksMap[EventSessionStart]
+	rawEv, ok := hooksMap[eventName]
 	if !ok {
 		return false, nil
 	}
-	sessionList, ok := rawSession.([]any)
+	evList, ok := rawEv.([]any)
 	if !ok {
-		return false, apperr.Conflict("unsupported_hooks_schema", "hooks.json 'SessionStart' field is not an array")
+		return false, apperr.Conflict("unsupported_hooks_schema", fmt.Sprintf("config '%s' field is not an array", eventName))
 	}
 	matchCount := 0
-	for _, item := range sessionList {
+	for _, item := range evList {
 		if d, dErr := CanonicalEntryDigest(item); dErr == nil && d == expectedDigest {
 			matchCount++
 		}
 	}
 	if matchCount > 1 {
-		return false, apperr.Conflict("hook_entry_ambiguous", fmt.Sprintf("multiple (%d) hooks.json entries share digest %s", matchCount, expectedDigest))
+		return false, apperr.Conflict("hook_entry_ambiguous", fmt.Sprintf("multiple (%d) entries share digest %s", matchCount, expectedDigest))
 	}
 	return matchCount == 1, nil
 }
