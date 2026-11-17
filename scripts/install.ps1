@@ -16,6 +16,8 @@ if ($Version -notmatch $semverPattern) {
 $archOverride = $env:DTKIT_TEST_ARCH
 $osArch = if ($archOverride) {
     $archOverride
+} elseif (-not [string]::IsNullOrWhiteSpace($env:PROCESSOR_ARCHITECTURE)) {
+    $env:PROCESSOR_ARCHITECTURE
 } else {
     [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
 }
@@ -52,11 +54,12 @@ New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
 try {
     $archivePath = Join-Path $tmpDir $Archive
     $sumsPath = Join-Path $tmpDir "SHA256SUMS"
-    Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/$Archive" -OutFile $archivePath
-    Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/SHA256SUMS" -OutFile $sumsPath
+    Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/$Archive" -OutFile $archivePath -ErrorAction Stop
+    Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/SHA256SUMS" -OutFile $sumsPath -ErrorAction Stop
 
     $escapedArchive = [regex]::Escape($Archive)
-    $matchingLines = @(Get-Content -Path $sumsPath | Where-Object { $_ -match "^[0-9a-fA-F]{64}\s+(\./)?$escapedArchive$" })
+    $rawSums = Get-Content -Path $sumsPath -ErrorAction SilentlyContinue
+    $matchingLines = @($rawSums | Where-Object { $_ -match "^[0-9a-fA-F]{64}\s+(\./)?$escapedArchive$" })
     if ($matchingLines.Count -ne 1) {
         throw "Expected exactly 1 SHA256SUMS entry for $Archive, found $($matchingLines.Count); aborting."
     }
@@ -68,7 +71,7 @@ try {
 
     $extractDir = Join-Path $tmpDir "extracted"
     New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
-    Expand-Archive -Path $archivePath -DestinationPath $extractDir -Force
+    Expand-Archive -Path $archivePath -DestinationPath $extractDir -Force -ErrorAction Stop
 
     $extractedExe = Join-Path $extractDir "dtkit.exe"
     if (-not (Test-Path -LiteralPath $extractedExe)) {
@@ -85,16 +88,16 @@ try {
     New-Item -ItemType Directory -Force -Path $resolvedBinDir | Out-Null
     $destExe = Join-Path $resolvedBinDir "dtkit.exe"
     $stageExe = Join-Path $resolvedBinDir ("dtkit.exe.tmp." + [System.Guid]::NewGuid().ToString("N"))
-    Copy-Item -LiteralPath $extractedExe -Destination $stageExe -Force
+    Copy-Item -LiteralPath $extractedExe -Destination $stageExe -Force -ErrorAction Stop
 
     $backupExe = $null
     try {
         if (Test-Path -LiteralPath $destExe) {
             $backupExe = Join-Path $resolvedBinDir ("dtkit.exe.bak." + [System.Guid]::NewGuid().ToString("N"))
             # Move existing binary aside first; if locked by an active process, this fails before replacing it.
-            Move-Item -LiteralPath $destExe -Destination $backupExe -Force
+            Move-Item -LiteralPath $destExe -Destination $backupExe -Force -ErrorAction Stop
         }
-        Move-Item -LiteralPath $stageExe -Destination $destExe -Force
+        Move-Item -LiteralPath $stageExe -Destination $destExe -Force -ErrorAction Stop
         if ($backupExe -and (Test-Path -LiteralPath $backupExe)) {
             Remove-Item -LiteralPath $backupExe -Force -ErrorAction SilentlyContinue
         }
