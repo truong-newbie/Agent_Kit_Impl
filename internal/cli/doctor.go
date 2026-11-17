@@ -101,6 +101,19 @@ func redactEnvelope(env *Envelope, homes []string) {
 	for k, v := range env.Roots {
 		env.Roots[k] = redactDiagnosticText(v, homes)
 	}
+	for i := range env.Installations {
+		if env.Installations[i].Roots != nil {
+			cloned := cloneRootsMap(env.Installations[i].Roots)
+			for k, v := range cloned {
+				cloned[k] = redactDiagnosticText(v, homes)
+			}
+			env.Installations[i].Roots = cloned
+		}
+		env.Installations[i].Detail = redactDiagnosticText(env.Installations[i].Detail, homes)
+		for j := range env.Installations[i].Hooks {
+			env.Installations[i].Hooks[j].Executable = redactDiagnosticText(env.Installations[i].Hooks[j].Executable, homes)
+		}
+	}
 	if env.Explain != nil {
 		env.Explain.SourceLocation = redactDiagnosticText(env.Explain.SourceLocation, homes)
 	}

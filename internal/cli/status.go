@@ -15,7 +15,11 @@ import (
 func runStatus(ctx context.Context, args []string, deps Deps) error {
 	env := newEnvelope("status")
 	jsonOutput := hasJSONFlag(args)
+	redact := hasFlag(args, "--redact")
 	fail := func(err error) error {
+		if redact {
+			err = redactAppError(err, collectHomeCandidates(deps))
+		}
 		if jsonOutput {
 			return failJSON(deps.Stdout, env, err)
 		}
@@ -23,6 +27,7 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	var scope, projectPath, runtimeArg string
+	var allRuntimes bool
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--project":
@@ -35,6 +40,10 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 				return fail(apperr.Usage("conflicting_scope", "choose at most one of --project or --global"))
 			}
 			scope = "global"
+		case "--all-runtimes":
+			allRuntimes = true
+		case "--redact":
+			redact = true
 		case "--json":
 			jsonOutput = true
 		case "--verbose":
@@ -54,6 +63,9 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 		default:
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown status option %q", args[i])))
 		}
+	}
+	if allRuntimes && runtimeArg != "" {
+		return fail(apperr.Usage("invalid_flag_combination", "--all-runtimes and --runtime cannot be used together"))
 	}
 	if scope == "global" && projectPath != "" {
 		return fail(apperr.Usage("invalid_flag_combination", "--path cannot be used with --global"))
@@ -112,10 +124,10 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 				return fail(inspectErr)
 			}
 			for _, report := range rtReports {
-				if !isPrimary && !report.Installed && !report.RecoveryNeeded {
+				if !allRuntimes && !isPrimary && !report.Installed && !report.RecoveryNeeded {
 					continue
 				}
-				if runtimeArg == rtProfile.ID || report.Installed {
+				if allRuntimes || runtimeArg == rtProfile.ID || report.Installed {
 					if report.Capabilities != nil && !report.Capabilities.Instructions.DTKitSupported && report.Capabilities.Instructions.Note != "" {
 						appendUniqueWarning(&env.Warnings, report.Capabilities.Instructions.Note)
 					}
@@ -138,12 +150,15 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 	if len(reports) == 1 {
 		installed := reports[0].Installed
 		env.Installed = &installed
-		env.Roots = reports[0].Roots
+		env.Roots = cloneRootsMap(reports[0].Roots)
 		env.Capabilities = reports[0].Capabilities
 		env.Selection = reports[0].Selection
 		if reports[0].IntegrationStatus != "" {
 			env.Integration = &adapter.IntegrationEvidence{Status: reports[0].IntegrationStatus, Note: reports[0].IntegrationNote}
 		}
+	}
+	if redact {
+		redactEnvelope(&env, collectHomeCandidates(deps))
 	}
 
 	if jsonOutput {

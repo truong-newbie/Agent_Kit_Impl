@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DTKit Team Onboarding Bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runtimes", "lockfile"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "defaultRuntime": { "enum": ["codex", "gemini", "opencode", "cursor", "claude"] },
+    "runtimes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "enum": ["codex", "gemini", "opencode", "cursor", "claude"] },
+      "uniqueItems": true
+    },
+    "lockfile": { "type": "object" },
+    "trustPolicy": { "type": "object" },
+    "projectProfile": { "type": "object" },
+    "hookRecommendations": {
+      "type": "array",
+      "items": { "enum": ["session-context", "check-changed", "guard-edit"] },
+      "uniqueItems": true
+    }
+  }
+}

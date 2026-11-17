@@ -77,6 +77,18 @@ type SyncKitResult struct {
 	ProvenanceKey string `json:"provenanceKey,omitempty"`
 }
 
+type TeamImportSummary struct {
+	BundleName          string   `json:"bundleName,omitempty"`
+	WrittenFiles        []string `json:"writtenFiles,omitempty"`
+	HookRecommendations []string `json:"hookRecommendations,omitempty"`
+	ProjectCheckTrust   string   `json:"projectCheckTrust,omitempty"`
+}
+
+type TeamTemplateResult struct {
+	WrittenFiles []string `json:"writtenFiles,omitempty"`
+	SkippedFiles []string `json:"skippedFiles,omitempty"`
+}
+
 type Envelope struct {
 	SchemaVersion  int                          `json:"schemaVersion"`
 	Command        string                       `json:"command"`
@@ -107,6 +119,9 @@ type Envelope struct {
 	Lockfile       *dist.Lockfile               `json:"lockfile,omitempty"`
 	LockDiff       *dist.LockDiffReport         `json:"lockDiff,omitempty"`
 	SyncResults    []SyncKitResult              `json:"syncResults,omitempty"`
+	TeamBundle     *dist.TeamBundle             `json:"teamBundle,omitempty"`
+	TeamImport     *TeamImportSummary           `json:"teamImport,omitempty"`
+	TeamTemplate   *TeamTemplateResult          `json:"teamTemplate,omitempty"`
 	CreateKit      *dist.CreateKitResult        `json:"createKit,omitempty"`
 	CreateSkill    *dist.CreateSkillResult      `json:"createSkill,omitempty"`
 	ProjectInspect *project.InspectResult       `json:"projectInspect,omitempty"`

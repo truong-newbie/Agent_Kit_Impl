@@ -2,9 +2,9 @@
 
 ## Current Status
 
-- **Active Branches:** `feat/c03-lockfile` (`C03`, branched from `feat/c02-diff-fork` @ `772b522`), `feat/c02-diff-fork` (`C02`, [Run 44034433728](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44034433728)), `feat/c01-multikit` (`C01` + `C04a`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `feat/v0.5` (`B01`–`B08`), and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`).
-- **CI Status:** `feat/c02-diff-fork` (`772b522`, [Run 44034433728](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44034433728)), `feat/c01-multikit` (`9b5fe7b`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `main` (`b78a6b3`, [Run 44020170539](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44020170539)), and `v0.5.0-rc.1` (`44020171382` + `release.yml` Draft Pre-release `44020171501`) passed **5/5 GitHub Actions jobs**; `feat/c03-lockfile` CI will run upon push.
-- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), and Milestone C `C01` + `C04a` + `C02` + `C03` are implemented; live model A/B & live Claude session hooks remain `blocked` (host `claude 2.1.319` returned `401 Invalid or expired API key` during isolated `--no-session-persistence` live probe, `total_cost_usd: 0`).
+- **Active Branches:** `feat/c04-onboarding` (`C04`, branched from `feat/c03-lockfile` @ `462ab49`), `feat/c03-lockfile` (`C03`, [Run 44039514749](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44039514749)), `feat/c02-diff-fork` (`C02`, [Run 44034433728](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44034433728)), `feat/c01-multikit` (`C01` + `C04a`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `feat/v0.5` (`B01`–`B08`), and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`).
+- **CI Status:** `feat/c03-lockfile` (`462ab49`, [Run 44039514749](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44039514749)), `feat/c02-diff-fork` (`772b522`, [Run 44034433728](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44034433728)), `feat/c01-multikit` (`9b5fe7b`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `main` (`b78a6b3`, [Run 44020170539](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44020170539)), and `v0.5.0-rc.1` (`44020171382` + `release.yml` Draft Pre-release `44020171501`) passed **5/5 GitHub Actions jobs**; `feat/c04-onboarding` CI will run upon push.
+- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), and Milestone C `C01`–`C04` are implemented; live model A/B & live Claude session hooks remain `blocked` (host `claude 2.1.319` returned `401 Invalid or expired API key` during isolated `--no-session-persistence` live probe, `total_cost_usd: 0`).
 
 ### Hardening & Release Backlog Tracker (`N00`–`N12`)
 
@@ -330,13 +330,24 @@ Next independent work: Implement `C03` (`dtkit.lock`, reproducible sync & trust 
 ---
 
 ID: C03 (Portable `dtkit.lock`, Reproducible Sync & Ed25519 Trust Policy)
-Status: verified (local Docker `verify-docker.ps1`; CI pending push on `feat/c03-lockfile`)
-Baseline SHA / branch: `772b522` -> `feat/c03-lockfile`
+Status: verified (`verify-docker.ps1` + GitHub Actions CI [Run 44039514749](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44039514749) 5/5 green)
+Baseline SHA / branch: `772b522` -> `feat/c03-lockfile` (`462ab49`)
 User-visible behavior and schema decisions: Added [`docs/adr-lockfile-trust.md`](./adr-lockfile-trust.md) and [`schemas/lock.schema.json`](../schemas/lock.schema.json) (`schemaVersion: 1`) separating portable project declarations from machine-local state/journals. Rejects absolute/home/traversal paths, URL query secrets/userinfo, duplicate kits, and unknown fields (`dist.ParseAndValidateLockfile`). Added pure Go stdlib `crypto/ed25519` trust root & provenance helpers (`internal/dist/provenance.go`) supporting key generation, signing, multiple active keys (rotation), explicit `revoked` keys, RFC3339 `notAfter` expiration, `allowedKits` scoping, and verify-before-mutation (`VerifyProvenance`). Added `dtkit lock <generate|verify|diff|sign|keygen>` and `dtkit sync [--offline] [--require-signature] [--dry-run] [--diff]` installing/updating multi-kit locked projects deterministically from verified cache/relative/remote sources via `ExecuteTx`.
 Files changed: `docs/adr-lockfile-trust.md`, `schemas/{lock.schema.json,embed_test.go}`, `internal/dist/{lockfile,lockfile_test,provenance}.go`, `internal/cli/{cli,completion,envelope,lock,lock_sync_test,sync}.go`, `docs/{cli,progress}.md`
-Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`20/20` packages with `-race`), verifying portability rejection, key rotation/revocation/expiration, offline verified cache hits vs misses, Machine A -> Machine B fresh-clone byte-identical offline `dtkit sync`, idempotent second sync, and verify-before-mutation fail-closed checks on revoked keys.
-Acceptance still missing / external blocker: Multi-OS CI confirmation on `feat/c03-lockfile`; remaining Milestone C slices `C04` (export/import onboarding), `C05` (additional runtime hook integrations), and `C06` (periodic compatibility & perf tracking).
-Next independent work: Push `feat/c03-lockfile` for 5/5 GitHub Actions CI, then proceed to `C04` (portable team onboarding export/import & repo template).
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`20/20` packages with `-race`), plus GitHub Actions CI Run `44039514749` (5/5 jobs `success`).
+Acceptance still missing / external blocker: None for `C03`.
+Next independent work: Implement `C04` (`dtkit team export|import|template`, unified `dtkit status --all-runtimes`).
+
+---
+
+ID: C04 (Team Onboarding Bundles, Repo Template & Unified Cross-Runtime Inspect)
+Status: verified (local Docker `verify-docker.ps1`; CI pending push on `feat/c04-onboarding`)
+Baseline SHA / branch: `462ab49` -> `feat/c04-onboarding`
+User-visible behavior and schema decisions: Added [`docs/adr-team-onboarding.md`](./adr-team-onboarding.md) and [`schemas/team.schema.json`](../schemas/team.schema.json) (`schemaVersion: 1`) plus `dist.TeamBundle` (`internal/dist/team.go`) strictly excluding machine-local state, home bindings, backups, private keys, and `check-trust.json`. Added `dtkit team export`, `dtkit team import` (running capability, runtime, lockfile digest, provenance, and non-clobber `.dtkit/project.json` checks before mutating, never executing repo commands or auto-trusting checks), `dtkit team template` (scaffolding `dtkit.lock`, read-only `.dtkit/project.json`, and `.dtkit/ONBOARDING.md` without clobbering existing files), and `dtkit status --all-runtimes [--redact]`. Extracted shared `prepareSyncPlan` / `applySyncPlan` in `internal/cli/sync.go` so `sync` and `team import` share one verified transaction path.
+Files changed: `docs/adr-team-onboarding.md`, `schemas/{team.schema.json,embed_test.go}`, `internal/dist/{team,team_test}.go`, `internal/cli/{cli,completion,doctor,envelope,status,sync,team,team_test}.go`, `docs/{cli,progress}.md`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`20/20` packages with `-race`), verifying cross-home/CI-checkout export -> import, zero Makefile canary execution, zero `.dtkit/local/check-trust.json` auto-trust, runtime mismatch fail-closed pre-write, non-clobber `team template`, and 5-runtime `status --all-runtimes --redact`.
+Acceptance still missing / external blocker: Multi-OS CI confirmation on `feat/c04-onboarding`; remaining Milestone C slices `C05` (additional runtime quality integrations) and `C06` (periodic compatibility & performance tracking).
+Next independent work: Push `feat/c04-onboarding` for 5/5 GitHub Actions CI, then proceed to `C05` / `C06` or review/merge `C01`–`C04`.
 
 ---
 

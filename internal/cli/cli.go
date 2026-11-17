@@ -31,7 +31,7 @@ Usage:
   dtkit doctor [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--redact] [--json]
   dtkit diff [<kit>[@<ver>]] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--redact] [--json]
   dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
-  dtkit status [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--json]
+  dtkit status [--runtime <codex|gemini|opencode|cursor|claude>|--all-runtimes] [--project|--global] [--path <dir>] [--redact] [--json]
   dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
@@ -39,6 +39,7 @@ Usage:
   dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]
   dtkit lock <generate|verify|diff|sign|keygen> [options]
   dtkit sync [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--lock <file>] [--trust <file>] [--require-signature] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
+  dtkit team <export|import|template> [options]
   dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [args]
   dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|claude>]
   dtkit completion <bash|zsh|powershell>
@@ -110,6 +111,8 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runLock(ctx, args[1:], deps)
 	case "sync":
 		return runSync(ctx, args[1:], deps)
+	case "team":
+		return runTeam(ctx, args[1:], deps)
 	case "hooks":
 		return runHooks(ctx, args[1:], deps)
 	case "hook":
@@ -144,7 +147,7 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit fork <kit>[@<ver>] [--as <new-id>] [--dir <parent>] [--version <x.y.z>] [--name <title>] [--same-id] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--redact] [--json]\n")
 		return err
 	case "status":
-		_, err := io.WriteString(out, "Usage: dtkit status [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit status [--runtime <codex|gemini|opencode|cursor|claude>|--all-runtimes] [--project|--global] [--path <dir>] [--redact] [--json]\n")
 		return err
 	case "doctor":
 		_, err := io.WriteString(out, "Usage: dtkit doctor [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--redact] [--json]\n")
@@ -181,6 +184,9 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		return err
 	case "sync":
 		_, err := io.WriteString(out, "Usage: dtkit sync [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--lock <file>] [--trust <file>] [--require-signature] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]\n")
+		return err
+	case "team":
+		_, err := io.WriteString(out, "Usage: dtkit team <export|import|template> [--path <dir>] [--runtime <...>] [--out <file>] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "hooks":
 		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
