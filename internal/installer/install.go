@@ -20,6 +20,7 @@ type InstallOptions struct {
 	Runtime       string // optional; defaults to codex
 	SourceKind    string
 	ArchiveSHA256 string
+	Selection     *catalog.SelectionSpec
 	Hooks         *TxHooks
 }
 
@@ -76,6 +77,7 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 		Scope:           scope,
 		Runtime:         profile.ID,
 		AdapterRevision: profile.Revision,
+		Selection:       cloneSelection(opts.Selection),
 		InstalledAt:     now.UTC().Format(time.RFC3339),
 		UpdatedAt:       now.UTC().Format(time.RFC3339),
 		Kit: state.Kit{
@@ -178,4 +180,18 @@ func FreshInstallWithOptions(scope string, roots map[string]string, pkg catalog.
 	}
 	result.LastTransactionID = txRes.TransactionID
 	return result, nil
+}
+
+func cloneSelection(s *catalog.SelectionSpec) *catalog.SelectionSpec {
+	if s == nil {
+		return nil
+	}
+	out := &catalog.SelectionSpec{Preset: s.Preset}
+	if len(s.RequestedComponents) > 0 {
+		out.RequestedComponents = append([]string{}, s.RequestedComponents...)
+	}
+	if len(s.ResolvedComponents) > 0 {
+		out.ResolvedComponents = append([]string{}, s.ResolvedComponents...)
+	}
+	return out
 }

@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
@@ -26,35 +26,41 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
+		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
 	}
 	kitSpec := args[0]
 
-	var scope, projectPath, runtimeArg, fromPath, sourceURL, sha256Hex string
-	var dryRun, yes, offline bool
+	var scope, projectPath, runtimeArg, fromPath, sourceURL, sha256Hex, presetRaw, componentsRaw string
+	var dryRun, yes, offline, hasPreset, hasComponents bool
 	for i := 1; i < len(args); i++ {
-		switch args[i] {
-		case "--project":
+		switch {
+		case args[i] == "--project":
 			if scope != "" {
 				return fail(apperr.Usage("conflicting_scope", "choose exactly one of --project or --global"))
 			}
 			scope = "project"
-		case "--global":
+		case args[i] == "--global":
 			if scope != "" {
 				return fail(apperr.Usage("conflicting_scope", "choose exactly one of --project or --global"))
 			}
 			scope = "global"
-		case "--dry-run":
+		case args[i] == "--dry-run":
 			dryRun = true
-		case "--json":
+		case args[i] == "--json":
 			jsonOutput = true
-		case "--yes":
+		case args[i] == "--yes":
 			yes = true
-		case "--offline":
+		case args[i] == "--offline":
 			offline = true
-		case "--verbose":
+		case args[i] == "--verbose":
 			deps.Verbose = true
-		case "--runtime", "--path", "--from", "--source", "--sha256":
+		case strings.HasPrefix(args[i], "--preset="):
+			hasPreset = true
+			presetRaw = strings.TrimPrefix(args[i], "--preset=")
+		case strings.HasPrefix(args[i], "--components="):
+			hasComponents = true
+			componentsRaw = strings.TrimPrefix(args[i], "--components=")
+		case args[i] == "--runtime" || args[i] == "--path" || args[i] == "--from" || args[i] == "--source" || args[i] == "--sha256" || args[i] == "--preset" || args[i] == "--components":
 			flag := args[i]
 			i++
 			if i >= len(args) {
@@ -71,10 +77,21 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 				sourceURL = args[i]
 			case "--sha256":
 				sha256Hex = args[i]
+			case "--preset":
+				hasPreset = true
+				presetRaw = args[i]
+			case "--components":
+				hasComponents = true
+				componentsRaw = args[i]
 			}
 		default:
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown install option %q", args[i])))
 		}
+	}
+
+	preset, requestedComponents, selErr := parseSelectionInputs(presetRaw, hasPreset, componentsRaw, hasComponents)
+	if selErr != nil {
+		return fail(selErr)
 	}
 
 	profile, rtErr := resolveRuntimeProfile(runtimeArg)
@@ -116,10 +133,11 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		return fail(err)
 	}
 
-	artifacts, err := adapter.RenderForRuntime(profile.ID, pkg, source, scope)
+	selectionSpec, artifacts, err := renderWithSelection(profile.ID, pkg, source, scope, preset, requestedComponents)
 	if err != nil {
 		return fail(err)
 	}
+	env.Selection = selectionSpec
 
 	pending, lockStatus, err := installer.InspectTransactionsForRuntime(profile.ID, scope, roots)
 	if err != nil {
@@ -145,8 +163,8 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		if err := checkRuntimeHomeBinding(profile, scope, existing, roots); err != nil {
 			return fail(err)
 		}
-		if existing.Kit.Version != pkg.Version || existing.Kit.Digest != pkgDigest || existing.AdapterRevision != profile.Revision {
-			return fail(apperr.WithHint(apperr.Conflict("already_installed", fmt.Sprintf("%s %s is already installed with different version or content", existing.Kit.ID, existing.Kit.Version)), fmt.Sprintf("run dtkit update %s --%s --runtime %s", pkg.ID, scope, profile.ID)))
+		if existing.Kit.Version != pkg.Version || existing.Kit.Digest != pkgDigest || existing.AdapterRevision != profile.Revision || !catalog.SelectionsEqual(existing.Selection, selectionSpec) {
+			return fail(apperr.WithHint(apperr.Conflict("already_installed", fmt.Sprintf("%s %s is already installed with different version, selection, or content", existing.Kit.ID, existing.Kit.Version)), fmt.Sprintf("run dtkit update %s --%s --runtime %s", pkg.ID, scope, profile.ID)))
 		}
 		plan, err := planner.PlanDesiredForRuntime(profile.ID, scope, pkg.ID, roots, existing, artifacts)
 		if err != nil {
@@ -231,6 +249,7 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		Runtime:       profile.ID,
 		SourceKind:    resolved.SourceKind,
 		ArchiveSHA256: resolved.ArchiveSHA256,
+		Selection:     selectionSpec,
 	})
 	if err != nil {
 		return fail(err)

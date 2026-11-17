@@ -3,11 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
 )
 
 func runUpdate(ctx context.Context, args []string, deps Deps) error {
@@ -21,35 +23,41 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit update <kit>[@<version>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
+		return fail(apperr.Usage("missing_kit", "usage: dtkit update <kit>[@<version>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
 	}
 	kitSpec := args[0]
 
-	var scope, projectPath, runtimeArg, fromPath, sourceURL, sha256Hex string
-	var dryRun, yes, offline bool
+	var scope, projectPath, runtimeArg, fromPath, sourceURL, sha256Hex, presetRaw, componentsRaw string
+	var dryRun, yes, offline, hasPreset, hasComponents bool
 	for i := 1; i < len(args); i++ {
-		switch args[i] {
-		case "--project":
+		switch {
+		case args[i] == "--project":
 			if scope != "" {
 				return fail(apperr.Usage("conflicting_scope", "choose exactly one of --project or --global"))
 			}
 			scope = "project"
-		case "--global":
+		case args[i] == "--global":
 			if scope != "" {
 				return fail(apperr.Usage("conflicting_scope", "choose exactly one of --project or --global"))
 			}
 			scope = "global"
-		case "--dry-run":
+		case args[i] == "--dry-run":
 			dryRun = true
-		case "--json":
+		case args[i] == "--json":
 			jsonOutput = true
-		case "--yes":
+		case args[i] == "--yes":
 			yes = true
-		case "--offline":
+		case args[i] == "--offline":
 			offline = true
-		case "--verbose":
+		case args[i] == "--verbose":
 			deps.Verbose = true
-		case "--runtime", "--path", "--from", "--source", "--sha256":
+		case strings.HasPrefix(args[i], "--preset="):
+			hasPreset = true
+			presetRaw = strings.TrimPrefix(args[i], "--preset=")
+		case strings.HasPrefix(args[i], "--components="):
+			hasComponents = true
+			componentsRaw = strings.TrimPrefix(args[i], "--components=")
+		case args[i] == "--runtime" || args[i] == "--path" || args[i] == "--from" || args[i] == "--source" || args[i] == "--sha256" || args[i] == "--preset" || args[i] == "--components":
 			flag := args[i]
 			i++
 			if i >= len(args) {
@@ -66,10 +74,21 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 				sourceURL = args[i]
 			case "--sha256":
 				sha256Hex = args[i]
+			case "--preset":
+				hasPreset = true
+				presetRaw = args[i]
+			case "--components":
+				hasComponents = true
+				componentsRaw = args[i]
 			}
 		default:
 			return fail(apperr.Usage("unknown_option", fmt.Sprintf("unknown update option %q", args[i])))
 		}
+	}
+
+	preset, requestedComponents, selErr := parseSelectionInputs(presetRaw, hasPreset, componentsRaw, hasComponents)
+	if selErr != nil {
+		return fail(selErr)
 	}
 
 	profile, rtErr := resolveRuntimeProfile(runtimeArg)
@@ -111,10 +130,26 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 		return fail(err)
 	}
 
-	artifacts, err := adapter.RenderForRuntime(profile.ID, pkg, source, scope)
+	if !hasPreset && !hasComponents {
+		statePath, spErr := resolveRuntimeStatePath(profile, scope, roots)
+		if spErr != nil {
+			return fail(spErr)
+		}
+		existingState, stateExists, stErr := state.LoadFileForRuntime(statePath, scope, profile.ID)
+		if stErr != nil {
+			return fail(stErr)
+		}
+		if stateExists && existingState.Selection != nil {
+			preset = existingState.Selection.Preset
+			requestedComponents = existingState.Selection.RequestedComponents
+		}
+	}
+
+	selectionSpec, artifacts, err := renderWithSelection(profile.ID, pkg, source, scope, preset, requestedComponents)
 	if err != nil {
 		return fail(err)
 	}
+	env.Selection = selectionSpec
 
 	plan, existing, adapterMigration, err := installer.PlanUpdateForRuntime(profile.ID, scope, roots, pkg, pkgDigest, artifacts, profile.Revision)
 	if err != nil {
@@ -134,7 +169,7 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 			break
 		}
 	}
-	if !hasMutation && existing.Kit.Version == pkg.Version && existing.Kit.Digest == pkgDigest && !adapterMigration {
+	if !hasMutation && existing.Kit.Version == pkg.Version && existing.Kit.Digest == pkgDigest && !adapterMigration && catalog.SelectionsEqual(existing.Selection, selectionSpec) {
 		installedFlag := true
 		env.Installed = &installedFlag
 		env.Generation = existing.Generation
@@ -196,6 +231,7 @@ func runUpdate(ctx context.Context, args []string, deps Deps) error {
 		Runtime:       profile.ID,
 		SourceKind:    resolved.SourceKind,
 		ArchiveSHA256: resolved.ArchiveSHA256,
+		Selection:     selectionSpec,
 	})
 	if err != nil {
 		return fail(err)

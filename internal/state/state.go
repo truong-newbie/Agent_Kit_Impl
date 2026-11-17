@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
@@ -51,20 +52,21 @@ type Artifact struct {
 }
 
 type Installation struct {
-	SchemaVersion     int                `json:"schemaVersion"`
-	ManagedBy         string             `json:"managedBy"`
-	Generation        uint64             `json:"generation"`
-	Scope             string             `json:"scope"`
-	Runtime           string             `json:"runtime"`
-	AdapterRevision   string             `json:"adapterRevision"`
-	CodexHome         string             `json:"codexHome,omitempty"`
-	RuntimeHome       string             `json:"runtimeHome,omitempty"`
-	Kit               Kit                `json:"kit"`
-	Artifacts         []Artifact         `json:"artifacts"`
-	Hooks             []HookRegistration `json:"hooks,omitempty"`
-	LastTransactionID string             `json:"lastTransactionID,omitempty"`
-	InstalledAt       string             `json:"installedAt"`
-	UpdatedAt         string             `json:"updatedAt"`
+	SchemaVersion     int                    `json:"schemaVersion"`
+	ManagedBy         string                 `json:"managedBy"`
+	Generation        uint64                 `json:"generation"`
+	Scope             string                 `json:"scope"`
+	Runtime           string                 `json:"runtime"`
+	AdapterRevision   string                 `json:"adapterRevision"`
+	CodexHome         string                 `json:"codexHome,omitempty"`
+	RuntimeHome       string                 `json:"runtimeHome,omitempty"`
+	Kit               Kit                    `json:"kit"`
+	Artifacts         []Artifact             `json:"artifacts"`
+	Hooks             []HookRegistration     `json:"hooks,omitempty"`
+	LastTransactionID string                 `json:"lastTransactionID,omitempty"`
+	Selection         *catalog.SelectionSpec `json:"selection,omitempty"`
+	InstalledAt       string                 `json:"installedAt"`
+	UpdatedAt         string                 `json:"updatedAt"`
 }
 
 // GlobalHome returns the bound runtime-specific global home path recorded in state.
@@ -117,6 +119,14 @@ func (s Installation) validateCommon() error {
 	}
 	if s.InstalledAt == "" || s.UpdatedAt == "" {
 		return fmt.Errorf("missing installation timestamps")
+	}
+	if s.Selection != nil {
+		if s.Selection.Preset != "" && len(s.Selection.RequestedComponents) > 0 {
+			return fmt.Errorf("installation selection cannot specify both preset and requestedComponents")
+		}
+		if len(s.Selection.ResolvedComponents) == 0 {
+			return fmt.Errorf("installation selection missing resolvedComponents")
+		}
 	}
 	return s.validateHooks(profile)
 }

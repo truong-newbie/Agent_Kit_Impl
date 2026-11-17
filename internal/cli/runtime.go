@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -246,4 +247,47 @@ func runtimeIntegrationDoctorCheck(profile adapter.RuntimeProfile, scope string)
 		Status:  status,
 		Message: fmt.Sprintf("%s (%s): %s", integ.Status, profile.ID, integ.Note),
 	}
+}
+
+func parseSelectionInputs(preset string, hasPreset bool, componentsRaw string, hasComponents bool) (string, []string, error) {
+	if hasPreset && hasComponents {
+		return "", nil, apperr.Usage("conflicting_selection", "choose at most one of --preset or --components")
+	}
+	if hasPreset {
+		preset = strings.TrimSpace(preset)
+		if preset == "" {
+			return "", nil, apperr.Usage("invalid_selection_flags", "--preset requires a non-empty preset name")
+		}
+		return preset, nil, nil
+	}
+	if !hasComponents {
+		return "", nil, nil
+	}
+	var out []string
+	for _, part := range strings.Split(componentsRaw, ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	if len(out) == 0 {
+		return "", nil, apperr.Usage("empty_components", "--components must specify at least one component ID")
+	}
+	return "", out, nil
+}
+
+func renderWithSelection(runtimeID string, pkg catalog.Package, source fs.FS, scope, preset string, requested []string) (*catalog.SelectionSpec, []adapter.Artifact, error) {
+	spec, err := catalog.ResolveComponentSelection(pkg, source, preset, requested)
+	if err != nil {
+		return nil, nil, err
+	}
+	var resolvedIDs []string
+	if spec != nil {
+		resolvedIDs = spec.ResolvedComponents
+	}
+	artifacts, err := adapter.RenderForRuntimeSelection(runtimeID, pkg, source, scope, resolvedIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	return spec, artifacts, nil
 }

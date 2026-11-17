@@ -62,6 +62,7 @@ type Envelope struct {
 	Capabilities   *adapter.Capabilities        `json:"capabilities,omitempty"`
 	Integration    *adapter.IntegrationEvidence `json:"integration,omitempty"`
 	Kit            *KitSummary                  `json:"kit,omitempty"`
+	Selection      *catalog.SelectionSpec       `json:"selection,omitempty"`
 	Roots          map[string]string            `json:"roots,omitempty"`
 	Installed      *bool                        `json:"installed,omitempty"`
 	Generation     uint64                       `json:"generation,omitempty"`

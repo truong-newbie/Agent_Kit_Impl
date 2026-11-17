@@ -148,6 +148,7 @@ func runStatus(ctx context.Context, args []string, deps Deps) error {
 		env.Installed = &installed
 		env.Roots = reports[0].Roots
 		env.Capabilities = reports[0].Capabilities
+		env.Selection = reports[0].Selection
 		if reports[0].IntegrationStatus != "" {
 			env.Integration = &adapter.IntegrationEvidence{Status: reports[0].IntegrationStatus, Note: reports[0].IntegrationNote}
 		}

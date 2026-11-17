@@ -27,18 +27,26 @@ type Component struct {
 }
 
 type Package struct {
-	SchemaVersion        int         `json:"schemaVersion"`
-	ID                   string      `json:"id"`
-	Name                 string      `json:"name"`
-	Version              string      `json:"version"`
-	MinCLIVersion        string      `json:"minCliVersion,omitempty"`
-	Description          string      `json:"description"`
-	RuntimeTargets       []string    `json:"runtimeTargets"`
-	Scopes               []string    `json:"scopes"`
-	RequiresCapabilities []string    `json:"requiresCapabilities"`
-	OptionalCapabilities []string    `json:"optionalCapabilities,omitempty"`
-	PackageDependencies  []string    `json:"packageDependencies"`
-	Components           []Component `json:"components"`
+	SchemaVersion        int                 `json:"schemaVersion"`
+	ID                   string              `json:"id"`
+	Name                 string              `json:"name"`
+	Version              string              `json:"version"`
+	MinCLIVersion        string              `json:"minCliVersion,omitempty"`
+	Description          string              `json:"description"`
+	RuntimeTargets       []string            `json:"runtimeTargets"`
+	Scopes               []string            `json:"scopes"`
+	RequiresCapabilities []string            `json:"requiresCapabilities"`
+	OptionalCapabilities []string            `json:"optionalCapabilities,omitempty"`
+	PackageDependencies  []string            `json:"packageDependencies"`
+	Components           []Component         `json:"components"`
+	Presets              map[string][]string `json:"presets,omitempty"`
+}
+
+// SelectionSpec records preset/component filtering resolved deterministically across dependencies.
+type SelectionSpec struct {
+	Preset              string   `json:"preset,omitempty"`
+	RequestedComponents []string `json:"requestedComponents,omitempty"`
+	ResolvedComponents  []string `json:"resolvedComponents"`
 }
 
 func Engineer() (Package, fs.FS, error) {
@@ -296,5 +304,126 @@ func ResolveOrder(p Package, fsys fs.FS) ([]Component, error) {
 			return nil, err
 		}
 	}
+	for presetName, presetComps := range p.Presets {
+		if !validID(presetName, 32) {
+			return nil, apperr.Usage("invalid_preset", fmt.Sprintf("invalid preset name %q", presetName))
+		}
+		if len(presetComps) == 0 {
+			return nil, apperr.Usage("invalid_preset", fmt.Sprintf("preset %q must list at least one component", presetName))
+		}
+		seenPreset := map[string]bool{}
+		for _, cid := range presetComps {
+			if _, ok := ids[cid]; !ok {
+				return nil, apperr.Usage("invalid_preset", fmt.Sprintf("preset %q references unknown component %q", presetName, cid))
+			}
+			if seenPreset[cid] {
+				return nil, apperr.Usage("invalid_preset", fmt.Sprintf("preset %q lists duplicate component %q", presetName, cid))
+			}
+			seenPreset[cid] = true
+		}
+	}
 	return order, nil
+}
+
+// ResolveComponentSelection expands a preset or explicit component list deterministically
+// over each component's Requires dependency graph. Nil is returned when no filter is requested (full kit).
+func ResolveComponentSelection(p Package, fsys fs.FS, preset string, requested []string) (*SelectionSpec, error) {
+	if preset != "" && len(requested) > 0 {
+		return nil, apperr.Usage("conflicting_selection", "choose at most one of --preset or --components")
+	}
+	if _, err := ResolveOrder(p, fsys); err != nil {
+		return nil, err
+	}
+	if preset == "" && len(requested) == 0 {
+		return nil, nil
+	}
+
+	byID := make(map[string]Component, len(p.Components))
+	for _, c := range p.Components {
+		byID[c.ID] = c
+	}
+
+	var seeds []string
+	var spec SelectionSpec
+	if preset != "" {
+		presetSeeds, ok := p.Presets[preset]
+		if !ok {
+			var avail []string
+			for k := range p.Presets {
+				avail = append(avail, k)
+			}
+			sort.Strings(avail)
+			hint := "omit --preset to install the entire kit"
+			if len(avail) > 0 {
+				hint = fmt.Sprintf("available presets for %s: %s", p.ID, strings.Join(avail, ", "))
+			}
+			return nil, apperr.WithHint(apperr.Usage("unknown_preset", fmt.Sprintf("unknown preset %q for kit %q", preset, p.ID)), hint)
+		}
+		spec.Preset = preset
+		seeds = append(seeds, presetSeeds...)
+	} else {
+		seenReq := map[string]bool{}
+		for _, raw := range requested {
+			id := strings.TrimSpace(raw)
+			if id == "" {
+				continue
+			}
+			if _, ok := byID[id]; !ok {
+				return nil, apperr.Usage("unknown_component", fmt.Sprintf("unknown component %q in kit %q", id, p.ID))
+			}
+			if !seenReq[id] {
+				seenReq[id] = true
+				spec.RequestedComponents = append(spec.RequestedComponents, id)
+			}
+		}
+		if len(spec.RequestedComponents) == 0 {
+			return nil, apperr.Usage("empty_components", "--components must specify at least one valid component ID")
+		}
+		sort.Strings(spec.RequestedComponents)
+		seeds = append(seeds, spec.RequestedComponents...)
+	}
+
+	resolvedSet := map[string]bool{}
+	var addWithDeps func(string)
+	addWithDeps = func(id string) {
+		if resolvedSet[id] {
+			return
+		}
+		resolvedSet[id] = true
+		for _, dep := range byID[id].Requires {
+			addWithDeps(dep)
+		}
+	}
+	for _, s := range seeds {
+		addWithDeps(s)
+	}
+	for id := range resolvedSet {
+		spec.ResolvedComponents = append(spec.ResolvedComponents, id)
+	}
+	sort.Strings(spec.ResolvedComponents)
+	return &spec, nil
+}
+
+// SelectionsEqual reports whether two optional component selections describe the same selection.
+func SelectionsEqual(a, b *SelectionSpec) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if a.Preset != b.Preset || len(a.RequestedComponents) != len(b.RequestedComponents) || len(a.ResolvedComponents) != len(b.ResolvedComponents) {
+		return false
+	}
+	for i := range a.RequestedComponents {
+		if a.RequestedComponents[i] != b.RequestedComponents[i] {
+			return false
+		}
+	}
+	for i := range a.ResolvedComponents {
+		if a.ResolvedComponents[i] != b.ResolvedComponents[i] {
+			return false
+		}
+	}
+	return true
 }

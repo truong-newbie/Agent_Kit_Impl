@@ -21,6 +21,7 @@ type UpdateOptions struct {
 	Runtime         string // optional; defaults to codex
 	SourceKind      string
 	ArchiveSHA256   string
+	Selection       *catalog.SelectionSpec
 	AdapterRevision string // optional override for adapter migration testing; defaults to runtime profile revision
 	Hooks           *TxHooks
 }
@@ -140,7 +141,7 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 			break
 		}
 	}
-	if !hasMutation && existing.Kit.Version == pkg.Version && existing.Kit.Digest == pkgDigest && existing.AdapterRevision == adapterRev {
+	if !hasMutation && existing.Kit.Version == pkg.Version && existing.Kit.Digest == pkgDigest && existing.AdapterRevision == adapterRev && catalog.SelectionsEqual(existing.Selection, opts.Selection) {
 		res.Noop = true
 		res.Installation = *existing
 		return res, nil
@@ -172,6 +173,7 @@ func Update(scope string, roots map[string]string, pkg catalog.Package, source f
 		AdapterRevision: adapterRev,
 		CodexHome:       existing.CodexHome,
 		RuntimeHome:     existing.RuntimeHome,
+		Selection:       cloneSelection(opts.Selection),
 		InstalledAt:     existing.InstalledAt,
 		UpdatedAt:       now.UTC().Format(time.RFC3339),
 		Kit: state.Kit{

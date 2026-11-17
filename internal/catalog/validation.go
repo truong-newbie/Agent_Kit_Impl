@@ -80,7 +80,7 @@ func checkManifestKeys(data []byte) error {
 	if err := json.Unmarshal(data, &top); err != nil {
 		return err
 	}
-	if err := CheckObjectKeys(top, []string{"schemaVersion", "id", "name", "version", "description", "runtimeTargets", "scopes", "requiresCapabilities", "packageDependencies", "components"}, []string{"minCliVersion", "optionalCapabilities"}); err != nil {
+	if err := CheckObjectKeys(top, []string{"schemaVersion", "id", "name", "version", "description", "runtimeTargets", "scopes", "requiresCapabilities", "packageDependencies", "components"}, []string{"minCliVersion", "optionalCapabilities", "presets"}); err != nil {
 		return err
 	}
 	var components []map[string]json.RawMessage

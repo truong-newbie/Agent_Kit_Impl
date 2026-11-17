@@ -283,6 +283,18 @@ Next independent work: Implement `B07` (`--preset minimal|review-only|engineerin
 
 ---
 
+ID: B07 (Kit Profiles & Selective Component Install `--preset` / `--components`)
+Status: verified (local Docker `verify-docker.ps1`; CI pending push)
+Baseline SHA / branch: `521ce83` on `feat/v0.5`
+User-visible behavior and schema decisions: Added optional `"presets"` in `schemas/package.schema.json` and `internal/catalog/engineer/package.json` (`minimal`, `review-only`, `engineering`) and optional `"selection"` (`preset`, `requestedComponents`, `resolvedComponents`) in `schemas/state.schema.json` and `internal/state/state.go`. Added dependency-closure resolution (`catalog.ResolveComponentSelection`, `catalog.SelectionsEqual`), selective rendering (`adapter.RenderForRuntimeSelection`, preserving full `SkillNames` lookup context so partial presets never fail missingkey templates), transactional switch/preservation in `dtkit install` & `dtkit update` (removing orphaned artifacts cleanly and preserving `Selection` on subsequent `dtkit update`), and `dtkit status` reporting of active selection.
+Files changed: `schemas/{package,state}.schema.json`, `internal/catalog/{catalog.go,validation.go,engineer/package.json}`, `internal/adapter/render.go`, `internal/state/state.go`, `internal/installer/{install,update,status,selection_test}.go`, `internal/cli/{cli,envelope,install,runtime,status,update,selection_test}.go`, `docs/progress.md`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (preset closure validation for `minimal`/`review-only`/`engineering`, cross-runtime partial rendering, preset switch add/remove lifecycle, crash rollback during switch, legacy state upgrade with component filter, and CLI `--preset`/`--components` validation, preservation across version bump `0.4.0 -> 0.5.0`, and switching).
+Live evidence: Offline schema, adapter, transaction engine, and CLI selection tests passing locally in `golang:1.27.4` Docker.
+Acceptance still missing / external blocker: Multi-OS CI run for `B07` (`windows-latest` installer fix also queued on `feat/release-hardening`).
+Next independent work: Fix `TestTerminalInstallScriptWindows` cleanup on `feat/release-hardening` for 5/5 CI, merge into `feat/v0.5`, then run `B08` final readiness & docs truthfulness pass.
+
+---
+
 ## Historical Implementation Log (Point-in-Time Snapshots)
 
 > The entries below were recorded at the time each dev milestone completed and are kept intact for historical context; refer to **Current Status** above for live release-gate truth.

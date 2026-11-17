@@ -24,5 +24,10 @@
     {"id":"workflow/feature","kind":"workflow","source":"workflows/feature.md","requires":["skill/plan","skill/implement","skill/test","skill/review"]},
     {"id":"workflow/bugfix","kind":"workflow","source":"workflows/bugfix.md","requires":["skill/debug","skill/test","skill/review"]},
     {"id":"workflow/review","kind":"workflow","source":"workflows/review.md","requires":["skill/review"]}
-  ]
+  ],
+  "presets": {
+    "minimal": ["skill/ask", "skill/explain", "skill/plan"],
+    "review-only": ["workflow/review"],
+    "engineering": ["workflow/feature", "workflow/bugfix", "workflow/review", "skill/ask", "skill/explain"]
+  }
 }

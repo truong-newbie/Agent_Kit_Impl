@@ -24,11 +24,16 @@ type templateVars struct {
 
 // RenderForRuntime renders a kit package for the named supported runtime and scope.
 func RenderForRuntime(runtime string, p catalog.Package, source fs.FS, scope string) ([]Artifact, error) {
+	return RenderForRuntimeSelection(runtime, p, source, scope, nil)
+}
+
+// RenderForRuntimeSelection renders a selected subset of kit components (or all if selectedComponents is nil/empty).
+func RenderForRuntimeSelection(runtime string, p catalog.Package, source fs.FS, scope string, selectedComponents []string) ([]Artifact, error) {
 	profile, ok := Profile(runtime)
 	if !ok {
 		return nil, apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", runtime))
 	}
-	return RenderKit(profile, p, source, scope)
+	return RenderKitSelection(profile, p, source, scope, selectedComponents)
 }
 
 // CapabilityPlan summarizes DTKit's actual managed capabilities, runtime integration evidence,
@@ -113,6 +118,11 @@ func EvaluateCapabilities(profile RuntimeProfile, scope string, pkg *catalog.Pac
 // RenderKit deterministically renders a validated kit package for a specific RuntimeProfile and scope
 // without touching the filesystem.
 func RenderKit(profile RuntimeProfile, p catalog.Package, source fs.FS, scope string) ([]Artifact, error) {
+	return RenderKitSelection(profile, p, source, scope, nil)
+}
+
+// RenderKitSelection renders only selectedComponents (plus runtime instructions), or all components if nil/empty.
+func RenderKitSelection(profile RuntimeProfile, p catalog.Package, source fs.FS, scope string, selectedComponents []string) ([]Artifact, error) {
 	if !profile.SupportsScope(scope) {
 		return nil, apperr.Usage("invalid_scope", fmt.Sprintf("unsupported scope %q for runtime %q", scope, profile.ID))
 	}
@@ -157,8 +167,19 @@ func RenderKit(profile RuntimeProfile, p catalog.Package, source fs.FS, scope st
 		}
 	}
 
+	var allowed map[string]bool
+	if len(selectedComponents) > 0 {
+		allowed = make(map[string]bool, len(selectedComponents))
+		for _, id := range selectedComponents {
+			allowed[id] = true
+		}
+	}
+
 	artifacts := make([]Artifact, 0, len(p.Components)+1)
 	for _, component := range p.Components {
+		if allowed != nil && !allowed[component.ID] {
+			continue
+		}
 		if component.Kind == "skill" {
 			id := strings.TrimPrefix(component.ID, "skill/")
 			if id == component.ID || strings.ContainsAny(id, "/\\") || id == "" {

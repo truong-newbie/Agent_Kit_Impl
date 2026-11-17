@@ -14,6 +14,7 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/state"
@@ -32,27 +33,28 @@ type ArtifactStatus struct {
 }
 
 type StatusReport struct {
-	Installed           bool                  `json:"installed"`
-	Healthy             bool                  `json:"healthy"`
-	Classification      string                `json:"classification"` // not_installed | healthy | modified | missing | conflicted | recovery_required | profile_mismatch
-	ProfileMismatch     bool                  `json:"profileMismatch,omitempty"`
-	RecoveryNeeded      bool                  `json:"recoveryNeeded,omitempty"`
-	PendingTransactions []PendingTx           `json:"pendingTransactions,omitempty"`
-	UnknownFiles        []string              `json:"unknownFiles,omitempty"`
-	Runtime             string                `json:"runtime,omitempty"`
-	Scope               string                `json:"scope"`
-	Roots               map[string]string     `json:"roots,omitempty"`
-	Capabilities        *adapter.Capabilities `json:"capabilities,omitempty"`
-	IntegrationStatus   string                `json:"integrationStatus,omitempty"` // verified | partial | unverified
-	IntegrationNote     string                `json:"integrationNote,omitempty"`
-	KitID               string                `json:"kitId,omitempty"`
-	KitVersion          string                `json:"kitVersion,omitempty"`
-	KitDigest           string                `json:"kitDigest,omitempty"`
-	BundledVersion      string                `json:"bundledVersion,omitempty"`
-	AdapterRevision     string                `json:"adapterRevision,omitempty"`
-	Artifacts           []ArtifactStatus      `json:"artifacts,omitempty"`
-	Hooks               []HookStatusInfo      `json:"hooks,omitempty"`
-	Detail              string                `json:"detail,omitempty"`
+	Installed           bool                   `json:"installed"`
+	Healthy             bool                   `json:"healthy"`
+	Classification      string                 `json:"classification"` // not_installed | healthy | modified | missing | conflicted | recovery_required | profile_mismatch
+	ProfileMismatch     bool                   `json:"profileMismatch,omitempty"`
+	RecoveryNeeded      bool                   `json:"recoveryNeeded,omitempty"`
+	PendingTransactions []PendingTx            `json:"pendingTransactions,omitempty"`
+	UnknownFiles        []string               `json:"unknownFiles,omitempty"`
+	Runtime             string                 `json:"runtime,omitempty"`
+	Scope               string                 `json:"scope"`
+	Roots               map[string]string      `json:"roots,omitempty"`
+	Capabilities        *adapter.Capabilities  `json:"capabilities,omitempty"`
+	IntegrationStatus   string                 `json:"integrationStatus,omitempty"` // verified | partial | unverified
+	IntegrationNote     string                 `json:"integrationNote,omitempty"`
+	KitID               string                 `json:"kitId,omitempty"`
+	KitVersion          string                 `json:"kitVersion,omitempty"`
+	KitDigest           string                 `json:"kitDigest,omitempty"`
+	BundledVersion      string                 `json:"bundledVersion,omitempty"`
+	AdapterRevision     string                 `json:"adapterRevision,omitempty"`
+	Selection           *catalog.SelectionSpec `json:"selection,omitempty"`
+	Artifacts           []ArtifactStatus       `json:"artifacts,omitempty"`
+	Hooks               []HookStatusInfo       `json:"hooks,omitempty"`
+	Detail              string                 `json:"detail,omitempty"`
 }
 
 // Inspect reads Codex DTKit state and compares its owned bytes with disk.
@@ -109,6 +111,7 @@ func InspectRuntime(runtimeName, scope string, roots map[string]string, _ []adap
 	report.KitVersion = installed.Kit.Version
 	report.KitDigest = installed.Kit.Digest
 	report.AdapterRevision = installed.AdapterRevision
+	report.Selection = cloneSelection(installed.Selection)
 
 	if err := checkGlobalHomeBinding(profile, scope, installed.GlobalHome(), roots); err != nil {
 		report.Healthy = false
