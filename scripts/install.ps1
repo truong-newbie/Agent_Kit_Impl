@@ -78,28 +78,53 @@ try {
         throw "Archive $Archive did not contain expected dtkit.exe."
     }
 
+    function Invoke-TransientIORetry {
+        param([scriptblock]$Action, [int]$MaxAttempts = 6, [int]$DelayMs = 150)
+        for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+            try {
+                return (& $Action)
+            } catch {
+                if ($attempt -ge $MaxAttempts) {
+                    throw
+                }
+                Start-Sleep -Milliseconds $DelayMs
+            }
+        }
+    }
+
     if (-not $SkipBinaryExecCheck) {
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = $extractedExe
-        $psi.Arguments = "version --json"
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
-        $psi.UseShellExecute = $false
-        $psi.CreateNoWindow = $true
-        $proc = [System.Diagnostics.Process]::Start($psi)
-        $verStdOut = $proc.StandardOutput.ReadToEnd()
-        $verStdErr = $proc.StandardError.ReadToEnd()
-        $proc.WaitForExit()
-        $verCombined = ($verStdOut + "`n" + $verStdErr).Trim()
-        if ($proc.ExitCode -ne 0 -or -not ($verCombined -match '"version"\s*:\s*"' + [regex]::Escape($Version) + '"')) {
-            throw "Extracted dtkit.exe failed version verification (exit=$($proc.ExitCode)): $verCombined"
+        $verResult = Invoke-TransientIORetry {
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = $extractedExe
+            $psi.Arguments = "version --json"
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $psi.UseShellExecute = $false
+            $psi.CreateNoWindow = $true
+            $proc = [System.Diagnostics.Process]::Start($psi)
+            try {
+                $verStdOut = $proc.StandardOutput.ReadToEnd()
+                $verStdErr = $proc.StandardError.ReadToEnd()
+                $proc.WaitForExit()
+                return [pscustomobject]@{
+                    ExitCode = $proc.ExitCode
+                    Output   = ($verStdOut + "`n" + $verStdErr).Trim()
+                }
+            } finally {
+                $proc.Dispose()
+            }
+        }
+        if ($verResult.ExitCode -ne 0 -or -not ($verResult.Output -match '"version"\s*:\s*"' + [regex]::Escape($Version) + '"')) {
+            throw "Extracted dtkit.exe failed version verification (exit=$($verResult.ExitCode)): $($verResult.Output)"
         }
     }
 
     New-Item -ItemType Directory -Force -Path $resolvedBinDir | Out-Null
     $destExe = Join-Path $resolvedBinDir "dtkit.exe"
     $stageExe = Join-Path $resolvedBinDir ("dtkit.exe.tmp." + [System.Guid]::NewGuid().ToString("N"))
-    Copy-Item -LiteralPath $extractedExe -Destination $stageExe -Force -ErrorAction Stop
+    Invoke-TransientIORetry {
+        Copy-Item -LiteralPath $extractedExe -Destination $stageExe -Force -ErrorAction Stop
+    } | Out-Null
 
     $backupExe = $null
     try {
