@@ -79,9 +79,20 @@ try {
     }
 
     if (-not $SkipBinaryExecCheck) {
-        $verOut = (& $extractedExe version --json 2>&1) -join "`n"
-        if ($LASTEXITCODE -ne 0 -or -not $verOut.Contains("`"version`":`"$Version`"")) {
-            throw "Extracted dtkit.exe failed version verification: $verOut"
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $extractedExe
+        $psi.Arguments = "version --json"
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $verStdOut = $proc.StandardOutput.ReadToEnd()
+        $verStdErr = $proc.StandardError.ReadToEnd()
+        $proc.WaitForExit()
+        $verCombined = ($verStdOut + "`n" + $verStdErr).Trim()
+        if ($proc.ExitCode -ne 0 -or -not ($verCombined -match '"version"\s*:\s*"' + [regex]::Escape($Version) + '"')) {
+            throw "Extracted dtkit.exe failed version verification (exit=$($proc.ExitCode)): $verCombined"
         }
     }
 
