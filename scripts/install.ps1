@@ -79,7 +79,7 @@ try {
     }
 
     function Invoke-TransientIORetry {
-        param([scriptblock]$Action, [int]$MaxAttempts = 6, [int]$DelayMs = 150)
+        param([scriptblock]$Action, [int]$MaxAttempts = 20, [int]$DelayMs = 200)
         for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
             try {
                 return (& $Action)
@@ -133,7 +133,9 @@ try {
             # Move existing binary aside first; if locked by an active process, this fails before replacing it.
             Move-Item -LiteralPath $destExe -Destination $backupExe -Force -ErrorAction Stop
         }
-        Move-Item -LiteralPath $stageExe -Destination $destExe -Force -ErrorAction Stop
+        Invoke-TransientIORetry {
+            Move-Item -LiteralPath $stageExe -Destination $destExe -Force -ErrorAction Stop
+        } | Out-Null
         if ($backupExe -and (Test-Path -LiteralPath $backupExe)) {
             Remove-Item -LiteralPath $backupExe -Force -ErrorAction SilentlyContinue
         }
