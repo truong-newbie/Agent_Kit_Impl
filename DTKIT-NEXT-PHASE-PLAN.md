@@ -2,6 +2,8 @@
 
 Ngày lập: 2026-11-16. Baseline mã nguồn: `be9e0bdfcbe095b74e186eeffc32f563b77644d8`, nhánh `feat/runtime-cursor-v0.4`.
 
+> Tiếp nối ngày 2026-11-17: implementation N00–N12 đã nằm trên `feat/release-hardening` tại `c100b86`, nhưng live runtime tasks, benchmark A/B và phát hành còn gate cần đóng. Dùng [DTKIT-RC-AND-V05-PLAN.md](DTKIT-RC-AND-V05-PLAN.md) làm hướng dẫn nhận việc hiện tại. File này giữ contract và snapshot lịch sử; không làm lại N00–N12 chỉ từ checklist/prompt cũ.
+
 Tài liệu này là đầu vào chính để giao AI tiếp tục sau khi P0–P6, H1, D1, R1–R3 đã có implementation. [Handoff cũ](DTKIT-PRODUCT-HANDOFF.md) phản ánh giai đoạn trước; không dùng các mục “chưa có update/remove/recover” ở đó để làm lại chức năng. [Plan gốc](DTKIT-IMPLEMENTATION-PLAN.md) vẫn là nguồn contract cho transaction, ownership, CLI và acceptance. Khi có khác biệt, ghi quyết định và test tương ứng thay vì âm thầm thay contract.
 
 ## 1. Mục tiêu và định nghĩa hoàn thành

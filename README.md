@@ -88,4 +88,6 @@ dtkit recover --project --dry-run
 - **Operational data:** Add `.dtkit/local/` to `.gitignore` so local lock files, journals, and transaction backups across all runtimes are not committed.
 - **Conflict protection:** Unowned content outside DTKit managed blocks is preserved byte-for-byte (including BOM and CRLF/LF). Modified managed files, unowned targets at whole-file paths, or blocking overrides halt mutations with exit code `3`. `--yes` only skips confirmation prompts; it never overrides conflicts.
 
+Next implementation handoff: [RC and v0.5 development plan](DTKIT-RC-AND-V05-PLAN.md) — release gates, Claude integration, reproducible evaluation, project profiles, quality checks/hooks, presets, and the subsequent roadmap.
+
 More documentation: [docs/cli.md](docs/cli.md), [docs/development.md](docs/development.md), [docs/compatibility.md](docs/compatibility.md), [docs/release.md](docs/release.md), [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md), [DTKIT-NEXT-PHASE-PLAN.md](DTKIT-NEXT-PHASE-PLAN.md).
