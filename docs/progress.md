@@ -2,9 +2,9 @@
 
 ## Current Status
 
-- **Active Branch:** `feat/release-hardening` (branched from `feat/runtime-cursor-v0.4` `936043f`; `main` currently sits at v0.1 `f81ce6e` with zero tags and zero published GitHub Releases).
-- **Latest Code CI Baseline:** SHA `be9e0bd` passed all 4 GitHub Actions jobs (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`) in [Run 43849330462](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/43849330462). (`936043f` added documentation planning commits on top.)
-- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), and R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor) are implemented as dev code and covered by Go automated tests. Remaining stabilization, real-runtime verification, and release-candidate gates are tracked in [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md).
+- **Active Branch:** `feat/release-hardening` (`681529d` + RC finalization; `main` & default branch `feat/dtkit-foundation` sit at v0.1 `f81ce6e`; remote `git ls-remote --tags origin` empty / GitHub Releases API count `0`).
+- **Latest Code CI Baseline:** SHA `c100b86` ([Run 43912929680](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/43912929680)) and `681529d` ([Run 44002558059](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44002558059)) passed all 5 GitHub Actions jobs (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`, `fuzz-smoke`).
+- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), and Mốc A RC hardening (`N00`–`N12` + `A01`–`A04`) are implemented on `feat/release-hardening`. Execution continues on dedicated v0.5 branch (`B01`–`B08`) per [DTKIT-RC-AND-V05-PLAN.md](../DTKIT-RC-AND-V05-PLAN.md).
 
 ### Hardening & Release Backlog Tracker (`N00`–`N12`)
 
@@ -18,9 +18,9 @@
 | `N05` — Capability contract & status consistency | `verified` | `feat/release-hardening` | F07 | Added `optionalCapabilities`, pre-write `requiresCapabilities` enforcement, consistent warnings across commands, `integrationStatus` separation (`verify-docker.ps1`, CI `43901270341`) |
 | `N06` — Hook JSON strictness & executable lifecycle | `verified` | `feat/release-hardening` | F12 | Duplicate-key/oversize/schema rejection, ambiguous digest guard, real `sh`/PowerShell special-char quoting execution, zero-leak timeout/cancel, update/drift/chmod lifecycle (`verify-docker.ps1`, CI `43903546521`) |
 | `N07` — Native OS edge cases & crash subprocess tests | `verified` | `feat/release-hardening` | F11 | CI skip inventory, NTFS junctions (`mklink /J`), Windows exclusive `CreateFile` locks & case collisions, BOM/CRLF/Unicode, `0555` parent confinement, malicious journal/corrupt state preservation, child-process `Kill` at 4 boundaries, 7-target fuzz smoke (`verify-docker.ps1`, CI `43905833459`) |
-| `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `verified` | `feat/release-hardening` | F08 | Isolated project/global/combined/4-runtime discovery & clean remove verified for `opencode 1.19.5` & `codex 0.169.0`; honest blockers (`codex` PS sandbox + `opencode` `0 credentials`; `gemini`/`cursor` CLI absent -> `unverified`) (`verify-docker.ps1`, CI `43908484139`) |
-| `N09` — Engineer Kit quality baseline evaluation | `verified` | `feat/release-hardening` | F09 | Rubric + 10-task `scenarios.json` (`docs/evaluation/`), cross-runtime `engineer_eval_test.go` invariant suite (8/8 pairs, 0 dangling refs/unrendered tags), honest host blockers for live A/B LLM runs (`verify-docker.ps1`, CI `43909951887`) |
-| `N10` — Release pipeline & terminal install UX | `verified` | `feat/release-hardening` | F09, F10 | Hardened `release.yml` (env-bound inputs, strict semver, 3-OS `native-smoke`, draft release), `validate-release-args.ps1` + `build.ps1`/`package.ps1`, `0.4.0-rc.1` build + SHA256 + Docker archive smoke, terminal install/uninstall docs (CI `43910935931`) |
+| `N08` — Real runtime verification (`codex`, `gemini`, `opencode`, `cursor`) | `partial` | `feat/release-hardening` | F08 | Discovery & coexistence verified on `opencode 1.19.5` & `codex 0.169.0`; live tasks blocked (`codex` PS sandbox + `opencode` `0 credentials`), hook invocation unverified, `gemini`/`cursor` CLI absent (`unverified`) (CI `43908484139`) |
+| `N09` — Engineer Kit quality baseline evaluation | `partial` | `feat/release-hardening` | F09 | Rubric, 10-task `scenarios.json`, & 8/8 structural `engineer_eval_test.go` pass; live 60-run A/B benchmark pending sandbox/budget (`N09`/`B02`) (CI `43909951887`) |
+| `N10` — Release pipeline & terminal install UX | `partial` | `feat/release-hardening` | F09, F10 | Workflow implemented & local Docker `0.4.0-rc.1` smoke passed; live GitHub Actions `release.yml` tag/dispatch 3-OS release run pending owner tag/dispatch (`A02`/`A04`) |
 | `N11` — Final docs, CLI UX & `main` merge prep | `verified` | `feat/release-hardening` | F09 | Full CLI reference (`docs/cli.md`), `README.md`, `0.4.0-rc.1` changelog & troubleshooting (`docs/release.md`), `git merge-tree origin/main HEAD` clean zero-conflict merge prep (CI `43912169447` queued/checked alongside) |
 | `N12` — Post-release diagnostics & support policy | `verified` | `feat/release-hardening` | — | Added `dtkit doctor --redact` (`doctor_redact_test.go`), `.github/ISSUE_TEMPLATE/`, `docs/support.md`, `docs/cli.md`/`README.md`/`docs/release.md` sync (`verify-docker.ps1`) |
 
@@ -197,6 +197,17 @@ Verification run: Added `--redact` flag to `dtkit doctor` scrubbing home directo
 Remaining limitation / external blocker: All mandatory release-hardening tasks (`N00`–`N12`) are complete. Post-release features (`N13`–`N18`), live A/B LLM benchmarks under unblocked workspace tooling, PR merge into `main`, and tagging/publishing `v0.4.0-rc.1` await repository owner authorization.
 Acceptance checklist result: Pass (all mandatory release gates N00–N12 complete, documented, and verified).
 Next task: Owner review & PR merge / release candidate decision (`N13`–`N18` post-release backlog deferred out of scope).
+
+---
+
+ID: A01–A04 (RC Gate Finalization on `feat/release-hardening`)
+Status: partial (code, tests, fail-fast terminal installer scripts, A03 decision, and PR merge prep verified; remote tag/release run awaits owner merge/tag permission)
+Baseline SHA / branch: `681529d` (`c100b86` CI `43912929680` & `681529d` CI `44002558059` passed 5/5 jobs) on `feat/release-hardening`
+User-visible behavior and schema decisions: Recalibrated `N08`/`N09`/`N10` status labels truthfully (`partial` where live tasks, 60-run A/B evaluation, or remote tag release remain gated); recorded `A03` decision keeping existing Codex global layout with explicit `partial` boundary in RC; added fail-fast `scripts/install.sh` and `scripts/install.ps1` with real OS/arch rejection, single checksum tool selection, exact-1 `SHA256SUMS` validation, pre-extract hash verification, atomic rollback on locked/failed upgrades, and hook path preservation.
+Files changed: `scripts/install.sh`, `scripts/install.ps1`, `.gitattributes`, `.github/workflows/release.yml`, `internal/cli/terminal_install_unix_test.go`, `internal/cli/terminal_install_windows_test.go`, `docs/verification/codex-global-windows-decision-2026-11-17.md`, `docs/compatibility.md`, `docs/release.md`, `README.md`, `docs/progress.md`
+Tests completed: `GOOS=windows go test -c ./internal/cli`, `.\scripts\verify-docker.ps1` (including real `httptest.NewServer` HTTP tests for `scripts/install.sh` good install, hook-preserving upgrade, 404, checksum mismatch, missing/duplicate `SHA256SUMS`, unsupported OS/arch `Darwin/x86_64`, corrupt archive). Windows `terminal_install_windows_test.go` executes natively on `windows-latest` CI.
+Acceptance still missing / external blocker: Owner approval for PR merge -> `main` and pushing/dispatching tag `v0.4.0-rc.1` on `.github/workflows/release.yml` (remote tags = `0`, GitHub Releases = `0`); live Codex/OpenCode/Gemini/Cursor task execution tracked under Mốc B (`v0.5`).
+Next independent work: Branch `feat/v0.5` cleanly from `feat/release-hardening` to execute `B01` (Claude adapter) -> `B02` (repeatable benchmark runner & frozen baseline) -> `B03`–`B08`.
 
 ---
 

@@ -36,67 +36,63 @@ See [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md) for detailed accepta
 
 ## Terminal Install & Checksum Verification (Pinned Version, No Admin)
 
-*(Applies once a tagged GitHub Release such as `v0.4.0-rc.1` is published, or after building archives locally with `.\scripts\package.ps1 -Version 0.4.0-rc.1`.)*
+*(Applies once a tagged GitHub Release such as `v0.4.0-rc.1` is published, or against a local/HTTP artifact server built via `.\scripts\package.ps1 -Version 0.4.0-rc.1`. Use the fail-fast installer scripts [scripts/install.sh](../scripts/install.sh) and [scripts/install.ps1](../scripts/install.ps1), which share the verified logic below.)*
 
-### Linux / macOS (`bash` / `zsh`, user-local `~/.local/bin`)
+### Linux / macOS (`bash`, real OS/arch detection, user-local `~/.local/bin`)
 
 ```bash
-VERSION="0.4.0-rc.1"
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"   # linux | darwin
-ARCH="amd64"
-[ "$OS" = "darwin" ] && ARCH="arm64"
-ARCHIVE="dtkit_${VERSION}_${OS}_${ARCH}.tar.gz"
-BASE_URL="https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v${VERSION}"
-
-TMP=$(mktemp -d)
-curl -fsSL "$BASE_URL/$ARCHIVE" -o "$TMP/$ARCHIVE"
-curl -fsSL "$BASE_URL/SHA256SUMS" -o "$TMP/SHA256SUMS"
-(cd "$TMP" && (sha256sum -c <(grep " ${ARCHIVE}\$" SHA256SUMS) || shasum -a 256 -c <(grep " ${ARCHIVE}\$" SHA256SUMS)))
-
-mkdir -p "$HOME/.local/bin"
-tar -xzf "$TMP/$ARCHIVE" -C "$TMP"
-install -m 0755 "$TMP/dtkit" "$HOME/.local/bin/dtkit"
-rm -rf "$TMP"
-
+bash scripts/install.sh --version 0.4.0-rc.1 --bin-dir "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 dtkit version --json
 dtkit doctor
 dtkit install engineer --project --dry-run
 ```
 
-### Windows PowerShell (`%LOCALAPPDATA%\Programs\dtkit\bin`)
+Equivalent standalone fail-fast steps (stops immediately on unsupported OS/arch, missing/duplicate `SHA256SUMS` entry, checksum mismatch, or extraction failure without overwriting an existing binary):
+
+```bash
+VERSION="0.4.0-rc.1"
+case "$(uname -s):$(uname -m)" in
+  Linux:x86_64|Linux:amd64) ARCHIVE="dtkit_${VERSION}_linux_amd64.tar.gz" ;;
+  Darwin:arm64|Darwin:aarch64) ARCHIVE="dtkit_${VERSION}_darwin_arm64.tar.gz" ;;
+  *) echo "Unsupported target $(uname -s)/$(uname -m); supported Unix archives: linux/amd64, darwin/arm64 (build from source otherwise)." >&2; exit 1 ;;
+esac
+BASE_URL="https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v${VERSION}"
+SHA_TOOL="$(command -v sha256sum || command -v shasum)"
+[ -n "$SHA_TOOL" ] || { echo "sha256sum or shasum required" >&2; exit 1; }
+
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/dtkit-install.XXXXXX")
+trap 'rm -rf "$TMP"' EXIT
+curl -fsSL "$BASE_URL/$ARCHIVE" -o "$TMP/$ARCHIVE"
+curl -fsSL "$BASE_URL/SHA256SUMS" -o "$TMP/SHA256SUMS"
+[ "$(grep -Ec "^[0-9a-fA-F]{64}[[:space:]]+(\./)?${ARCHIVE}$" "$TMP/SHA256SUMS" || true)" -eq 1 ] || exit 1
+EXPECTED=$(grep -E "^[0-9a-fA-F]{64}[[:space:]]+(\./)?${ARCHIVE}$" "$TMP/SHA256SUMS" | awk '{print tolower($1)}')
+if [ "${SHA_TOOL##*/}" = "sha256sum" ]; then
+  ACTUAL=$(sha256sum "$TMP/$ARCHIVE" | awk '{print tolower($1)}')
+else
+  ACTUAL=$(shasum -a 256 "$TMP/$ARCHIVE" | awk '{print tolower($1)}')
+fi
+[ "$ACTUAL" = "$EXPECTED" ] || { echo "SHA256 mismatch for $ARCHIVE" >&2; exit 1; }
+
+mkdir -p "$TMP/extracted" "$HOME/.local/bin"
+tar -xzf "$TMP/$ARCHIVE" -C "$TMP/extracted"
+"$TMP/extracted/dtkit" version --json | grep -q "\"version\":\"${VERSION}\""
+mv -f "$TMP/extracted/dtkit" "$HOME/.local/bin/dtkit"
+```
+
+### Windows PowerShell (`%LOCALAPPDATA%\Programs\dtkit\bin`, X64 verified)
 
 ```powershell
-$Version = "0.4.0-rc.1"
-$Archive = "dtkit_${Version}_windows_amd64.zip"
-$BaseUrl = "https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v$Version"
-$Tmp = Join-Path $env:TEMP "dtkit-install-$Version"
-New-Item -ItemType Directory -Force -Path $Tmp | Out-Null
-
-Invoke-WebRequest "$BaseUrl/$Archive" -OutFile (Join-Path $Tmp $Archive)
-Invoke-WebRequest "$BaseUrl/SHA256SUMS" -OutFile (Join-Path $Tmp "SHA256SUMS")
-
-$Actual = (Get-FileHash (Join-Path $Tmp $Archive) -Algorithm SHA256).Hash.ToLowerInvariant()
-$ExpectedLine = (Get-Content (Join-Path $Tmp "SHA256SUMS") | Where-Object { $_ -match "\s+$Archive$" })
-if (-not $ExpectedLine -or ($ExpectedLine.Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant() -ne $Actual)) {
-    throw "SHA256 checksum mismatch for $Archive; aborting installation."
-}
-
-$BinDir = Join-Path $env:LOCALAPPDATA "Programs\dtkit\bin"
-New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-Expand-Archive -Path (Join-Path $Tmp $Archive) -DestinationPath $Tmp -Force
-Copy-Item (Join-Path $Tmp "dtkit.exe") (Join-Path $BinDir "dtkit.exe") -Force
-Remove-Item -Recurse -Force $Tmp
-
-# Add $BinDir to user PATH (without admin):
-[Environment]::SetEnvironmentVariable("Path", "$BinDir;" + [Environment]::GetEnvironmentVariable("Path", "User"), "User")
-$env:Path = "$BinDir;$env:Path"
+.\scripts\install.ps1 -Version "0.4.0-rc.1"
 dtkit version --json
 dtkit doctor
 dtkit install engineer --project --dry-run
 ```
 
-- **Fail-closed checksum rule:** Never skip SHA256 verification or bypass OS security policies (`Device Guard` / Gatekeeper) to run an unverified binary.
+[scripts/install.ps1](../scripts/install.ps1) checks `OSArchitecture -in @("X64","amd64","AMD64")`, downloads to a unique GUID temp dir, enforces an exact-1 `SHA256SUMS` match before extracting, validates `dtkit.exe version --json`, swaps via `.bak` rollback so locked/failed upgrades preserve the previous working `dtkit.exe`, and cleans temp files in `finally`.
+
+- **Fail-closed checksum rule:** Never skip SHA256 verification, fall back across checksum tools on a mismatch, or bypass OS security policies (`Device Guard` / Gatekeeper).
+- **Upgrading CLI while hooks are active:** Replacing the same stable `dtkit` binary path in place keeps registered hooks valid (`configured_pending_trust`). Never move or delete the `dtkit` binary while active hooks reference it without running `dtkit hooks disable` first.
 - **Uninstalling a kit vs. uninstalling the `dtkit` binary:**
   1. Remove installed kit artifacts safely: `dtkit remove engineer --project --yes` (and `--global` / `--runtime <rt>` where installed).
   2. If Codex hooks were enabled, disable them **before** deleting or moving the `dtkit` binary: `dtkit hooks disable session-context --project --yes` (or `--global`).
@@ -123,7 +119,14 @@ dtkit install engineer --project --dry-run
 - **`profileMismatch` (`CodexHome` / `runtimeHome` mismatch) or Cursor global instructions fallback:**
   - Verify `CODEX_HOME`, `GEMINI_CLI_HOME`, or `OPENCODE_CONFIG_DIR` / `XDG_CONFIG_HOME` matches the directory bound when installing (`dtkit doctor --global --runtime <rt>`). For Cursor `--global`, instructions remain managed in Cursor Settings UI while skills/resources install to `~/.cursor/skills/`.
 
-## PR Merge Readiness (`feat/release-hardening` -> `main`)
+## PR Merge Readiness (`feat/release-hardening` -> `main`) & Candidate Evidence (`A01`–`A04`)
 
-- `git merge-tree --write-tree origin/main HEAD` confirmed zero merge conflicts cleanly against `origin/main` (`f81ce6e`).
-- **Owner gates remaining before merge/tag/publish:** Approve PR merge into `main`, approve creating release tag (candidate default `0.4.0-rc.1`), and (if desired before declaring runtimes `stable`) run live A/B `T01`–`T10` LLM tasks cleanly in an unblocked tool sandbox (`docs/evaluation/README.md`).
+- **Proposed candidate version:** `0.4.0-rc.1` (untagged until owner approves merge/tag; remote tags count = `0`, GitHub Releases = `0`, `main` & default branch `feat/dtkit-foundation` sit at `f81ce6e`).
+- **Automated lifecycle & hardening (`N01`–`N07`, `N10`–`N12`, `A02`):** Verified on GitHub Actions (`windows-latest`, `ubuntu-latest`, `macos-latest`, `race`, `fuzz-smoke`) — commit `c100b86` ([run 43912929680](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/43912929680)), commit `681529d` ([run 44002558059](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44002558059)); upgrade fixture `main` (`f81ce6e`) -> HEAD verified (`N01`).
+- **Support boundary & known issues in this RC:**
+  - `codex` (`project` + isolated `$CODEX_HOME/AGENTS.md`): **`partial`** (`codex exec` child PowerShell commands blocked by host Windows sandbox; Codex `global` layout kept per [A03 decision](verification/codex-global-windows-decision-2026-11-17.md); `.codex/hooks.json` `SessionStart` is configured & shell-tested, **live Codex session hook invocation unverified**).
+  - `opencode` (`project` + `global`): **`partial`** (14-skill discovery & coexistence verified on `1.19.5`; live LLM turn blocked by `0 credentials` in isolated test profile).
+  - `gemini` & `cursor`: **`experimental / unverified`** (CLI binaries absent on verification host).
+  - `engineer 0.2.0` evaluation (`N09`): structural/disclosure tests and 10-task harness exist ([docs/evaluation/](evaluation/README.md)), while quantitative 60-run A/B benchmark remains `pending` unblocked tool execution & model budget.
+- **Release workflow ([release.yml](../.github/workflows/release.yml)):** Workflow syntax, strict semver input handling, local `0.4.0-rc.1` packaging (`windows_amd64`, `linux_amd64`, `darwin_arm64` + `SHA256SUMS`), and Linux Docker archive smoke are verified; **remote 3-OS GitHub Actions `native-smoke` + `draft-release` run executes upon maintainer dispatch or `v0.4.0-rc.1` tag push**.
+- **Merge readiness & owner decisions needed:** `git merge-tree --write-tree origin/main HEAD` exits `0` with zero conflicts. Owner approval is needed to: (1) merge `feat/release-hardening` into `main`, (2) dispatch `release.yml` or push `v0.4.0-rc.1` tag for public prerelease assets + checksums, and (3) approve unblocked sandbox/credentials for full live runtime & A/B benchmarks (`Mốc B` v0.5).

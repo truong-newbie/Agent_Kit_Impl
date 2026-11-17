@@ -124,10 +124,15 @@ jobs:
           set -euo pipefail
           ARCHIVE="dtkit_${EXPECT_VERSION}_${ARCHIVE_SUFFIX}"
           cd release-dist
+          MATCH_COUNT=$(grep -Ec "^[0-9a-fA-F]{64}[[:space:]]+(\./)?${ARCHIVE}\$" SHA256SUMS || true)
+          if [ "$MATCH_COUNT" -ne 1 ]; then
+            echo "Expected exactly 1 SHA256SUMS entry for ${ARCHIVE}, found ${MATCH_COUNT}" >&2
+            exit 1
+          fi
           if command -v sha256sum >/dev/null 2>&1; then
-            grep " ${ARCHIVE}\$" SHA256SUMS | sha256sum -c -
+            grep -E "^[0-9a-fA-F]{64}[[:space:]]+(\./)?${ARCHIVE}\$" SHA256SUMS | sha256sum -c -
           else
-            grep " ${ARCHIVE}\$" SHA256SUMS | shasum -a 256 -c -
+            grep -E "^[0-9a-fA-F]{64}[[:space:]]+(\./)?${ARCHIVE}\$" SHA256SUMS | shasum -a 256 -c -
           fi
           mkdir -p extracted repo
           case "$ARCHIVE" in
