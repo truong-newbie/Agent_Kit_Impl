@@ -111,7 +111,8 @@ func TestTerminalInstallScriptWindows(t *testing.T) {
 	destExe := filepath.Join(binDir, "dtkit.exe")
 
 	exeV1 := buildRealStubExe(t, "0.4.0-rc.1")
-	skipExec := len(exeV1) == 0
+	exeV2 := buildRealStubExe(t, "0.4.0-rc.2")
+	skipExec := len(exeV1) == 0 || len(exeV2) == 0
 
 	runPS := func(ver string, extraEnv ...string) (string, error) {
 		args := []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-Version", ver, "-BinDir", binDir, "-BaseUrl", srv.URL}
@@ -162,7 +163,6 @@ func TestTerminalInstallScriptWindows(t *testing.T) {
 		t.Fatalf("EnableHook failed: %v", err)
 	}
 
-	exeV2 := buildRealStubExe(t, "0.4.0-rc.2")
 	a2Name := "dtkit_0.4.0-rc.2_windows_amd64.zip"
 	a2Bytes, a2Hash := buildStubZip(t, "0.4.0-rc.2", false, exeV2)
 
@@ -190,12 +190,20 @@ func TestTerminalInstallScriptWindows(t *testing.T) {
 		t.Fatalf("expected unsupported arch rejection on Windows Arm64, got err=%v out=%s", err, out)
 	}
 
-	// Exclusive file lock on destExe prevents replacement and keeps original v1 binary intact.
+	// Exclusive file lock (denying FILE_SHARE_DELETE/WRITE while sharing READ so AV scanners never race) prevents replacement.
 	mu.Lock()
 	sumsBody = fmt.Sprintf("%s  %s\n", a2Hash, a2Name)
 	mu.Unlock()
 	pPtr, _ := syscall.UTF16PtrFromString(destExe)
-	h, lockErr := syscall.CreateFile(pPtr, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+	var h syscall.Handle
+	var lockErr error
+	for attempt := 0; attempt < 10; attempt++ {
+		h, lockErr = syscall.CreateFile(pPtr, syscall.GENERIC_READ, syscall.FILE_SHARE_READ, nil, syscall.OPEN_EXISTING, syscall.FILE_ATTRIBUTE_NORMAL, 0)
+		if lockErr == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 	if lockErr != nil {
 		t.Fatalf("failed to lock destExe: %v", lockErr)
 	}
