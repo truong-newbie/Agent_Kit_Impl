@@ -223,6 +223,18 @@ Next independent work: Fix `windows-latest` CI on `feat/release-hardening` (`84a
 
 ---
 
+ID: B02 (Repeatable Multi-Stack Evaluation Harness & Frozen `0.3.0` Baseline)
+Status: partial (harness, isolated `CLIExecutor`, 3 multi-stack fixture repos, 10 held-out + 2 dev scenarios, frozen `engineer@0.3.0` manifest, and unit/Go-evaluator tests verified; 60-run live model comparison awaits owner-budgeted isolated runtime auth)
+Baseline SHA / branch: `aceddd4` + `d7cc1ec` merge on `feat/v0.5`
+User-visible behavior and schema decisions: Created `internal/eval` (`Manifest`, `Scenario`, `ExecRequest`/`ExecResult`, `RunRecord`, `SuiteSummary`, `AgentExecutor`, `FakeExecutor`, `CLIExecutor`, `PlanPairs`, `RunTrial`, `SummarizeSuite`) with strict snapshot-only workspace setup, post-run private evaluator overlay, `TestTampering`/`ScopeViolation`/`FalseCompletion` detection, JSON `null` for missing token/cost metrics, `environment_blocked`/`timeout`/`cancelled`/`not_run` classification, and frozen `engineer@0.3.0` baseline manifest (`fa2c417d743d2014ff035de268e135b190cba808ac0f1db5ecb936b60fcd81f5`).
+Files changed: `internal/eval/types.go`, `internal/eval/runner.go`, `internal/eval/executor.go`, `internal/eval/eval_test.go`, `testdata/evaluation/{go-service,ts-web,python-cli}/...`, `docs/evaluation/{README.md,manifest.json,pilot-report-2026-11-17.md}`, `docs/progress.md`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (all tests in `internal/eval` including private Go evaluator pass/fail, tampering, read-only violation, isolated `CLIExecutor` fail-closed checks, and `manifest.json` anti-leak + `engineer@0.3.0` digest verification).
+Live evidence: `docs/evaluation/pilot-report-2026-11-17.md` documents verified Go fixture evaluation inside `golang:1.27.4` Docker; live model suite explicitly marked `blocked` (zero fabricated runs, zero host auth leakage).
+Acceptance still missing / external blocker: Live isolated `claude`/`codex` 60-run baseline vs. with-kit comparison requires owner-provided isolated credentials and model budget cap; `windows-latest` CI failure on `feat/release-hardening` (`d7cc1ec`) tracked for immediate resolution.
+Next independent work: Fix `windows-latest` CI on `feat/release-hardening` and merge into `feat/v0.5`, then implement `B03` (`dtkit project inspect` & `dtkit project init` with strict `.dtkit/project.json` schema v1).
+
+---
+
 ## Historical Implementation Log (Point-in-Time Snapshots)
 
 > The entries below were recorded at the time each dev milestone completed and are kept intact for historical context; refer to **Current Status** above for live release-gate truth.
