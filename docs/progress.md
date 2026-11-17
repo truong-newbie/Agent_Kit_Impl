@@ -259,6 +259,18 @@ Next independent work: Implement `B05` (`dtkit check --path <repo> --dry-run|--c
 
 ---
 
+ID: B05 (Independent Quality Runner `dtkit check`)
+Status: verified (local Docker `verify-docker.ps1`; CI pending push)
+Baseline SHA / branch: `f44acff` on `feat/v0.5`
+User-visible behavior and schema decisions: Added `internal/check` and `dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]` consuming `.dtkit/project.json`. Enforces explicit trust confirmation in `.dtkit/local/check-trust.json` (invalidated automatically when `checks` change in `.dtkit/project.json`), fast-to-slow ordering (`format -> lint -> typecheck -> build -> test -> custom`), strict argv-only execution (no shell), filtered environment, Git porcelain `-z` monorepo changed-root mapping with explicit non-Git/shared-config fallback, process-tree timeout termination, 64 KiB output cap, overlap lock (`.dtkit/local/check.lock`), and explicit non-pass statuses (`pass`, `fail`, `missing_tool`, `timeout`, `cancelled`, `skipped`).
+Files changed: `internal/check/{changed,process_unix,process_windows,runner,trust,check_test}.go`, `internal/cli/{check,check_test,cli,envelope}.go`, `docs/progress.md`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (verifying `missing_project_profile`, `untrusted_project_checks` invalidation, Go pass, exit-code fail, `missing_tool` failure, 64 KiB output truncation, 1s process-tree kill, autofix gate, overlap lock, and Git monorepo `--changed` filtering).
+Live evidence: Local Docker Go + Python check execution verified real command execution, process-tree cleanup, and JSON envelope output.
+Acceptance still missing / external blocker: Multi-OS CI run for `B05`.
+Next independent work: Implement `B06` (opt-in Claude Code `.claude/settings.json` quality hooks + `dtkit hook run check-changed`).
+
+---
+
 ## Historical Implementation Log (Point-in-Time Snapshots)
 
 > The entries below were recorded at the time each dev milestone completed and are kept intact for historical context; refer to **Current Status** above for live release-gate truth.

@@ -8,6 +8,7 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/check"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
@@ -78,6 +79,7 @@ type Envelope struct {
 	CreateSkill    *dist.CreateSkillResult      `json:"createSkill,omitempty"`
 	ProjectInspect *project.InspectResult       `json:"projectInspect,omitempty"`
 	ProjectInit    *project.InitResult          `json:"projectInit,omitempty"`
+	CheckReport    *check.Report                `json:"checkReport,omitempty"`
 	Warnings       []string                     `json:"warnings"`
 	Errors         []apperr.Error               `json:"errors"`
 }
