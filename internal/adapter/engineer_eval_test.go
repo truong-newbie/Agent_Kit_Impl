@@ -19,7 +19,7 @@ func TestEngineerKitEvaluationInvariantsAcrossRuntimesAndScopes(t *testing.T) {
 	resourceRefRe := regexp.MustCompile(`[^\s` + "`" + `()]+\.(?:md)`)
 	expectedSkills := []string{"ask", "debug", "explain", "implement", "plan", "review", "test"}
 
-	for _, rt := range []string{"codex", "gemini", "opencode", "cursor"} {
+	for _, rt := range adapter.SupportedRuntimes() {
 		for _, scope := range []string{"project", "global"} {
 			t.Run(rt+"_"+scope, func(t *testing.T) {
 				profile, ok := adapter.Profile(rt)

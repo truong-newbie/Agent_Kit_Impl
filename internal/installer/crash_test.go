@@ -97,7 +97,7 @@ func TestMain(m *testing.M) {
 			pkg, src, artifacts := makeCrashV2Artifacts(nil, "")
 			_, _ = FreshInstallWithOptions("project", roots, pkg, src, artifacts, time.Now(), InstallOptions{Hooks: hooks})
 		} else {
-			pkg, src, artifacts := makeCrashV2Artifacts(nil, "0.2.9")
+			pkg, src, artifacts := makeCrashV2Artifacts(nil, "0.9.9")
 			_, _ = Update("project", roots, pkg, src, artifacts, time.Now(), UpdateOptions{Hooks: hooks})
 		}
 		os.Exit(6)
@@ -258,9 +258,9 @@ func TestCrashRecoveryRealSubprocessBoundaries(t *testing.T) {
 					}
 				}
 			} else {
-				_, _, v2Artifacts := makeCrashV2Artifacts(t, "0.2.9")
+				_, _, v2Artifacts := makeCrashV2Artifacts(t, "0.9.9")
 				st, err := Inspect("project", roots, v2Artifacts)
-				if err != nil || !st.Healthy || st.RecoveryNeeded || st.KitVersion != "0.2.9" {
+				if err != nil || !st.Healthy || st.RecoveryNeeded || st.KitVersion != "0.9.9" {
 					t.Fatalf("expected healthy v2 state after forward recovery, got %+v err=%v", st, err)
 				}
 			}

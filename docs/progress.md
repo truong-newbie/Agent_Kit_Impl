@@ -211,6 +211,18 @@ Next independent work: Branch `feat/v0.5` cleanly from `feat/release-hardening` 
 
 ---
 
+ID: B01 (Claude Code Adapter & Engineer `0.3.0` Baseline)
+Status: partial (implemented and `verify-docker.ps1` passed; live task execution blocked on isolated `CLAUDE_CONFIG_DIR` auth & owner model budget)
+Baseline SHA / branch: `84ad6ad` -> `feat/v0.5` (`buildinfo.Version` `"0.5.0-dev"`, `engineer` `"0.3.0"`)
+User-visible behavior and schema decisions: Added `--runtime claude` (`CLAUDE.md` managed blocks, `.claude/skills/dtkit-claude-project-*`, `$CLAUDE_CONFIG_DIR` / `~/.claude` global resolution with `claude-home` binding, `.dtkit/runtimes/claude/state.json`); verified `CLAUDE_CONFIG_DIR` replaces `~/.claude` directly via live `claude 2.1.319 auth status`; bumped `engineer` `0.2.0` -> `0.3.0` adding `claude` target while keeping kit content frozen for `B02` baseline; updated package/state JSON schemas and CLI usage/help.
+Files changed: `internal/buildinfo/buildinfo.go`, `internal/paths/paths.go`, `internal/paths/claude_test.go`, `internal/adapter/adapter.go`, `internal/adapter/claude/render.go`, `internal/adapter/claude/render_test.go`, `internal/adapter/engineer_eval_test.go`, `internal/catalog/catalog.go`, `internal/catalog/engineer/package.json`, `schemas/package.schema.json`, `schemas/state.schema.json`, `internal/cli/cli.go`, `internal/cli/runtime.go`, `internal/cli/claude_test.go`, fixture version updates in `internal/cli/{capabilities,cli,e2e}_test.go` & `internal/installer/{compat,crash,runtime}_test.go`, `docs/verification/claude-2.1.319-2026-11-17.md`, `docs/progress.md`
+Tests completed: `claude --version` (`2.1.319`), isolated `CLAUDE_CONFIG_DIR` `claude auth status` probe, `.\scripts\verify-docker.ps1` exited `0` (all 17 packages pass including 5-runtime coexistence, monorepo/worktree resolution, and user `.claude/settings.json` preservation).
+Live evidence: `claude auth status` confirmed `CLAUDE_CONFIG_DIR` isolation (`loggedIn: false`); real `~/.claude` remains untouched and no unbudgeted model tokens were spent.
+Acceptance still missing / external blocker: Live isolated `claude --print` read+edit+test fixture execution (needs owner-approved `ANTHROPIC_API_KEY` or isolated auth + `--max-budget-usd` cap).
+Next independent work: Fix `windows-latest` CI on `feat/release-hardening` (`84ad6ad`), then implement `B02` (repeatable benchmark runner with fake runtime tests + 10 non-DTKit multi-stack fixture repos) and `B03` (`dtkit project inspect/init`).
+
+---
+
 ## Historical Implementation Log (Point-in-Time Snapshots)
 
 > The entries below were recorded at the time each dev milestone completed and are kept intact for historical context; refer to **Current Status** above for live release-gate truth.

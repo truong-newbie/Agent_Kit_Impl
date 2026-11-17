@@ -142,7 +142,11 @@ func TestMainBaselineUpgradeAndGoldenLifecycleAcrossRuntimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, _, err = PlanUpdateForRuntime("codex", "project", projRoots, tamperedPkg, "f"+curDigest[1:], newProjArts, codex.AdapterRevision)
+	altPrefix := "0"
+	if curDigest[0] == '0' {
+		altPrefix = "1"
+	}
+	_, _, _, err = PlanUpdateForRuntime("codex", "project", projRoots, tamperedPkg, altPrefix+curDigest[1:], newProjArts, codex.AdapterRevision)
 	if appErr := apperr.AsError(err); appErr == nil || appErr.Code != "immutable_version" || appErr.Hint == "" {
 		t.Fatalf("expected immutable_version with actionable hint, got %v", err)
 	}

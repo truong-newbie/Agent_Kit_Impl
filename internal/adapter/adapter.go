@@ -288,6 +288,47 @@ var profiles = map[string]RuntimeProfile{
 			"global":  {Status: IntegrationUnverified, Note: "rendered and schema-checked only (skills-only fallback; global User Rules managed in Cursor Settings UI); live Cursor verification pending"},
 		},
 	},
+	"claude": {
+		ID:             "claude",
+		DisplayName:    "Claude Code",
+		Revision:       "1",
+		Binary:         "claude",
+		StateRelPath:   ".dtkit/runtimes/claude/state.json",
+		OperationalDir: ".dtkit/local/runtimes/claude",
+		GlobalHomeKey:  "claude-home",
+		GlobalHomeEnv:  "CLAUDE_CONFIG_DIR",
+		Scopes:         []string{"project", "global"},
+		HooksSupported: false,
+		Instructions: map[string]InstructionLocation{
+			"project": {Root: "project", Path: "CLAUDE.md"},
+			"global":  {Root: "claude-home", Path: "CLAUDE.md"},
+		},
+		Skills: map[string]SkillLocation{
+			"project": {Root: "project", Dir: ".claude/skills", Prefix: "dtkit-claude-project-"},
+			"global":  {Root: "claude-home", Dir: "skills", Prefix: "dtkit-claude-global-"},
+		},
+		ContentRoot: map[string]string{
+			"project": "project",
+			"global":  "user-home",
+		},
+		ContentRelBase: ".dtkit/runtimes/claude/content",
+		CapabilitiesMap: map[string]Capabilities{
+			"project": {
+				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "CLAUDE.md managed block"},
+				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: ".claude/skills/dtkit-claude-project-*"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Claude Code supports hooks in .claude/settings.json; not managed by DTKit yet"},
+			},
+			"global": {
+				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "$CLAUDE_CONFIG_DIR/CLAUDE.md or ~/.claude/CLAUDE.md managed block"},
+				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "$CLAUDE_CONFIG_DIR/skills/dtkit-claude-global-* or ~/.claude/skills/dtkit-claude-global-*"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Claude Code supports hooks in ~/.claude/settings.json; not managed by DTKit yet"},
+			},
+		},
+		IntegrationMap: map[string]IntegrationEvidence{
+			"project": {Status: IntegrationUnverified, Note: "rendered and schema-checked only; live Claude Code verification pending"},
+			"global":  {Status: IntegrationUnverified, Note: "rendered and schema-checked only; live Claude Code verification pending"},
+		},
+	},
 }
 
 // NormalizeRuntime returns DefaultRuntime when runtime is empty.
@@ -300,7 +341,7 @@ func NormalizeRuntime(runtime string) string {
 
 // SupportedRuntimes returns implemented runtime identifiers in deterministic order.
 func SupportedRuntimes() []string {
-	return []string{"codex", "gemini", "opencode", "cursor"}
+	return []string{"codex", "gemini", "opencode", "cursor", "claude"}
 }
 
 // BlockTag returns the DTKit managed-block marker tag for kitID and scope.

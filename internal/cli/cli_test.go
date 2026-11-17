@@ -387,7 +387,7 @@ func TestUpdateCLIFromLocalFixture(t *testing.T) {
   "schemaVersion": 1,
   "id": "engineer",
   "name": "DTKit Engineer Kit",
-  "version": "0.3.0",
+  "version": "0.9.0",
   "description": "Updated kit",
   "runtimeTargets": ["codex"],
   "scopes": ["project", "global"],
@@ -414,7 +414,7 @@ func TestUpdateCLIFromLocalFixture(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
 		t.Fatal(err)
 	}
-	if !env.Ok || env.Generation != 2 || env.Kit == nil || env.Kit.Version != "0.3.0" {
+	if !env.Ok || env.Generation != 2 || env.Kit == nil || env.Kit.Version != "0.9.0" {
 		t.Fatalf("unexpected update envelope: %+v", env)
 	}
 }

@@ -74,6 +74,14 @@ func resolveScopeRoots(ctx context.Context, deps Deps, profile adapter.RuntimePr
 		}
 		roots["user-home"] = res.UserHome
 		return roots, res.Warnings, nil
+	case "claude":
+		res, err := paths.ResolveClaudeGlobal(deps.Env)
+		if err != nil {
+			return nil, nil, err
+		}
+		roots["user-home"] = res.UserHome
+		roots["claude-home"] = res.ClaudeHome
+		return roots, res.Warnings, nil
 	default:
 		return nil, nil, apperr.Usage("unsupported_runtime", fmt.Sprintf("unsupported runtime %q", profile.ID))
 	}

@@ -77,6 +77,7 @@ type GlobalResolution struct {
 	CodexHome    string
 	GeminiHome   string
 	OpenCodeHome string
+	ClaudeHome   string
 	Warnings     []string
 }
 
@@ -226,6 +227,25 @@ func ResolveOpenCodeGlobal(env Environment) (GlobalResolution, error) {
 	}
 	res.UserHome = absHome
 	res.OpenCodeHome = ocHome
+	return res, nil
+}
+
+// ResolveClaudeGlobal resolves user-home and claude-home ($CLAUDE_CONFIG_DIR or ~/.claude)
+// for global Claude Code operations.
+func ResolveClaudeGlobal(env Environment) (GlobalResolution, error) {
+	env = env.withDefaults()
+	var res GlobalResolution
+	absHome, err := resolveUserHome(env)
+	if err != nil {
+		return res, err
+	}
+	claudeHome, warnings, err := resolveEnvDirectory(env, "CLAUDE_CONFIG_DIR", filepath.Join(absHome, ".claude"), "invalid_claude_home")
+	if err != nil {
+		return res, err
+	}
+	res.UserHome = absHome
+	res.ClaudeHome = claudeHome
+	res.Warnings = append(res.Warnings, warnings...)
 	return res, nil
 }
 

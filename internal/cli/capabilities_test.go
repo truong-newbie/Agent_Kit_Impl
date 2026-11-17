@@ -149,12 +149,12 @@ func TestCapabilityContractAndConsistentWarningsAcrossCommands(t *testing.T) {
 	}
 	assertConsistentWarningsAndIntegration("update_noop", envUpNoop)
 
-	// Upgrade v0.3.0 with optionalCapabilities also shows consistent warnings in dry-run and apply.
+	// Upgrade v0.9.0 with optionalCapabilities also shows consistent warnings in dry-run and apply.
 	v3Manifest := `{
   "schemaVersion": 1,
   "id": "engineer",
   "name": "DTKit Engineer Kit",
-  "version": "0.3.0",
+  "version": "0.9.0",
   "description": "v3",
   "runtimeTargets": ["cursor"],
   "scopes": ["global"],

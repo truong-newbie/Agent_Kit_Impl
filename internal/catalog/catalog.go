@@ -193,7 +193,7 @@ func ResolveOrder(p Package, fsys fs.FS) ([]Component, error) {
 		return nil, apperr.Usage("invalid_package_metadata", fmt.Sprintf("invalid minCliVersion %q", p.MinCLIVersion))
 	}
 	allowedCaps := []string{"instructions", "skills", "hooks"}
-	if !subsetUnique(p.RuntimeTargets, []string{"codex", "gemini", "opencode", "cursor"}) || !subsetUnique(p.Scopes, []string{"project", "global"}) || !subsetUniqueOptional(p.RequiresCapabilities, allowedCaps) || !subsetUniqueOptional(p.OptionalCapabilities, allowedCaps) {
+	if !subsetUnique(p.RuntimeTargets, []string{"codex", "gemini", "opencode", "cursor", "claude"}) || !subsetUnique(p.Scopes, []string{"project", "global"}) || !subsetUniqueOptional(p.RequiresCapabilities, allowedCaps) || !subsetUniqueOptional(p.OptionalCapabilities, allowedCaps) {
 		return nil, apperr.Usage("unsupported_package_target", "unsupported runtime, scope or capability")
 	}
 	if len(p.RequiresCapabilities)+len(p.OptionalCapabilities) == 0 {
