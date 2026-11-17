@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "frozenBaselineKitId": "engineer",
   "frozenBaselineKitVersion": "0.3.0",
-  "frozenBaselineKitDigest": "fa2c417d743d2014ff035de268e135b190cba808ac0f1db5ecb936b60fcd81f5",
+  "frozenBaselineKitDigest": "432c742e12f7f24ecd9ad8e6ac8fc8f787a76d3ea7094d351625db17059e844e",
   "devScenarios": [
     {
       "id": "D01-go-discount-dev",

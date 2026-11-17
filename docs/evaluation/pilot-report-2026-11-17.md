@@ -9,7 +9,7 @@ This pilot verifies the `internal/eval` harness, fixture isolation, out-of-works
 ## Frozen Baseline & Suite Inventory
 
 - **Manifest:** [`docs/evaluation/manifest.json`](./manifest.json) (`schemaVersion: 1`)
-- **Frozen kit baseline:** `engineer@0.3.0` (`digest`: `fa2c417d743d2014ff035de268e135b190cba808ac0f1db5ecb936b60fcd81f5`)
+- **Frozen kit baseline:** `engineer@0.3.0` (`digest`: `432c742e12f7f24ecd9ad8e6ac8fc8f787a76d3ea7094d351625db17059e844e`)
 - **Development scenarios:** `2` (`D01-go-discount-dev`, `D02-ts-format-dev`)
 - **Held-out scenarios:** `10` (`H01`–`H10`) spanning `go`, `ts`, and `python` across `implement`, `debug`, `review`, `plan`, `test`, `explain`, `ask`, and prompt-injection `scope-guard` tasks.
 
