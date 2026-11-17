@@ -40,8 +40,8 @@ Usage:
   dtkit lock <generate|verify|diff|sign|keygen> [options]
   dtkit sync [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--lock <file>] [--trust <file>] [--require-signature] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit team <export|import|template> [options]
-  dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [args]
-  dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|claude>]
+  dtkit hooks <list|status|enable|disable> [--runtime <codex|gemini|opencode|cursor|claude>] [args]
+  dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|gemini|opencode|cursor|claude>]
   dtkit completion <bash|zsh|powershell>
 
 Examples:
@@ -189,7 +189,7 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit team <export|import|template> [--path <dir>] [--runtime <...>] [--out <file>] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "hooks":
-		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit hooks <list|status|enable|disable> [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "completion":
 		_, err := io.WriteString(out, "Usage: dtkit completion <bash|zsh|powershell>\n")

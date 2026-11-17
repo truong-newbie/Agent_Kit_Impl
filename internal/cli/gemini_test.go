@@ -121,11 +121,11 @@ func TestGeminiCLILifecycleAndCoexistence(t *testing.T) {
 		t.Fatalf("expected 2 installations (codex+gemini), got %d: %+v", len(statusEnv.Installations), statusEnv.Installations)
 	}
 
-	// 6. Hooks command for Gemini rejects cleanly (explicit unsupported capability).
+	// 6. Codex-only session-context hook rejects cleanly on Gemini CLI (while check-changed/guard-edit are supported).
 	depsHooks, _ := makeDeps(true)
 	err = RunWithDeps(context.Background(), []string{"hooks", "enable", "session-context", "--project", "--runtime", "gemini", "--yes"}, depsHooks)
-	if apperr.ExitCodeOf(err) != apperr.ExitUsage || !strings.Contains(err.Error(), "does not manage hooks for Gemini CLI") {
-		t.Fatalf("expected clean unsupported hooks usage error for gemini, got %v", err)
+	if apperr.ExitCodeOf(err) != apperr.ExitUsage || !strings.Contains(err.Error(), "unsupported Gemini hook") {
+		t.Fatalf("expected clean unsupported_hook usage error for gemini session-context, got %v", err)
 	}
 
 	// 7. Remove Gemini installation leaves Codex project install untouched.

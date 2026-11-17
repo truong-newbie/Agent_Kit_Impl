@@ -48,12 +48,22 @@ type debounceRecord struct {
 	LastRunUnixMs int64 `json:"lastRunUnixMs"`
 }
 
-// RunCheckChanged executes opt-in PostToolUse checks with recursion, debounce, trust, and output guards.
+// RunCheckChanged executes opt-in changed-file quality checks for Claude Code.
 func RunCheckChanged(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, scope, stateRoot string) error {
-	return runCheckChangedWithNow(ctx, stdin, stdout, stderr, scope, stateRoot, time.Now)
+	return runCheckChangedForRuntimeWithNow(ctx, stdin, stdout, stderr, "claude", scope, stateRoot, time.Now)
+}
+
+// RunCheckChangedForRuntime executes opt-in changed-file quality checks formatted for runtimeID
+// (`claude`, `gemini`, `cursor`, `opencode`) with loop guard, 2s debounce, and trust enforcement.
+func RunCheckChangedForRuntime(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, runtimeID, scope, stateRoot string) error {
+	return runCheckChangedForRuntimeWithNow(ctx, stdin, stdout, stderr, runtimeID, scope, stateRoot, time.Now)
 }
 
 func runCheckChangedWithNow(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, scope, stateRoot string, nowFn func() time.Time) error {
+	return runCheckChangedForRuntimeWithNow(ctx, stdin, stdout, stderr, "claude", scope, stateRoot, nowFn)
+}
+
+func runCheckChangedForRuntimeWithNow(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, runtimeID, scope, stateRoot string, nowFn func() time.Time) error {
 	if scope != "project" && scope != "global" {
 		return apperr.Usage("invalid_scope", fmt.Sprintf("invalid hook scope %q", scope))
 	}
@@ -61,7 +71,7 @@ func runCheckChangedWithNow(ctx context.Context, stdin io.Reader, stdout, stderr
 		return apperr.Usage("missing_root", "--root is required")
 	}
 	if os.Getenv("DTKIT_HOOK_ACTIVE") == "1" {
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, hookCheckTimeout)
@@ -81,19 +91,20 @@ func runCheckChangedWithNow(ctx context.Context, stdin io.Reader, stdout, stderr
 			if err := json.Unmarshal(trimmed, &p); err != nil {
 				return apperr.Wrap(apperr.ExitUsage, "invalid_hook_payload", fmt.Sprintf("invalid hook JSON input: %v", err), err)
 			}
-			if p.HookEventName != "" && p.HookEventName != EventPostToolUse {
-				return apperr.Usage("unexpected_hook_event", fmt.Sprintf("expected %s event, got %q", EventPostToolUse, p.HookEventName))
+			wantEv := expectedCheckChangedEvent(runtimeID)
+			if p.HookEventName != "" && wantEv != "" && p.HookEventName != wantEv {
+				return apperr.Usage("unexpected_hook_event", fmt.Sprintf("expected %s event, got %q", wantEv, p.HookEventName))
 			}
 		}
 	}
 
 	if scope == "global" {
 		// Global scope has no fixed repo root to check; return safely.
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 
 	if shouldDebounceHook(stateRoot, nowFn()) {
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 
 	env := paths.DefaultEnvironment()
@@ -109,13 +120,13 @@ func runCheckChangedWithNow(ctx context.Context, stdin io.Reader, stdout, stderr
 		if appErr := apperr.AsError(err); appErr != nil {
 			switch appErr.Code {
 			case "missing_project_profile", "check_lock_held":
-				return writeEmptyHookOutput(stdout)
+				return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 			case "untrusted_project_checks":
-				return encodeClaudePostToolContext(stdout, "DTKit check-changed skipped: review .dtkit/project.json via 'dtkit check --dry-run' and approve with 'dtkit check --yes'.")
+				return encodeCheckChangedOutput(stdout, runtimeID, "DTKit check-changed skipped: review .dtkit/project.json via 'dtkit check --dry-run' and approve with 'dtkit check --yes'.")
 			}
 		}
 		fmt.Fprintf(stderr, "dtkit hook check-changed: %v\n", err)
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 	recordHookDebounce(stateRoot, nowFn())
 
@@ -126,30 +137,69 @@ func runCheckChangedWithNow(ctx context.Context, stdin io.Reader, stdout, stderr
 		}
 	}
 	if rep.Summary.Total == 0 || (rep.Summary.Pass == 0 && len(failedIDs) == 0) {
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 	msg := fmt.Sprintf("DTKit changed checks: pass=%d fail=%d missing_tool=%d timeout=%d skipped=%d",
 		rep.Summary.Pass, rep.Summary.Fail, rep.Summary.MissingTool, rep.Summary.Timeout, rep.Summary.Skipped)
 	if len(failedIDs) > 0 {
 		msg += " issues=[" + strings.Join(failedIDs, ", ") + "]"
 	}
-	return encodeClaudePostToolContext(stdout, msg)
+	return encodeCheckChangedOutput(stdout, runtimeID, msg)
 }
 
-func encodeClaudePostToolContext(stdout io.Writer, msg string) error {
+func expectedCheckChangedEvent(runtimeID string) string {
+	switch runtimeID {
+	case "", "claude":
+		return EventPostToolUse
+	case "gemini":
+		return EventAfterTool
+	case "cursor":
+		return EventAfterFileEdit
+	case "opencode":
+		return EventToolExecuteAfter
+	default:
+		return ""
+	}
+}
+
+func writeEmptyRuntimeHookOutput(stdout io.Writer, runtimeID string) error {
+	if runtimeID == "gemini" {
+		return json.NewEncoder(stdout).Encode(map[string]string{"decision": "allow"})
+	}
+	return writeEmptyHookOutput(stdout)
+}
+
+func encodeCheckChangedOutput(stdout io.Writer, runtimeID, msg string) error {
 	if len(msg) > MaxAdditionalContextBytes {
 		msg = msg[:MaxAdditionalContextBytes-3] + "..."
 	}
-	return json.NewEncoder(stdout).Encode(hookResponse{
-		HookSpecificOutput: &hookSpecificOutput{
-			HookEventName:     EventPostToolUse,
-			AdditionalContext: msg,
-		},
-	})
+	switch runtimeID {
+	case "gemini":
+		return json.NewEncoder(stdout).Encode(map[string]string{
+			"decision":      "allow",
+			"systemMessage": msg,
+		})
+	case "cursor", "opencode":
+		return json.NewEncoder(stdout).Encode(map[string]string{
+			"additionalContext": msg,
+		})
+	default:
+		return json.NewEncoder(stdout).Encode(hookResponse{
+			HookSpecificOutput: &hookSpecificOutput{
+				HookEventName:     EventPostToolUse,
+				AdditionalContext: msg,
+			},
+		})
+	}
 }
 
-// RunGuardEdit enforces a lightweight PreToolUse guardrail against editing secret files or escaping the repo root.
+// RunGuardEdit enforces a lightweight PreToolUse guardrail for Claude Code.
 func RunGuardEdit(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, scope, stateRoot string) error {
+	return RunGuardEditForRuntime(ctx, stdin, stdout, stderr, "claude", scope, stateRoot)
+}
+
+// RunGuardEditForRuntime enforces path/secret edit guardrails formatted for Claude (`PreToolUse`) or Gemini (`BeforeTool`).
+func RunGuardEditForRuntime(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, runtimeID, scope, stateRoot string) error {
 	if scope != "project" && scope != "global" {
 		return apperr.Usage("invalid_scope", fmt.Sprintf("invalid hook scope %q", scope))
 	}
@@ -160,7 +210,7 @@ func RunGuardEdit(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer
 	defer cancel()
 
 	if stdin == nil {
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 	raw, err := readLimitedWithCtx(ctx, stdin, MaxHookStdinBytes+1)
 	if err != nil {
@@ -171,14 +221,18 @@ func RunGuardEdit(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer
 	}
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 	var p claudeToolPayload
 	if err := json.Unmarshal(trimmed, &p); err != nil {
 		return apperr.Wrap(apperr.ExitUsage, "invalid_hook_payload", fmt.Sprintf("invalid hook JSON input: %v", err), err)
 	}
-	if p.HookEventName != "" && p.HookEventName != EventPreToolUse {
-		return apperr.Usage("unexpected_hook_event", fmt.Sprintf("expected %s event, got %q", EventPreToolUse, p.HookEventName))
+	wantEv := EventPreToolUse
+	if runtimeID == "gemini" {
+		wantEv = EventBeforeTool
+	}
+	if p.HookEventName != "" && p.HookEventName != wantEv {
+		return apperr.Usage("unexpected_hook_event", fmt.Sprintf("expected %s event, got %q", wantEv, p.HookEventName))
 	}
 
 	targetFile := strings.TrimSpace(p.ToolInput.FilePath)
@@ -186,12 +240,18 @@ func RunGuardEdit(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer
 		targetFile = strings.TrimSpace(p.ToolInput.Path)
 	}
 	if targetFile == "" || scope == "global" {
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 
 	reason := evaluateGuardEditTarget(stateRoot, targetFile)
 	if reason == "" {
-		return writeEmptyHookOutput(stdout)
+		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
+	}
+	if runtimeID == "gemini" {
+		return json.NewEncoder(stdout).Encode(map[string]string{
+			"decision": "deny",
+			"reason":   reason,
+		})
 	}
 	return json.NewEncoder(stdout).Encode(preToolUseOutput{
 		HookSpecificOutput: &preToolHookSpecific{

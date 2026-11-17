@@ -359,6 +359,13 @@ func validHookForRuntime(runtimeID, handlerID, event string) bool {
 	case "claude":
 		return (handlerID == "check-changed" && event == "PostToolUse") ||
 			(handlerID == "guard-edit" && event == "PreToolUse")
+	case "gemini":
+		return (handlerID == "check-changed" && event == "AfterTool") ||
+			(handlerID == "guard-edit" && event == "BeforeTool")
+	case "cursor":
+		return handlerID == "check-changed" && event == "afterFileEdit"
+	case "opencode":
+		return handlerID == "check-changed" && event == "tool.execute.after"
 	default:
 		return false
 	}

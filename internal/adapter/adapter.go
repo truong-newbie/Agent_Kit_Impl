@@ -169,16 +169,19 @@ var profiles = map[string]RuntimeProfile{
 		},
 	},
 	"gemini": {
-		ID:             "gemini",
-		DisplayName:    "Gemini CLI",
-		Revision:       "1",
-		Binary:         "gemini",
-		StateRelPath:   ".dtkit/runtimes/gemini/state.json",
-		OperationalDir: ".dtkit/local/runtimes/gemini",
-		GlobalHomeKey:  "gemini-home",
-		GlobalHomeEnv:  "GEMINI_CLI_HOME",
-		Scopes:         []string{"project", "global"},
-		HooksSupported: false,
+		ID:              "gemini",
+		DisplayName:     "Gemini CLI",
+		Revision:        "1",
+		Binary:          "gemini",
+		StateRelPath:    ".dtkit/runtimes/gemini/state.json",
+		OperationalDir:  ".dtkit/local/runtimes/gemini",
+		GlobalHomeKey:   "gemini-home",
+		GlobalHomeEnv:   "GEMINI_CLI_HOME",
+		Scopes:          []string{"project", "global"},
+		HooksSupported:  true,
+		HookProjectPath: ".gemini/settings.json",
+		HookGlobalRoot:  "gemini-home",
+		HookGlobalPath:  "settings.json",
 		Instructions: map[string]InstructionLocation{
 			"project": {Root: "project", Path: "GEMINI.md"},
 			"global":  {Root: "gemini-home", Path: "GEMINI.md"},
@@ -196,12 +199,12 @@ var profiles = map[string]RuntimeProfile{
 			"project": {
 				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "GEMINI.md managed block"},
 				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: ".gemini/skills/dtkit-gemini-project-*"},
-				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Gemini CLI supports hooks in .gemini/settings.json; not managed by DTKit"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "opt-in quality hooks (check-changed AfterTool, guard-edit BeforeTool) in .gemini/settings.json"},
 			},
 			"global": {
 				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.gemini/GEMINI.md managed block"},
 				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.gemini/skills/dtkit-gemini-global-*"},
-				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Gemini CLI supports hooks in ~/.gemini/settings.json; not managed by DTKit"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "opt-in quality hooks in ~/.gemini/settings.json"},
 			},
 		},
 		IntegrationMap: map[string]IntegrationEvidence{
@@ -210,16 +213,19 @@ var profiles = map[string]RuntimeProfile{
 		},
 	},
 	"opencode": {
-		ID:             "opencode",
-		DisplayName:    "OpenCode",
-		Revision:       "1",
-		Binary:         "opencode",
-		StateRelPath:   ".dtkit/runtimes/opencode/state.json",
-		OperationalDir: ".dtkit/local/runtimes/opencode",
-		GlobalHomeKey:  "opencode-home",
-		GlobalHomeEnv:  "OPENCODE_CONFIG_DIR",
-		Scopes:         []string{"project", "global"},
-		HooksSupported: false,
+		ID:              "opencode",
+		DisplayName:     "OpenCode",
+		Revision:        "1",
+		Binary:          "opencode",
+		StateRelPath:    ".dtkit/runtimes/opencode/state.json",
+		OperationalDir:  ".dtkit/local/runtimes/opencode",
+		GlobalHomeKey:   "opencode-home",
+		GlobalHomeEnv:   "OPENCODE_CONFIG_DIR",
+		Scopes:          []string{"project", "global"},
+		HooksSupported:  true,
+		HookProjectPath: ".opencode/plugins/dtkit-quality.js",
+		HookGlobalRoot:  "opencode-home",
+		HookGlobalPath:  "plugins/dtkit-quality.js",
 		Instructions: map[string]InstructionLocation{
 			"project": {Root: "project", Path: "AGENTS.md"},
 			"global":  {Root: "opencode-home", Path: "AGENTS.md"},
@@ -237,12 +243,12 @@ var profiles = map[string]RuntimeProfile{
 			"project": {
 				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "AGENTS.md runtime-namespaced managed block"},
 				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: ".opencode/skills/dtkit-opencode-project-*"},
-				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "OpenCode uses JS/TS plugins (.opencode/plugins/); shell hooks not managed by DTKit"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "opt-in standalone JS plugin (.opencode/plugins/dtkit-quality.js) on tool.execute.after"},
 			},
 			"global": {
 				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.config/opencode/AGENTS.md managed block"},
 				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.config/opencode/skills/dtkit-opencode-global-*"},
-				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "OpenCode uses JS/TS plugins (~/.config/opencode/plugins/); shell hooks not managed by DTKit"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "opt-in standalone JS plugin (~/.config/opencode/plugins/dtkit-quality.js) on tool.execute.after"},
 			},
 		},
 		IntegrationMap: map[string]IntegrationEvidence{
@@ -251,14 +257,17 @@ var profiles = map[string]RuntimeProfile{
 		},
 	},
 	"cursor": {
-		ID:             "cursor",
-		DisplayName:    "Cursor",
-		Revision:       "1",
-		Binary:         "cursor",
-		StateRelPath:   ".dtkit/runtimes/cursor/state.json",
-		OperationalDir: ".dtkit/local/runtimes/cursor",
-		Scopes:         []string{"project", "global"},
-		HooksSupported: false,
+		ID:              "cursor",
+		DisplayName:     "Cursor",
+		Revision:        "1",
+		Binary:          "cursor",
+		StateRelPath:    ".dtkit/runtimes/cursor/state.json",
+		OperationalDir:  ".dtkit/local/runtimes/cursor",
+		Scopes:          []string{"project", "global"},
+		HooksSupported:  true,
+		HookProjectPath: ".cursor/hooks.json",
+		HookGlobalRoot:  "user-home",
+		HookGlobalPath:  ".cursor/hooks.json",
 		Instructions: map[string]InstructionLocation{
 			"project": {Root: "project", PathTemplate: ".cursor/rules/dtkit-%s.mdc", Strategy: "whole-file"},
 		},
@@ -275,12 +284,12 @@ var profiles = map[string]RuntimeProfile{
 			"project": {
 				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: ".cursor/rules/dtkit-<kit>.mdc alwaysApply project rule"},
 				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: ".cursor/skills/dtkit-cursor-project-*"},
-				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Cursor supports hooks in .cursor/hooks.json; not managed by DTKit"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "opt-in quality hook (check-changed afterFileEdit) in .cursor/hooks.json (version 1)"},
 			},
 			"global": {
 				Instructions: CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Cursor global User Rules are configured in Cursor Settings UI; DTKit installs global skills (~/.cursor/skills/) and resources only"},
 				Skills:       CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "~/.cursor/skills/dtkit-cursor-global-*"},
-				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: false, Note: "Cursor supports hooks in ~/.cursor/hooks.json; not managed by DTKit"},
+				Hooks:        CapabilityStatus{RuntimeSupported: true, DTKitSupported: true, Note: "opt-in quality hook (check-changed afterFileEdit) in ~/.cursor/hooks.json (version 1)"},
 			},
 		},
 		IntegrationMap: map[string]IntegrationEvidence{
@@ -508,6 +517,17 @@ func (p RuntimeProfile) IsAllowedCreatedDir(scope, kitID, root, rel string) bool
 		}
 		if strings.HasPrefix(rel, p.SkillPathPrefix(scope)) {
 			return true
+		}
+	}
+	if p.HooksSupported {
+		hookRoot, hookPath := "project", p.HookProjectPath
+		if scope == "global" {
+			hookRoot, hookPath = p.HookGlobalRoot, p.HookGlobalPath
+		}
+		if root == hookRoot && hookPath != "" {
+			if hookDir := path.Dir(hookPath); hookDir != "." && hookDir != "" && isDirAncestorOf(rel, hookDir) {
+				return true
+			}
 		}
 	}
 	return false

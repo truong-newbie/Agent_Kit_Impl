@@ -8,10 +8,10 @@
       "required": ["id", "event", "handlerId", "root", "path", "command", "commandWindows", "executable", "entryDigest", "timeoutSec", "createdFile"],
       "properties": {
         "id": { "type": "string" },
-        "event": { "enum": ["SessionStart", "PostToolUse", "PreToolUse"] },
+        "event": { "enum": ["SessionStart", "PostToolUse", "PreToolUse", "BeforeTool", "AfterTool", "afterFileEdit", "tool.execute.after"] },
         "handlerId": { "enum": ["session-context", "check-changed", "guard-edit"] },
-        "root": { "enum": ["project", "codex-home", "claude-home"] },
-        "path": { "enum": [".codex/hooks.json", "hooks.json", ".claude/settings.json", "settings.json"] },
+        "root": { "enum": ["project", "user-home", "codex-home", "gemini-home", "opencode-home", "claude-home"] },
+        "path": { "enum": [".codex/hooks.json", "hooks.json", ".claude/settings.json", "settings.json", ".gemini/settings.json", ".cursor/hooks.json", ".opencode/plugins/dtkit-quality.js", "plugins/dtkit-quality.js"] },
         "command": { "type": "string" },
         "commandWindows": { "type": "string" },
         "executable": { "type": "string" },

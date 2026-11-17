@@ -148,6 +148,47 @@ func ResolveHookSpec(runtimeID, hookID string) (HookSpec, error) {
 		default:
 			return HookSpec{}, apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported Claude hook %q (supported: check-changed, guard-edit)", hookID))
 		}
+	case "gemini":
+		switch hookID {
+		case "check-changed":
+			return HookSpec{
+				ID:            "check-changed",
+				Event:         EventAfterTool,
+				Matcher:       "write_file|replace",
+				TimeoutSec:    15,
+				StatusMessage: "DTKit changed-files quality check",
+			}, nil
+		case "guard-edit":
+			return HookSpec{
+				ID:            "guard-edit",
+				Event:         EventBeforeTool,
+				Matcher:       "write_file|replace",
+				TimeoutSec:    5,
+				StatusMessage: "DTKit path/secret edit guard",
+			}, nil
+		default:
+			return HookSpec{}, apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported Gemini hook %q (supported: check-changed, guard-edit)", hookID))
+		}
+	case "cursor":
+		if hookID == "check-changed" {
+			return HookSpec{
+				ID:            "check-changed",
+				Event:         EventAfterFileEdit,
+				TimeoutSec:    15,
+				StatusMessage: "DTKit changed-files quality check",
+			}, nil
+		}
+		return HookSpec{}, apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported Cursor hook %q (supported: check-changed)", hookID))
+	case "opencode":
+		if hookID == "check-changed" {
+			return HookSpec{
+				ID:            "check-changed",
+				Event:         EventToolExecuteAfter,
+				TimeoutSec:    15,
+				StatusMessage: "DTKit changed-files quality check",
+			}, nil
+		}
+		return HookSpec{}, apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported OpenCode hook %q (supported: check-changed)", hookID))
 	default:
 		return HookSpec{}, apperr.Usage("hooks_not_supported", fmt.Sprintf("hooks are not supported for runtime %q", runtimeID))
 	}

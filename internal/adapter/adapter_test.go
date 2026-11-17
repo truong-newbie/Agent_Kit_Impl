@@ -51,7 +51,11 @@ func TestAllowlistIsolationBetweenRuntimes(t *testing.T) {
 	if gemini.IsAllowedArtifactPath("project", "engineer", "project", ".dtkit/content/engineer/rules/engineering.md", "whole-file") {
 		t.Fatal("gemini allowed codex .dtkit/content")
 	}
-	if gemini.IsAllowedArtifactPath("project", "engineer", "project", ".gemini/settings.json", "hooks-json") {
-		t.Fatal("gemini allowed unsupported hooks-json strategy")
+	if !gemini.IsAllowedArtifactPath("project", "engineer", "project", ".gemini/settings.json", "hooks-json") {
+		t.Fatal("gemini rejected its own .gemini/settings.json hooks-json strategy")
+	}
+	if gemini.IsAllowedArtifactPath("project", "engineer", "project", ".codex/hooks.json", "hooks-json") ||
+		gemini.IsAllowedArtifactPath("project", "engineer", "project", ".claude/settings.json", "hooks-json") {
+		t.Fatal("gemini allowed foreign hooks-json path")
 	}
 }

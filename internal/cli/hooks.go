@@ -208,6 +208,10 @@ func runHooksEnable(ctx context.Context, args []string, deps Deps, env Envelope,
 	env.Warnings = append(env.Warnings, warnings...)
 	env.Roots = roots
 
+	if _, err := hooks.ResolveHookSpec(profile.ID, hookID); err != nil {
+		return fail(err)
+	}
+
 	stableExe, err := hooks.ResolveStableExecutable(exeOverride, deps.Executable, deps.LookPath)
 	if err != nil {
 		return fail(err)
@@ -449,9 +453,9 @@ func runHookExec(ctx context.Context, args []string, deps Deps) error {
 	case "session-context":
 		return hooks.RunSessionContext(ctx, deps.Stdin, deps.Stdout, deps.Stderr, scope, rootDir)
 	case "check-changed":
-		return hooks.RunCheckChanged(ctx, deps.Stdin, deps.Stdout, deps.Stderr, scope, rootDir)
+		return hooks.RunCheckChangedForRuntime(ctx, deps.Stdin, deps.Stdout, deps.Stderr, runtimeArg, scope, rootDir)
 	case "guard-edit":
-		return hooks.RunGuardEdit(ctx, deps.Stdin, deps.Stdout, deps.Stderr, scope, rootDir)
+		return hooks.RunGuardEditForRuntime(ctx, deps.Stdin, deps.Stdout, deps.Stderr, runtimeArg, scope, rootDir)
 	default:
 		return apperr.Usage("unsupported_hook", fmt.Sprintf("unsupported hook handler %q", hookID))
 	}

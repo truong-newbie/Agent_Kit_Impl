@@ -37,26 +37,49 @@ func hookTargetForRuntime(profile adapter.RuntimeProfile, scope string) (rootKey
 }
 
 func defaultHooksForRuntime(runtimeID, scope string) []HookStatusInfo {
-	if runtimeID == "claude" {
+	switch runtimeID {
+	case "claude":
 		return []HookStatusInfo{
 			{ID: "check-changed", Runtime: "claude", Event: hooks.EventPostToolUse, Scope: scope, Status: "disabled", Detail: "opt-in Claude PostToolUse changed-file check hook is disabled"},
 			{ID: "guard-edit", Runtime: "claude", Event: hooks.EventPreToolUse, Scope: scope, Status: "disabled", Detail: "opt-in Claude PreToolUse edit guard hook is disabled"},
 		}
+	case "gemini":
+		return []HookStatusInfo{
+			{ID: "check-changed", Runtime: "gemini", Event: hooks.EventAfterTool, Scope: scope, Status: "disabled", Detail: "opt-in Gemini CLI AfterTool changed-file check hook is disabled"},
+			{ID: "guard-edit", Runtime: "gemini", Event: hooks.EventBeforeTool, Scope: scope, Status: "disabled", Detail: "opt-in Gemini CLI BeforeTool edit guard hook is disabled"},
+		}
+	case "cursor":
+		return []HookStatusInfo{
+			{ID: "check-changed", Runtime: "cursor", Event: hooks.EventAfterFileEdit, Scope: scope, Status: "disabled", Detail: "opt-in Cursor afterFileEdit changed-file check hook is disabled"},
+		}
+	case "opencode":
+		return []HookStatusInfo{
+			{ID: "check-changed", Runtime: "opencode", Event: hooks.EventToolExecuteAfter, Scope: scope, Status: "disabled", Detail: "opt-in OpenCode JS plugin (tool.execute.after) is disabled"},
+		}
+	default:
+		return []HookStatusInfo{{
+			ID:     "session-context",
+			Event:  hooks.EventSessionStart,
+			Scope:  scope,
+			Status: "disabled",
+			Detail: "hook is opt-in and currently disabled",
+		}}
 	}
-	return []HookStatusInfo{{
-		ID:     "session-context",
-		Event:  hooks.EventSessionStart,
-		Scope:  scope,
-		Status: "disabled",
-		Detail: "hook is opt-in and currently disabled",
-	}}
 }
 
 func hookReviewHint(runtimeID string) string {
-	if runtimeID == "claude" {
+	switch runtimeID {
+	case "claude":
 		return "review registered hooks in .claude/settings.json (or $CLAUDE_CONFIG_DIR/settings.json) and run 'dtkit check --yes' before edits to trust repo checks"
+	case "gemini":
+		return "review registered hooks in .gemini/settings.json (or $GEMINI_CLI_HOME/.gemini/settings.json) and run 'dtkit check --yes' before edits to trust repo checks"
+	case "cursor":
+		return "review registered hooks in .cursor/hooks.json (or ~/.cursor/hooks.json) and run 'dtkit check --yes' before edits to trust repo checks"
+	case "opencode":
+		return "review generated plugin in .opencode/plugins/dtkit-quality.js (or $OPENCODE_CONFIG_DIR/plugins/dtkit-quality.js) and run 'dtkit check --yes' to trust repo checks"
+	default:
+		return "review and approve project/user hooks via /hooks in Codex CLI"
 	}
-	return "review and approve project/user hooks via /hooks in Codex CLI"
 }
 
 // InspectHooks reports read-only status of opt-in DTKit Codex hooks in scope.
@@ -138,7 +161,13 @@ func InspectHooksForRuntime(runtimeName, scope string, roots map[string]string) 
 			out = append(out, st)
 			continue
 		}
-		present, inspectErr := hooks.InspectEventHooksJSON(data, reg.Event, reg.EntryDigest)
+		var present bool
+		var inspectErr error
+		if profile.ID == "opencode" {
+			present = hooks.DigestBytes(data) == reg.EntryDigest
+		} else {
+			present, inspectErr = hooks.InspectEventHooksJSON(data, reg.Event, reg.EntryDigest)
+		}
 		if inspectErr != nil {
 			st.Status = "conflicted"
 			st.Detail = inspectErr.Error()
@@ -262,12 +291,6 @@ func EnableHookForRuntime(runtimeName, scope, hookID string, roots, otherScopeRo
 	if err != nil {
 		return res, false, err
 	}
-	var entry map[string]any
-	if profile.ID == "claude" {
-		entry = hooks.BuildClaudeHookEntry(posixCmd, spec.Matcher, spec.TimeoutSec, spec.StatusMessage)
-	} else {
-		entry = hooks.BuildSessionContextEntry(posixCmd, winCmd, spec.TimeoutSec)
-	}
 
 	rootKey, relPath := hookTargetForRuntime(profile, scope)
 	target, err := paths.ResolveTarget(roots[rootKey], relPath)
@@ -292,7 +315,27 @@ func EnableHookForRuntime(runtimeName, scope, hookID string, roots, otherScopeRo
 		return res, false, statErr
 	}
 
-	merged, digest, err := hooks.MergeEventHookJSON(before, targetExisted, spec.Event, entry)
+	var merged []byte
+	var digest string
+	switch profile.ID {
+	case "opencode":
+		if targetExisted {
+			return res, false, apperr.WithPath(apperr.Conflict("hook_already_present", relPath+" already exists without matching DTKit ownership"), relPath)
+		}
+		merged, digest, err = hooks.RenderOpenCodePlugin(exePath, scope, filepath.Clean(roots[stateRootKey]), spec.TimeoutSec)
+	case "cursor":
+		entry := hooks.BuildCursorHookEntry(posixCmd)
+		merged, digest, err = hooks.MergeCursorHooksJSON(before, targetExisted, spec.Event, entry)
+	case "gemini":
+		entry := hooks.BuildGeminiHookEntry("dtkit-"+hookID, posixCmd, spec.Matcher, spec.TimeoutSec)
+		merged, digest, err = hooks.MergeEventHookJSON(before, targetExisted, spec.Event, entry)
+	case "claude":
+		entry := hooks.BuildClaudeHookEntry(posixCmd, spec.Matcher, spec.TimeoutSec, spec.StatusMessage)
+		merged, digest, err = hooks.MergeEventHookJSON(before, targetExisted, spec.Event, entry)
+	default:
+		entry := hooks.BuildSessionContextEntry(posixCmd, winCmd, spec.TimeoutSec)
+		merged, digest, err = hooks.MergeEventHookJSON(before, targetExisted, spec.Event, entry)
+	}
 	if err != nil {
 		return res, false, err
 	}
@@ -511,7 +554,19 @@ func buildHookRemovalAction(roots map[string]string, reg state.HookRegistration)
 	if err != nil {
 		return act, err
 	}
-	after, deleteFile, err := hooks.UnmergeEventHookJSON(before, reg.Event, reg.EntryDigest, reg.CreatedFile)
+	var after []byte
+	var deleteFile bool
+	switch reg.Event {
+	case hooks.EventToolExecuteAfter:
+		if hooks.DigestBytes(before) != reg.EntryDigest {
+			return act, apperr.Conflict("hook_entry_modified", "DTKit OpenCode plugin file was modified externally")
+		}
+		deleteFile = true
+	case hooks.EventAfterFileEdit:
+		after, deleteFile, err = hooks.UnmergeCursorHooksJSON(before, reg.Event, reg.EntryDigest, reg.CreatedFile)
+	default:
+		after, deleteFile, err = hooks.UnmergeEventHookJSON(before, reg.Event, reg.EntryDigest, reg.CreatedFile)
+	}
 	if err != nil {
 		return act, err
 	}

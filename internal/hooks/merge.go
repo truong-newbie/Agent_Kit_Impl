@@ -14,11 +14,15 @@ import (
 )
 
 const (
-	EventSessionStart = "SessionStart"
-	EventPostToolUse  = "PostToolUse"
-	EventPreToolUse   = "PreToolUse"
-	DefaultTimeoutSec = 3
-	MaxHooksJSONBytes = 4 * 1024 * 1024
+	EventSessionStart     = "SessionStart"
+	EventPostToolUse      = "PostToolUse"
+	EventPreToolUse       = "PreToolUse"
+	EventBeforeTool       = "BeforeTool"
+	EventAfterTool        = "AfterTool"
+	EventAfterFileEdit    = "afterFileEdit"
+	EventToolExecuteAfter = "tool.execute.after"
+	DefaultTimeoutSec     = 3
+	MaxHooksJSONBytes     = 4 * 1024 * 1024
 )
 
 func BuildSessionContextEntry(posixCmd, winCmd string, timeoutSec int) map[string]any {
@@ -55,6 +59,73 @@ func BuildClaudeHookEntry(command, matcher string, timeoutSec int, statusMessage
 			},
 		},
 	}
+}
+
+// BuildGeminiHookEntry constructs a Gemini CLI settings.json hook matcher group (timeout in ms).
+func BuildGeminiHookEntry(name, command, matcher string, timeoutSec int) map[string]any {
+	if timeoutSec <= 0 {
+		timeoutSec = 10
+	}
+	return map[string]any{
+		"matcher": matcher,
+		"hooks": []any{
+			map[string]any{
+				"name":    name,
+				"type":    "command",
+				"command": command,
+				"timeout": timeoutSec * 1000,
+			},
+		},
+	}
+}
+
+// BuildCursorHookEntry constructs a Cursor .cursor/hooks.json command entry.
+func BuildCursorHookEntry(command string) map[string]any {
+	return map[string]any{
+		"command": command,
+	}
+}
+
+// MergeCursorHooksJSON inserts entry into Cursor hooks.json (requiring root version: 1) while preserving existing hooks.
+func MergeCursorHooksJSON(existing []byte, exists bool, eventName string, entry map[string]any) ([]byte, string, error) {
+	if !exists || len(bytes.TrimSpace(existing)) == 0 {
+		seed := []byte("{\n  \"version\": 1,\n  \"hooks\": {}\n}\n")
+		return MergeEventHookJSON(seed, true, eventName, entry)
+	}
+	root, err := parseHooksObject(existing)
+	if err != nil {
+		return nil, "", err
+	}
+	if ver, hasVer := root["version"]; hasVer {
+		if fmt.Sprint(ver) != "1" {
+			return nil, "", apperr.Conflict("unsupported_hooks_schema", fmt.Sprintf("unsupported Cursor hooks.json version %v (expected 1)", ver))
+		}
+	} else {
+		root["version"] = 1
+		updated, err := json.MarshalIndent(root, "", "  ")
+		if err != nil {
+			return nil, "", err
+		}
+		existing = updated
+	}
+	return MergeEventHookJSON(existing, true, eventName, entry)
+}
+
+// UnmergeCursorHooksJSON removes a DTKit entry from Cursor hooks.json while keeping root version: 1 if user hooks remain.
+func UnmergeCursorHooksJSON(existing []byte, eventName, expectedDigest string, createdFile bool) ([]byte, bool, error) {
+	out, _, err := UnmergeEventHookJSON(existing, eventName, expectedDigest, false)
+	if err != nil {
+		return nil, false, err
+	}
+	if createdFile {
+		root, pErr := parseHooksObject(out)
+		if pErr == nil {
+			if _, hasHooks := root["hooks"]; !hasHooks && len(root) == 1 && fmt.Sprint(root["version"]) == "1" {
+				return nil, true, nil
+			}
+		}
+	}
+	return out, false, nil
 }
 
 // CanonicalEntryDigest hashes the canonical JSON serialization of a Codex hook matcher group.
