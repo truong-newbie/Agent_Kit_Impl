@@ -1,5 +1,11 @@
 # Review report
 
+## Targeted Checklist
+- **Correctness & boundaries:** Off-by-one, nil/empty, error propagation, concurrency, state transitions.
+- **Scope & read-only integrity:** Unrequested edits avoided; no test weakening or suppressed errors.
+- **Security & path safety:** Input validation, path traversal/symlink boundaries, secret protection, no shell interpolation.
+- **Verification gaps:** Missing boundary/failure tests or unexecuted runtime checks noted explicitly.
+
 ## Findings
 For each finding include:
 - **Severity:** critical | high | medium | low

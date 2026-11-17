@@ -30,6 +30,6 @@ Trace actual source code and documentation to explain how a system works, follow
 Provide a clear walkthrough citing exact file paths/symbols, key invariants/limits, and a brief example if helpful.
 
 ## Examples
-1. **Flow explanation:** User asks "How does DTKit handle managed blocks in AGENTS.md?" -> Trace `AppendBlock`, `ReplaceBlock`, `RemoveBlock`, and `locate` with exact file references.
-2. **Architecture summary:** User asks "Summarize the packages in internal/." -> Inspect each package and describe responsibilities and boundaries.
+1. **Flow explanation:** User asks "How does order checkout compute discounts and tax?" -> Trace request validation, pricing rules, and persistence across the actual source files with exact symbol references.
+2. **Architecture summary:** User asks "Summarize the packages in this repository." -> Check `.dtkit/project.json` (if present) or workspace manifests (`go.mod`, `package.json`, `pyproject.toml`) and describe responsibilities and boundaries.
 3. **Missing information:** If the referenced module does not exist in the repository yet, state what was checked and what is absent rather than inventing APIs.

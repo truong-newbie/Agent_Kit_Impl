@@ -17,10 +17,10 @@ Verify software behavior using the repository's existing test tools and conventi
 - Target behavior/module and available project test scripts or runners.
 
 ## Steps
-1. Inspect existing test files, fixtures, and CI/verification scripts to match conventions.
-2. Design tests covering normal behavior, boundary conditions, and failure/security paths; avoid brittle implementation-detail assertions.
-3. Run the relevant test commands where authorized.
-4. Capture exact commands, exit codes, and pass/fail/skipped counts.
+1. Inspect `.dtkit/project.json` (when present) plus existing test files, manifests, and CI/verification scripts to match project conventions.
+2. Design tests covering normal behavior, boundary conditions, and failure/security paths; avoid brittle implementation-detail assertions or relaxing existing checks.
+3. Run only relevant, authorized test/lint/typecheck commands after final edits.
+4. Capture exact commands, exit codes, and pass/fail/skipped counts (never reporting missing tools as passed).
 
 ## Constraints
 - Never claim tests passed without running them after the final edit.
@@ -30,6 +30,6 @@ Verify software behavior using the repository's existing test tools and conventi
 Report exact commands executed, exit codes, test outcomes (passed/failed/skipped), and any untested environment gaps.
 
 ## Examples
-1. **Regression test:** User asks "Add tests for invalid UTF-8 and duplicate keys in state loader." -> Add table-driven tests in `load_test.go` and run `go test`.
-2. **Targeted suite run:** User says "Run the installer tests via Docker script." -> Execute script, report exact package timings and exit status.
-3. **Missing information:** If a native OS test runner or external credential is unavailable, report the exact missing requirement and what could still be verified offline.
+1. **Regression test:** User asks "Add tests for invalid input and edge cases in slug formatting." -> Add table-driven tests in the existing test suite and run the repository test runner.
+2. **Targeted suite run:** User says "Verify the API service module." -> Run the module's configured unit/lint checks (`go test`, `npm test`, `pytest`, or `.dtkit/project.json` checks) and report exact exit status and counts.
+3. **Missing information:** If a linter or native OS test runner is unavailable, report the exact missing executable (`missing_tool`) and what could still be verified.

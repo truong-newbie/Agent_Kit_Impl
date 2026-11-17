@@ -32,6 +32,6 @@ Identify critical ambiguities that cannot be safely inferred from the codebase, 
 Present the specific question(s), why the choice matters, sensible defaults/options, and what independent progress was already made.
 
 ## Examples
-1. **Destructive scope ambiguity:** User says "Clean up old state files." -> Ask whether operational transaction backups should be kept or purged, while inspecting current retention logic.
-2. **Public API ambiguity:** User says "Add a remote source flag." -> Clarify expected archive format and trust policy before implementing.
-3. **Missing context resolved locally:** If a user asks to "add the standard exit code" without specifying a number, check `internal/apperr` first rather than asking.
+1. **Destructive scope ambiguity:** User says "Clean up expired session records." -> Ask whether audit history should be archived or purged, while inspecting current retention logic.
+2. **Public API ambiguity:** User says "Add webhook delivery for order updates." -> Clarify expected signature verification, retry limits, and payload schema before implementing.
+3. **Missing context resolved locally:** If a user asks to "return the standard error code" without specifying a value, inspect the repository's existing error mapping module first rather than asking.

@@ -217,6 +217,38 @@ func TestMainBaselineUpgradeAndGoldenLifecycleAcrossRuntimes(t *testing.T) {
 		t.Fatalf("legacy v1 journal failed compatibility check: %v", err)
 	}
 
+	// Explicit 0.3.0 -> 0.4.0 upgrade across Claude runtime preserves user CLAUDE.md edits cleanly.
+	claudeDir := filepath.Join(base, "claude-upgrade")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	userClaude := "# Team Notes\nCustom rules.\n"
+	if err := os.WriteFile(filepath.Join(claudeDir, "CLAUDE.md"), []byte(userClaude), 0644); err != nil {
+		t.Fatal(err)
+	}
+	v03Pkg := curPkg
+	v03Pkg.Version = "0.3.0"
+	v03Arts, err := adapter.RenderForRuntime("claude", v03Pkg, curFS, "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cRoots := map[string]string{"project": claudeDir}
+	if _, err := FreshInstallWithOptions("project", cRoots, v03Pkg, curFS, v03Arts, oldTime, InstallOptions{Runtime: "claude", SourceKind: "bundled"}); err != nil {
+		t.Fatalf("claude 0.3.0 install failed: %v", err)
+	}
+	v04Arts, err := adapter.RenderForRuntime("claude", curPkg, curFS, "project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	upClaude, err := Update("project", cRoots, curPkg, curFS, v04Arts, upgradeTime, UpdateOptions{Runtime: "claude", SourceKind: "bundled"})
+	if err != nil || !upClaude.Updated || upClaude.Installation.Kit.Version != curPkg.Version {
+		t.Fatalf("claude 0.3.0 -> 0.4.0 upgrade failed: %+v err=%v", upClaude, err)
+	}
+	afterClaude, _ := os.ReadFile(filepath.Join(claudeDir, "CLAUDE.md"))
+	if !bytes.HasPrefix(afterClaude, []byte(userClaude)) {
+		t.Fatalf("user CLAUDE.md lost during 0.3.0 -> 0.4.0 upgrade: %s", string(afterClaude))
+	}
+
 	// Keep unused state/planner imports clearly exercised via types.
 	var _ state.Installation = upProj.Installation
 	var _ planner.InstallPlan = upProj.Plan

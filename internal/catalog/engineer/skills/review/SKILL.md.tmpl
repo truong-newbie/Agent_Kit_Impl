@@ -31,6 +31,6 @@ Evaluate code changes with priority on correctness, security, compatibility, and
 Format findings per `{{index .ResourcePaths "template/review-report"}}` with severity, file/line location, evidence, impact, remediation, and testing gaps.
 
 ## Examples
-1. **PR diff review:** User says "Review my staged changes for security and edge cases." -> Inspect `git diff --cached` and callers, report prioritized findings with evidence.
-2. **Targeted module audit:** User asks "Review internal/auth for token validation bugs." -> Trace token parsing and expiry checks, report verified vulnerabilities and missing tests.
+1. **PR diff review:** User says "Review my staged changes for security and edge cases." -> Inspect staged changes and callers against `{{index .ResourcePaths "template/review-report"}}`, reporting prioritized findings with evidence without editing files.
+2. **Targeted module audit:** User asks "Review the auth module for token validation bugs." -> Trace token parsing, expiry checks, and path/input handling, reporting verified vulnerabilities and missing tests.
 3. **Missing information:** If the user says "Review recent changes" and the base branch is ambiguous, state the chosen diff base (e.g., `HEAD~1` or working tree) and list any uninspected areas.

@@ -26,7 +26,7 @@ func TestCrossRuntimeBarrierInstallUpdateRemoveAndRecoverSafety(t *testing.T) {
 		t.Fatal(err)
 	}
 	pkgV2 := pkg
-	pkgV2.Version = "0.3.0"
+	pkgV2.Version = "9.9.9"
 	now := time.Date(2026, 11, 16, 14, 0, 0, 0, time.UTC)
 
 	codexProj, err := adapter.RenderForRuntime("codex", pkg, src, "project")

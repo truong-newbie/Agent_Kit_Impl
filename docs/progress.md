@@ -247,6 +247,18 @@ Next independent work: Harden `TestTerminalInstallScriptWindows` on `feat/releas
 
 ---
 
+ID: B04 (Engineer Kit `0.4.0` Repository-Neutral & Project-Profile-Aware Revision)
+Status: partial (kit content revised to `0.4.0`, repo-neutrality & `0.3.0 -> 0.4.0` upgrade tests passing locally; live 60-run A/B model comparison `0.3.0` vs `0.4.0` remains gated on owner auth/budget)
+Baseline SHA / branch: `a726efd` + `76445cc` merge on `feat/v0.5`
+User-visible behavior and schema decisions: Bumped `engineer` `0.3.0` -> `0.4.0`. Removed DTKit-internal examples (`internal/apperr`, `AppendBlock`, `ReplaceBlock`, `RemoveBlock`, `AGENTS.md`, `Docker`) from `skills/{ask,explain,review,test}/SKILL.md.tmpl`; updated `rules/engineering.md`, `skills/test/SKILL.md.tmpl`, and `templates/review-report.md` with `.dtkit/project.json` discovery, targeted-read context discipline, untrusted-repo-text guards, and review checklist while preserving `< 8 KiB` always-loaded instruction footprint. Frozen baseline manifest in `docs/evaluation/manifest.json` stays pinned at `engineer@0.3.0`.
+Files changed: `internal/catalog/engineer/{package.json,rules/engineering.md,skills/ask/SKILL.md.tmpl,skills/explain/SKILL.md.tmpl,skills/review/SKILL.md.tmpl,skills/test/SKILL.md.tmpl,templates/review-report.md}`, `internal/adapter/engineer_eval_test.go`, `internal/eval/eval_test.go`, `internal/installer/compat_test.go`, `docs/progress.md`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (validates template rendering across all 5 runtimes x 2 scopes, `< 8 KiB` instruction budget, repo-neutrality assertions, and `0.1.0`/`0.3.0` -> `0.4.0` upgrades across Codex & Claude).
+Live evidence: Offline invariant & upgrade checks verified; live A/B comparison `0.3.0` vs `0.4.0` awaits isolated credentials + model budget (`B02` gate).
+Acceptance still missing / external blocker: Live isolated multi-stack A/B comparison (`engineer@0.3.0` vs `engineer@0.4.0`); multi-OS CI run for `B04`.
+Next independent work: Implement `B05` (`dtkit check --path <repo> --dry-run|--changed|--all --json`) on `feat/v0.5`.
+
+---
+
 ## Historical Implementation Log (Point-in-Time Snapshots)
 
 > The entries below were recorded at the time each dev milestone completed and are kept intact for historical context; refer to **Current Status** above for live release-gate truth.

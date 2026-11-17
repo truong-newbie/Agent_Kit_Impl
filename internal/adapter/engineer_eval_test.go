@@ -106,6 +106,17 @@ func TestEngineerKitEvaluationInvariantsAcrossRuntimesAndScopes(t *testing.T) {
 				if bytes.Contains([]byte(renderedSkills["debug"]), []byte("Never suppress errors")) == false {
 					t.Fatalf("debug skill missing test integrity guardrail")
 				}
+				// Verify repository-neutrality (no DTKit-internal examples inside engineer skill bodies).
+				for _, leak := range []string{"internal/apperr", "AppendBlock", "ReplaceBlock", "RemoveBlock", "AGENTS.md", "Docker"} {
+					for skName, skBody := range renderedSkills {
+						if strings.Contains(skBody, leak) {
+							t.Fatalf("skill %s still leaks repo-specific example %q", skName, leak)
+						}
+					}
+				}
+				if !strings.Contains(renderedSkills["test"], ".dtkit/project.json") {
+					t.Fatalf("test skill missing .dtkit/project.json awareness")
+				}
 			})
 		}
 	}
