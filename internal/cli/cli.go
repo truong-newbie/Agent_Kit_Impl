@@ -26,11 +26,13 @@ Usage:
   dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor|claude>] [--json]
   dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
   dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
+  dtkit fork <kit>[@<ver>] [--as <new-id>] [--dir <parent>] [--version <x.y.z>] [--name <title>] [--same-id] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--redact] [--json]
   dtkit pack <directory> [--out <file.tar.gz>] [--json]
   dtkit doctor [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--redact] [--json]
-  dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+  dtkit diff [<kit>[@<ver>]] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--redact] [--json]
+  dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit status [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--json]
-  dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+  dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]
@@ -80,10 +82,14 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runValidate(ctx, args[1:], deps)
 	case "create":
 		return runCreate(ctx, args[1:], deps)
+	case "fork":
+		return runFork(ctx, args[1:], deps)
 	case "pack":
 		return runPack(args[1:], deps)
 	case "doctor":
 		return runDoctor(ctx, args[1:], deps)
+	case "diff":
+		return runDiff(ctx, args[1:], deps)
 	case "install":
 		return runInstall(ctx, args[1:], deps)
 	case "status":
@@ -123,7 +129,13 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 func printCommandHelp(cmd string, out io.Writer) error {
 	switch cmd {
 	case "install":
-		_, err := io.WriteString(out, "Usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]\n")
+		return err
+	case "diff":
+		_, err := io.WriteString(out, "Usage: dtkit diff [<kit>[@<ver>]] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--redact] [--json]\n")
+		return err
+	case "fork":
+		_, err := io.WriteString(out, "Usage: dtkit fork <kit>[@<ver>] [--as <new-id>] [--dir <parent>] [--version <x.y.z>] [--name <title>] [--same-id] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--redact] [--json]\n")
 		return err
 	case "status":
 		_, err := io.WriteString(out, "Usage: dtkit status [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--json]\n")
@@ -144,7 +156,7 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit pack <directory> [--out <file.tar.gz>] [--json]\n")
 		return err
 	case "update":
-		_, err := io.WriteString(out, "Usage: dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]\n")
 		return err
 	case "remove":
 		_, err := io.WriteString(out, "Usage: dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--dry-run] [--yes] [--json]\n")

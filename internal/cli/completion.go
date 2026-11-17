@@ -14,7 +14,7 @@ _dtkit_complete() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    local cmds="version help list info validate create pack doctor install status update remove recover project check hooks hook completion"
+    local cmds="version help list info validate create fork pack doctor diff install status update remove recover project check hooks hook completion"
     local runtimes="codex gemini opencode cursor claude"
     local presets="minimal review-only engineering"
 
@@ -50,7 +50,7 @@ _dtkit_complete() {
             ;;
     esac
 
-    local flags="--project --global --runtime --preset --components --path --from --source --sha256 --offline --dry-run --yes --json --redact --changed --all --allow-autofix"
+    local flags="--project --global --runtime --preset --components --path --from --source --sha256 --offline --dry-run --diff --yes --json --redact --changed --all --allow-autofix --as --dir --version --same-id"
     COMPREPLY=( $(compgen -W "$flags" -- "$cur") )
 }
 complete -F _dtkit_complete dtkit
@@ -66,8 +66,10 @@ _dtkit() {
         'info:Inspect kit package metadata'
         'validate:Validate a kit directory or archive'
         'create:Create kit or skill scaffolding'
+        'fork:Fork an existing kit to a local customizable directory'
         'pack:Build reproducible kit tarball'
         'doctor:Run diagnostic health checks'
+        'diff:Preview bounded content diff and ownership'
         'install:Install a kit into project or global scope'
         'status:Show installed kit status'
         'update:Update installed kit'
@@ -103,10 +105,10 @@ const powerShellCompletionScript = `# PowerShell completion for dtkit
 Register-ArgumentCompleter -Native -CommandName dtkit -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $tokens = $commandAst.CommandElements | ForEach-Object { $_.Extent.Text }
-    $cmds = @('version','help','list','info','validate','create','pack','doctor','install','status','update','remove','recover','project','check','hooks','hook','completion')
+    $cmds = @('version','help','list','info','validate','create','fork','pack','doctor','diff','install','status','update','remove','recover','project','check','hooks','hook','completion')
     $runtimes = @('codex','gemini','opencode','cursor','claude')
     $presets = @('minimal','review-only','engineering')
-    $flags = @('--project','--global','--runtime','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--yes','--json','--redact','--changed','--all','--allow-autofix')
+    $flags = @('--project','--global','--runtime','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--diff','--yes','--json','--redact','--changed','--all','--allow-autofix','--as','--dir','--version','--same-id')
 
     if ($tokens.Count -le 2 -and ($wordToComplete -eq $tokens[-1] -or $tokens.Count -eq 1)) {
         return $cmds | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }

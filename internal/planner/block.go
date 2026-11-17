@@ -230,14 +230,27 @@ func BlockDigestForKit(kitID string, existing []byte, scope string) (string, err
 
 // BlockDigestForRuntime returns the digest of the runtime-specific managed block.
 func BlockDigestForRuntime(runtimeName, kitID string, existing []byte, scope string) (string, error) {
-	start, end, err := locate(existing, runtimeName, kitID, scope)
+	block, found, err := ExtractBlockForRuntime(runtimeName, kitID, existing, scope)
 	if err != nil {
 		return "", err
 	}
-	if start < 0 {
+	if !found {
 		return "", fmt.Errorf("managed block is missing")
 	}
-	return digest(existing[start:end]), nil
+	return digest(block), nil
+}
+
+// ExtractBlockForRuntime extracts only the managed block owned by (runtimeName, kitID, scope),
+// returning found=false without leaking surrounding user bytes when absent.
+func ExtractBlockForRuntime(runtimeName, kitID string, existing []byte, scope string) ([]byte, bool, error) {
+	start, end, err := locate(existing, runtimeName, kitID, scope)
+	if err != nil {
+		return nil, false, err
+	}
+	if start < 0 {
+		return nil, false, nil
+	}
+	return append([]byte(nil), existing[start:end]...), true, nil
 }
 
 // RemoveBlock returns the planned bytes and whether the entire file may be removed.

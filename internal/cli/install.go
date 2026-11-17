@@ -18,7 +18,11 @@ import (
 func runInstall(ctx context.Context, args []string, deps Deps) error {
 	env := newEnvelope("install")
 	jsonOutput := hasJSONFlag(args)
+	redact := false
 	fail := func(err error) error {
+		if redact {
+			err = redactAppError(err, collectHomeCandidates(deps))
+		}
 		if jsonOutput {
 			return failJSON(deps.Stdout, env, err)
 		}
@@ -26,12 +30,12 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
-		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]"))
+		return fail(apperr.Usage("missing_kit", "usage: dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]"))
 	}
 	kitSpec := args[0]
 
 	var scope, projectPath, runtimeArg, fromPath, sourceURL, sha256Hex, presetRaw, componentsRaw string
-	var dryRun, yes, offline, hasPreset, hasComponents bool
+	var dryRun, yes, offline, showDiff, hasPreset, hasComponents bool
 	for i := 1; i < len(args); i++ {
 		switch {
 		case args[i] == "--project":
@@ -46,6 +50,10 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 			scope = "global"
 		case args[i] == "--dry-run":
 			dryRun = true
+		case args[i] == "--diff":
+			showDiff = true
+		case args[i] == "--redact":
+			redact = true
 		case args[i] == "--json":
 			jsonOutput = true
 		case args[i] == "--yes":
@@ -198,6 +206,19 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		return fail(err)
 	}
 	env.Actions, env.Summary = summarizeActions(plan.Actions)
+	if showDiff {
+		diff, dErr := planner.ComputePlanDiff(profile.ID, scope, pkg.ID, roots, plan, artifacts, false)
+		if dErr != nil {
+			return fail(dErr)
+		}
+		explain := buildExplainView(&resolved, fromPath, sourceURL, nil, selectionSpec, plan, artifacts)
+		env.Explain = &explain
+		env.Diff = &diff
+	}
+	if redact {
+		env.Roots = cloneRootsMap(roots)
+		redactEnvelope(&env, collectHomeCandidates(deps))
+	}
 
 	if plan.Conflicts != 0 {
 		return fail(apperr.Conflict("install_conflicts", fmt.Sprintf("install found %d conflict(s)", plan.Conflicts)))
@@ -213,6 +234,10 @@ func runInstall(ctx context.Context, args []string, deps Deps) error {
 		fmt.Fprintf(deps.Stdout, "Read-only preview: %s %s (%s)\n", pkg.ID, scope, roots[scopeRoot(scope)])
 		for _, action := range plan.Actions {
 			fmt.Fprintf(deps.Stdout, "%s\t%s:%s\t%s\n", action.Kind, action.Root, action.Path, action.Reason)
+		}
+		if showDiff {
+			fmt.Fprintln(deps.Stdout)
+			printPlanDiffText(deps.Stdout, env.Explain, env.Diff)
 		}
 		fmt.Fprintf(deps.Stdout, "Conflicts: %d. Nothing was written.\n", plan.Conflicts)
 		return nil

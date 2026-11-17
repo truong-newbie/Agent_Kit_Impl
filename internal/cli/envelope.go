@@ -52,6 +52,21 @@ type DoctorCheck struct {
 	Hint    string `json:"hint,omitempty"`
 }
 
+type ExplainView struct {
+	KitID              string                 `json:"kitId"`
+	SourceKind         string                 `json:"sourceKind"`
+	SourceLocation     string                 `json:"sourceLocation,omitempty"`
+	InstalledVersion   string                 `json:"installedVersion,omitempty"`
+	TargetVersion      string                 `json:"targetVersion,omitempty"`
+	InstalledDigest    string                 `json:"installedDigest,omitempty"`
+	TargetDigest       string                 `json:"targetDigest,omitempty"`
+	Selection          *catalog.SelectionSpec `json:"selection,omitempty"`
+	OwnedWholeFiles    int                    `json:"ownedWholeFiles"`
+	OwnedManagedBlocks int                    `json:"ownedManagedBlocks"`
+	PeerOwnedBlocked   int                    `json:"peerOwnedBlocked,omitempty"`
+	DriftFiles         int                    `json:"driftFiles,omitempty"`
+}
+
 type Envelope struct {
 	SchemaVersion  int                          `json:"schemaVersion"`
 	Command        string                       `json:"command"`
@@ -68,6 +83,8 @@ type Envelope struct {
 	Generation     uint64                       `json:"generation,omitempty"`
 	Actions        []ActionView                 `json:"actions,omitempty"`
 	Summary        *ActionSummary               `json:"summary,omitempty"`
+	Explain        *ExplainView                 `json:"explain,omitempty"`
+	Diff           *planner.PlanDiff            `json:"diff,omitempty"`
 	BuildInfo      *buildinfo.Info              `json:"buildInfo,omitempty"`
 	Packages       []PackageSummary             `json:"packages,omitempty"`
 	Package        *catalog.Package             `json:"package,omitempty"`
@@ -76,6 +93,7 @@ type Envelope struct {
 	Hooks          []installer.HookStatusInfo   `json:"hooks,omitempty"`
 	Recovery       *installer.RecoverReport     `json:"recovery,omitempty"`
 	Pack           *dist.PackResult             `json:"pack,omitempty"`
+	Fork           *dist.ForkResult             `json:"fork,omitempty"`
 	CreateKit      *dist.CreateKitResult        `json:"createKit,omitempty"`
 	CreateSkill    *dist.CreateSkillResult      `json:"createSkill,omitempty"`
 	ProjectInspect *project.InspectResult       `json:"projectInspect,omitempty"`

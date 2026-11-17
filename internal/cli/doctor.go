@@ -98,6 +98,20 @@ func redactDiagnosticText(s string, homes []string) string {
 }
 
 func redactEnvelope(env *Envelope, homes []string) {
+	for k, v := range env.Roots {
+		env.Roots[k] = redactDiagnosticText(v, homes)
+	}
+	if env.Explain != nil {
+		env.Explain.SourceLocation = redactDiagnosticText(env.Explain.SourceLocation, homes)
+	}
+	if env.Diff != nil {
+		for i := range env.Diff.Changes {
+			env.Diff.Changes[i].Patch = redactDiagnosticText(env.Diff.Changes[i].Patch, homes)
+		}
+	}
+	if env.Fork != nil {
+		env.Fork.Dir = redactDiagnosticText(env.Fork.Dir, homes)
+	}
 	for i := range env.Warnings {
 		env.Warnings[i] = redactDiagnosticText(env.Warnings[i], homes)
 	}
