@@ -49,12 +49,33 @@ func buildStubZip(t *testing.T, ver string, corrupt bool, compiledExe []byte) ([
 	return buf.Bytes(), hex.EncodeToString(sum[:])
 }
 
+func makeWindowsTempDir(t *testing.T, pattern string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", pattern)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		for attempt := 0; attempt < 20; attempt++ {
+			if remErr := os.RemoveAll(dir); remErr == nil {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		// Best-effort log only: Windows Defender may still scan freshly compiled stub .exe files after test completion.
+		if remErr := os.RemoveAll(dir); remErr != nil {
+			t.Logf("best-effort cleanup warning for %s: %v", dir, remErr)
+		}
+	})
+	return dir
+}
+
 func buildRealStubExe(t *testing.T, ver string) []byte {
 	t.Helper()
 	if _, err := exec.LookPath("go"); err != nil {
 		return nil
 	}
-	srcDir := t.TempDir()
+	srcDir := makeWindowsTempDir(t, "dtkit-stub-src-*")
 	mainGo := fmt.Sprintf("package main\nimport \"fmt\"\nfunc main(){fmt.Println(`{\"version\":\"%s\"}`)}\n", ver)
 	if err := os.WriteFile(filepath.Join(srcDir, "main.go"), []byte(mainGo), 0644); err != nil {
 		t.Fatal(err)
@@ -103,7 +124,7 @@ func TestTerminalInstallScriptWindows(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	base, err := filepath.EvalSymlinks(t.TempDir())
+	base, err := filepath.EvalSymlinks(makeWindowsTempDir(t, "dtkit-win-install-*"))
 	if err != nil {
 		t.Fatal(err)
 	}
