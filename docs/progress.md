@@ -2,8 +2,8 @@
 
 ## Current Status
 
-- **Active Branches:** `feat/c06-compat-perf` (`C06`, branched from `feat/c05-runtime-hooks` @ `b68f159`), `feat/c05-runtime-hooks` (`C05`, [Run 44115734821](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44115734821) 4/5 `success` + `macos-latest` cancelled in queue), `feat/c04-onboarding` (`C04`, [Run 44041946395](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44041946395)), `feat/c03-lockfile` (`C03`, [Run 44039514749](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44039514749)), `feat/c02-diff-fork` (`C02`, [Run 44034433728](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44034433728)), `feat/c01-multikit` (`C01` + `C04a`, [Run 44025529720](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44025529720)), `feat/v0.5` (`B01`–`B08`), and `feat/release-hardening` (`N00`–`N12`, `A01`–`A04`).
-- **CI Status:** `C01`–`C04`, `main` (`b78a6b3`, [Run 44020170539](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44020170539)), and `v0.5.0-rc.1` (`44020171382` + `release.yml` Draft Pre-release `44020171501`) passed **5/5 GitHub Actions jobs**; `feat/c06-compat-perf` CI will run upon push (superseding stacked `C01`–`C05`).
+- **Active Branches:** `main` (`C01`–`C06` merged, release tag `v0.6.0-rc.1`; stale merged `feat/*` branches cleaned up, with `origin/feat/dtkit-foundation` retained if still configured as GitHub default branch).
+- **CI Status:** `C01`–`C04`, `C06` (`e3b4005`, [Run 44123231423](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44123231423)), `main` (`e3b4005`, [Run 44125604359](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44125604359)), and `v0.5.0-rc.1` (`44020171382` + `release.yml` Draft Pre-release `44020171501`) passed **5/5 GitHub Actions jobs**.
 - **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), and Milestone C **`C01`–`C06`** are implemented; live model A/B & live Claude/Gemini/Cursor/OpenCode session hooks remain `blocked`/`unverified` without isolated credentials & host CLIs (`claude 2.1.319` returned `401 Invalid or expired API key`, `total_cost_usd: 0`).
 
 ### Hardening & Release Backlog Tracker (`N00`–`N12`)
@@ -363,13 +363,13 @@ Next independent work: Implement `C06` (compatibility snapshot verification & pe
 ---
 
 ID: C06 (Periodic Compatibility Checks, Deprecation Policy & Cohort Performance Regression Budgets)
-Status: verified offline/CI automation (local Docker `verify-docker.ps1`; CI pending push on `feat/c06-compat-perf`; live model regression suite gated on private credentials/budget)
-Baseline SHA / branch: `b68f159` -> `feat/c06-compat-perf`
+Status: verified offline/CI automation (local Docker `verify-docker.ps1`; GitHub Actions Run `44123231423` on `feat/c06-compat-perf` & Run `44125604359` on `main` 5/5 `success`; live model regression suite gated on private credentials/budget)
+Baseline SHA / branch: `b68f159` -> `feat/c06-compat-perf` (`e3b4005`) -> merged fast-forward into `main`
 User-visible behavior and schema decisions: Added offline compatibility snapshot & maintainer diff (`internal/adapter/compat.go`, `dtkit compat <snapshot|diff>`) capturing deterministic 5-runtime × 2-scope layouts, hook paths, capability matrix, and `engineer` rendered digests (`docs/verification/last-known-good-compat.json`), plus scheduled/manual GitHub Actions workflow [`.github/workflows/compat-periodic.yml`](../.github/workflows/compat-periodic.yml) emitting maintainer reports/artifacts without API keys or auto-upgrading adapters. Added per-`(modelId, runtime, kitId, kitVersion)` performance cohort aggregation, baseline-anchored `RegressionBudget` checks (`pass`, `regressed`, `insufficient_data`, refusing cross-cohort averaging), and `RedactLogText` (`internal/eval/perf.go`), plus runtime version support & N-1 deprecation policy ([`docs/compatibility-policy.md`](./compatibility-policy.md)).
 Files changed: `internal/adapter/{compat,compat_test}.go`, `internal/eval/{perf,perf_test}.go`, `internal/cli/{cli,compat,compat_test,completion,envelope}.go`, `.github/workflows/compat-periodic.yml`, `docs/{cli,compatibility,compatibility-policy,progress}.md`, `docs/verification/last-known-good-compat.json`
-Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`20/20` packages with `-race`), verifying 10-entry snapshot/diff classification (`breaking` vs non-breaking), cross-cohort isolation, baseline-anchored pass-rate/latency/token/cost regression detection, `insufficient_data` on blocked/small cohorts, log secret redaction, and `dtkit compat diff` matching committed `last-known-good-compat.json`.
-Acceptance still missing / external blocker: Live model A/B regression run under private credentials/budget (`B02`/`N09` gate).
-Next independent work: Push `feat/c06-compat-perf` for full 5/5 GitHub Actions CI, then review & merge `C01`–`C06` into `main` when owner approves.
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`20/20` packages with `-race`), `dtkit compat diff --baseline docs/verification/last-known-good-compat.json`, and GitHub Actions Runs `44123231423` & `44125604359` (5/5 jobs `success`).
+Acceptance still missing / external blocker: Live model A/B regression run under private credentials/budget (`B02`/`N09` gate) and live `compat-periodic.yml` run on GitHub Actions default branch.
+Next independent work: Cut `v0.6.0-rc.1` release tag, clean up merged `feat/*` branches, and switch GitHub repository default branch to `main` so scheduled workflows execute on `main`.
 
 ---
 
