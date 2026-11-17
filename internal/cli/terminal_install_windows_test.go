@@ -72,17 +72,18 @@ func makeWindowsTempDir(t *testing.T, pattern string) string {
 
 func buildRealStubExe(t *testing.T, ver string) []byte {
 	t.Helper()
-	if _, err := exec.LookPath("go"); err != nil {
+	goBin, err := exec.LookPath("go")
+	if err != nil {
 		return nil
 	}
-	srcDir := makeWindowsTempDir(t, "dtkit-stub-src-*")
-	mainGo := fmt.Sprintf("package main\nimport \"fmt\"\nfunc main(){fmt.Println(`{\"version\":\"%s\"}`)}\n", ver)
-	if err := os.WriteFile(filepath.Join(srcDir, "main.go"), []byte(mainGo), 0644); err != nil {
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
 		t.Fatal(err)
 	}
+	srcDir := makeWindowsTempDir(t, "dtkit-stub-src-*")
 	outExe := filepath.Join(srcDir, "dtkit.exe")
-	cmd := exec.Command("go", "build", "-o", outExe, "main.go")
-	cmd.Dir = srcDir
+	cmd := exec.Command(goBin, "build", "-ldflags", "-X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Version="+ver, "-o", outExe, "./cmd/dtkit")
+	cmd.Dir = repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Logf("stub go build skipped (%v): %s", err, out)
 		return nil
@@ -218,12 +219,12 @@ func TestTerminalInstallScriptWindows(t *testing.T) {
 	pPtr, _ := syscall.UTF16PtrFromString(destExe)
 	var h syscall.Handle
 	var lockErr error
-	for attempt := 0; attempt < 10; attempt++ {
+	for attempt := 0; attempt < 25; attempt++ {
 		h, lockErr = syscall.CreateFile(pPtr, syscall.GENERIC_READ, syscall.FILE_SHARE_READ, nil, syscall.OPEN_EXISTING, syscall.FILE_ATTRIBUTE_NORMAL, 0)
 		if lockErr == nil {
 			break
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 	if lockErr != nil {
 		t.Fatalf("failed to lock destExe: %v", lockErr)
