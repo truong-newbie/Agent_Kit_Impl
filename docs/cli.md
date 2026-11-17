@@ -1,6 +1,6 @@
 # DTKit CLI Reference
 
-DTKit (`dtkit`) is a single-binary Go CLI for packaging, validating, and safely installing reusable AI agent kits across `codex` (default), `gemini`, `opencode`, and `cursor`.
+DTKit (`dtkit`) is a single-binary Go CLI for packaging, validating, and safely installing reusable AI agent kits across `codex` (default), `gemini`, `opencode`, `cursor`, and `claude`.
 
 ## Command Summary
 
@@ -8,29 +8,33 @@ DTKit (`dtkit`) is a single-binary Go CLI for packaging, validating, and safely 
 dtkit version [--json]
 dtkit help [command]
 dtkit list [--json]
-dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]
-dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor>] [--json]
-dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor>] [--json]
+dtkit info <kit>[@<ver>] [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--json]
+dtkit validate <dir|archive> [--runtime <codex|gemini|opencode|cursor|claude>] [--json]
+dtkit validate <kit>[@<ver>] --source <url>|--offline [--sha256 <hex>] [--runtime <codex|gemini|opencode|cursor|claude>] [--json]
 dtkit create kit <id> [--dir <parent>] [--name <title>] [--json]
 dtkit create skill <slug> --kit-dir <dir> [--description <text>] [--json]
 dtkit pack <directory> [--out <file.tar.gz>] [--json]
-dtkit doctor [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--redact] [--json]
-dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
-dtkit status [--runtime <codex|gemini|opencode|cursor>] [--project|--global] [--path <dir>] [--json]
-dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
-dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--dry-run] [--yes] [--json]
-dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
-dtkit hooks <list|status|enable|disable> [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]
-dtkit hook run <id> --scope project|global --root <dir>
+dtkit doctor [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--redact] [--json]
+dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+dtkit status [--runtime <codex|gemini|opencode|cursor|claude>] [--project|--global] [--path <dir>] [--json]
+dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--yes] [--json]
+dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--dry-run] [--yes] [--json]
+dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
+dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]
+dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]
+dtkit hooks <list|status|enable|disable> [--runtime <codex|claude>] [--project|--global] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]
+dtkit hook run <id> --scope project|global --root <dir> [--runtime <codex|claude>]
 ```
 
 ## Core Contracts & Semantics
 
-- **One kit per `(runtime, scope)`:** Each runtime and scope pair (`codex/project`, `codex/global`, `opencode/project`, etc.) tracks one active installed kit in its isolated `state.json`. Different runtimes can coexist in the same workspace or home directory without clobbering each other's state.
-- **Read-only guarantees (`info`, `validate`, `doctor`, `status`, `--dry-run`, cancelled prompt):** Never write project files, user config, state, transaction backups, or persistent archive cache blobs. Pass `dtkit doctor --redact` (optionally with `--json`) to scrub local home paths (`<HOME>`) and credential tokens before sharing diagnostics.
+- **One kit per `(runtime, scope)`:** Each runtime and scope pair (`codex/project`, `codex/global`, `opencode/project`, `claude/project`, etc.) tracks one active installed kit in its isolated `state.json`. All five supported runtimes can coexist in the same workspace or home directory without clobbering each other's state.
+- **Selective install & update (`--preset` / `--components`):** Pass `--preset <name>` (e.g., `minimal`, `review-only`, `engineering` for `engineer@0.4.0`) or `--components <id1,id2,...>` on `dtkit install` or `dtkit update` (mutually exclusive). DTKit expands transitive `requires` dependencies deterministically, records `selection` in `state.json`, preserves existing selection on subsequent `dtkit update` unless overridden, and removes orphaned artifacts cleanly when switching to a smaller selection.
+- **Read-only guarantees (`info`, `validate`, `doctor`, `status`, `project inspect`, `--dry-run`, cancelled prompt):** Never write project files, user config, state, transaction backups, or persistent archive cache blobs, and never execute untrusted repository scripts. Pass `dtkit doctor --redact` (optionally with `--json`) to scrub local home paths (`<HOME>`) and credential tokens before sharing diagnostics.
+- **Project profile & quality checks (`dtkit project`, `dtkit check`):** `dtkit project init` generates `.dtkit/project.json` (never overwriting existing files) with strict argv-only check definitions (`schemas/project.schema.json`). `dtkit check` requires explicit trust confirmation recorded in `.dtkit/local/check-trust.json` (automatically invalidated whenever `checks` change), orders runs fast-to-slow (`format -> lint -> typecheck -> build -> test -> custom`), supports `--changed` monorepo root filtering via Git porcelain status, gates autofix commands behind `--allow-autofix`, and returns exit `1`/`4`/`130` for check failures, missing tools, or timeouts/cancellations.
 - **Capabilities fallback (`requiresCapabilities` vs. `optionalCapabilities`):** Packages requiring unsupported capabilities for a `(runtime, scope)` fail pre-write with `unsupported_capability`. Optional capabilities (for example `instructions` on `cursor/global`, where global User Rules live in Cursor Settings UI) emit an explicit warning and install supported artifacts (`skills`, resources).
-- **Pre-flight CLI warnings:** Missing target runtime binaries (`codex`, `gemini`, `opencode`, `cursor`) on `PATH` emit consistent non-blocking warnings across `info`, `install`, `update`, `status`, and `doctor` (with `doctor` also flagging `runtime_executable` exit `4`).
-- **Codex hooks (`dtkit hooks`):** Opt-in only and explicitly scoped to Codex (`SessionStart` via `.codex/hooks.json` or `$CODEX_HOME/hooks.json`). Project and global `SessionStart` hooks cannot be enabled simultaneously (`hook_scope_conflict`). Pass `--executable <abs>` if registering a specific stable non-ephemeral binary, and always run `dtkit hooks disable ...` before moving or deleting the `dtkit` binary.
+- **Pre-flight CLI warnings:** Missing target runtime binaries (`codex`, `gemini`, `opencode`, `cursor`, `claude`) on `PATH` emit consistent non-blocking warnings across `info`, `install`, `update`, `status`, and `doctor` (with `doctor` also flagging `runtime_executable` exit `4`).
+- **Opt-in runtime hooks (`dtkit hooks`):** Opt-in only, supporting `--runtime codex` (`session-context` on `SessionStart` via `.codex/hooks.json` or `$CODEX_HOME/hooks.json`) and `--runtime claude` (`check-changed` `PostToolUse` on `Edit|Write|MultiEdit` running `dtkit check --changed` with `DTKIT_HOOK_ACTIVE=1` loop prevention and 2s debounce, plus `guard-edit` `PreToolUse` blocking `.env*`, `.dtkit/local/`, `.git/`, and traversal paths, via `.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`). `check-changed` never bypasses `.dtkit/local/check-trust.json`. Pass `--executable <abs>` if registering a specific stable binary, and always run `dtkit hooks disable ...` before moving or deleting `dtkit`.
 - **Kit upgrades vs. binary upgrades:** `dtkit update` updates the **installed kit package** using DTKit's atomic transaction engine while preserving user content outside managed blocks. Upgrading the **`dtkit` CLI binary** follows checksum-verified terminal replacement (see [docs/release.md](release.md)).
 
 ## Exit Codes
