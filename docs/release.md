@@ -8,9 +8,9 @@
 2. Repository license: `MIT License` ([LICENSE](../LICENSE)).
 3. Initial v0.1 release prep (`f81ce6e`): merged to `main`; public tag deferred pending full verification and explicit owner release confirmation.
 
-## Pre-Release Gates on `feat/release-hardening` (`N00`–`N12`)
+## Pre-Release Gates (`N00`–`N12`)
 
-See [DTKIT-NEXT-PHASE-PLAN.md](../DTKIT-NEXT-PHASE-PLAN.md) for detailed acceptance criteria per task:
+Completed pre-release hardening gates:
 
 - [x] `N00` — Baseline sync, truthful README/compatibility matrix, and progress tracking.
 - [x] `N01` — Bump bundled `engineer` kit version (`0.1.0` -> `0.2.0`) for multi-runtime manifest changes and test real upgrade path from `main` (`f81ce6e`).

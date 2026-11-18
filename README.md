@@ -1,103 +1,119 @@
 # DTKit
 
-DTKit is a single-binary Go CLI toolkit for packaging, validating, and safely installing reusable AI engineering skills, rules, workflows, and templates across coding-agent runtimes (`codex`, `gemini`, `opencode`, `cursor`, `claude`).
+**DTKit** (`dtkit`) is a single-binary Go CLI for packaging, verifying, and safely installing reusable AI engineering skills, rules, workflows, and quality hooks across multiple coding-agent runtimes from one portable source.
 
-## Current Status
+## Why DTKit?
 
-- **Release Stream:** `main` integrates release-hardening (`N00`–`N12`, `A01`–`A04`), v0.5 engineering (`B01`–`B08`, `engineer@0.4.0`), and Milestone C (`C01`–`C06`), tagged for **`v0.6.0`** (`release.yml` builds Windows/Linux/macOS archives + `SHA256SUMS` and creates a Draft GitHub Release on tag push).
-- **Implemented (automated-tested in Go / Docker):**
-  - Core CLI & safety engine (`version`, `help`, `list`, `info`, `validate`, `doctor`, `install`, `status`, `update`, `remove`, `recover`, `completion`) with `--dry-run`, `--diff`, `--yes`, `--json`, `--preset` (`minimal`, `review-only`, `engineering`), `--components`, state v3 multi-kit registry (`v1`/`v2` backward-compatible), managed blocks, PID/token locks, transaction journals, and conditional rollback.
-  - Project profile, quality runner & workflows (`dtkit project inspect|init`, `dtkit check [--changed|--all] [--allow-autofix]`, `dtkit diff`, `dtkit fork`, `dtkit lock <generate|verify|diff|sign|keygen>`, `dtkit sync`, `dtkit team <export|import|template>`, `dtkit compat <snapshot|diff>`) using strict argv-only `.dtkit/project.json`, portable `dtkit.lock`, Ed25519 trust policies, and `.dtkit/local/check-trust.json`.
-  - Opt-in runtime hooks & plugins (`dtkit hooks list|status|enable|disable`) for `codex` (`SessionStart` `session-context`), `claude` (`PostToolUse` `check-changed`, `PreToolUse` `guard-edit`), `gemini` (`AfterTool` `check-changed`, `BeforeTool` `guard-edit`), `cursor` (`afterFileEdit` `check-changed`), and `opencode` (`.opencode/plugins/dtkit-quality.js` `tool.execute.after`).
-  - Independent authoring & packaging (`dtkit create kit|skill`, `dtkit pack`, `--from <dir|archive>`, `--source <url>`, `--sha256`, `--offline`, digest cache) and `engineer@0.4.0` repository-neutral engineering kit.
-  - Five runtime adapters (`codex`, `gemini`, `opencode`, `cursor`, `claude`) — 5-runtime coexistence, migration, preset switching, and state separation tested in automation.
-- **Verification & Benchmark Truthfulness Boundary:**
-  - **Codex CLI (`0.169.0`, `project` + `$CODEX_HOME`):** Partial — project skill/instruction discovery & isolated `$CODEX_HOME/AGENTS.md` observed in [docs/verification/codex-0.169.0-2026-11-16.md](docs/verification/codex-0.169.0-2026-11-16.md); global layout kept per [docs/verification/codex-global-windows-decision-2026-11-17.md](docs/verification/codex-global-windows-decision-2026-11-17.md); sandboxed PS subcommands blocked by host policy; live session hook invocation unverified.
-  - **OpenCode (`1.19.5`, `project` + `global`):** Partial — isolated project-only, global-only, combined 14-skill discovery alongside other runtimes, and clean removal observed in [docs/verification/opencode-1.19.5-2026-11-16.md](docs/verification/opencode-1.19.5-2026-11-16.md); live LLM turn blocked by absent isolated credentials.
-  - **Claude Code (`claude`), Gemini CLI (`gemini`), & Cursor (`cursor`):** Experimental (`unverified` live) — automated adapter, hook-merge, lifecycle, and coexistence tests pass in Go; live `claude 2.1.319` `--no-session-persistence --setting-sources project` probe returned `401 Invalid or expired API key` (`total_cost_usd: 0`), while `gemini` and `cursor` CLIs were absent on the verification host ([docs/verification/gemini-cursor-external-blocker-2026-11-16.md](docs/verification/gemini-cursor-external-blocker-2026-11-16.md)).
-  - **Evaluation harness (`internal/eval`):** Automated Go fixture grading (`engineer@0.3.0` frozen manifest in [docs/evaluation/manifest.json](docs/evaluation/manifest.json) and [docs/evaluation/pilot-report-2026-11-17.md](docs/evaluation/pilot-report-2026-11-17.md)) passes locally; live multi-run A/B model benchmarks (`engineer@0.3.0` vs. `engineer@0.4.0`) remain `blocked` pending valid isolated credentials and budget.
+- **Write once, install anywhere:** Target **Codex CLI**, **Claude Code**, **OpenCode**, **Gemini CLI**, and **Cursor** side-by-side without path collisions.
+- **Non-destructive by default:** User instructions outside DTKit-managed blocks are preserved byte-for-byte (including UTF-8 BOM and CRLF/LF). Modified files halt changes (`exit 3`) rather than silently overwriting your edits.
+- **Crash-safe transactions:** Every install, update, remove, hook change, and multi-kit sync runs under PID/token locks with transaction journals and `dtkit recover`.
+- **Reproducible & verifiable teams:** Pin kit digests with `dtkit.lock`, verify Ed25519 publisher signatures, export secret-free onboarding bundles with `dtkit team`, and preview changes via `dtkit diff`.
+- **Opt-in quality checks & hooks:** Define repo-neutral project checks in `.dtkit/project.json` (`dtkit check`) and wire runtime hooks/plugins (`dtkit hooks enable`) with explicit trust approval.
 
-See [docs/compatibility.md](docs/compatibility.md) for the per-runtime 4-layer evidence matrix, [docs/cli.md](docs/cli.md) for CLI contracts, [docs/release.md](docs/release.md) for terminal installation, changelog, and troubleshooting, [docs/support.md](docs/support.md) for support & incident response policy, and [docs/progress.md](docs/progress.md) for verified task records.
+---
 
-## Terminal Installation (Pinned Release Binary)
+## Installation
 
-For a published release/pre-release tag (such as `v0.6.0`)—or when building local archives via `.\scripts\package.ps1 -Version 0.6.0`—follow the checksum-verified, user-local installation steps in [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) using [scripts/install.sh](scripts/install.sh) or [scripts/install.ps1](scripts/install.ps1) (never skip `SHA256SUMS` verification).
+### Option 1: Prebuilt Release Binary (Recommended)
 
-## Build and Verification (Dev Source)
+Checksum-verified installers download pinned archives (`windows_amd64.zip`, `linux_amd64.tar.gz`, `darwin_arm64.tar.gz`) and verify `SHA256SUMS` before replacing any binary.
 
-Requires Go `1.27.4` or newer (or Docker Desktop if Windows Application Control / Device Guard blocks unsigned `go.exe`):
+**Linux / macOS (`~/.local/bin`):**
 
-```powershell
-# Docker-based formatting, race tests, vet, and Linux binary build:
-.\scripts\verify-docker.ps1
+```bash
+bash scripts/install.sh --version 0.6.0 --bin-dir "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+dtkit version --json
 ```
 
-With an approved native Go `1.27.4+` toolchain:
+**Windows PowerShell (`%LOCALAPPDATA%\Programs\dtkit\bin`):**
 
 ```powershell
-gofmt -l cmd internal schemas
-go test -race ./...
-go vet ./...
-go build -trimpath -o .\dist\dtkit ./cmd/dtkit
+.\scripts\install.ps1 -Version "0.6.0"
+dtkit version --json
 ```
 
-*(Note: `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@latest` resolves `main`; for pinned reproducible builds use the checksum-verified archives attached to the GitHub Release.)*
+> See [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) for standalone manual verification commands and upgrade notes.
+
+### Option 2: Build from Source
+
+Requires Go `1.27.4+` (or Docker Desktop via `.\scripts\verify-docker.ps1`):
+
+```bash
+go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.6.0
+```
+
+---
 
 ## Quick Start
 
-```powershell
-# Check environment and runtime readiness (--runtime defaults to codex)
+```bash
+# 1. Check runtime readiness on your machine
 dtkit doctor
 dtkit doctor --runtime claude
-dtkit doctor --runtime gemini
-dtkit doctor --runtime opencode
-dtkit doctor --runtime cursor
 
+# 2. Browse and inspect the bundled engineering kit
 dtkit list
 dtkit info engineer
 
-# Inspect & initialize stack-agnostic project quality profile (.dtkit/project.json)
+# 3. Preview, then install for your project (full kit or a preset: minimal | review-only | engineering)
+dtkit install engineer --project --runtime claude --diff
+dtkit install engineer --project --runtime claude --preset minimal --yes
+
+# 4. Inspect active installations across all 5 runtimes
+dtkit status --all-runtimes
+
+# 5. Set up repo-specific quality checks & opt-in hooks
 dtkit project inspect
 dtkit project init --yes
 dtkit check --all --yes
-
-# Preview then install for a runtime (full kit, preset, or explicit components)
-dtkit install engineer --project --runtime claude --dry-run
-dtkit install engineer --project --runtime claude --preset minimal --yes
-dtkit status --project --runtime claude
-
-# Install / co-exist with other runtimes
-dtkit install engineer --project --runtime codex --yes
-dtkit install engineer --project --runtime opencode --yes
-dtkit install engineer --project --runtime gemini --yes
-dtkit install engineer --project --runtime cursor --yes
-
-# Global installation
-dtkit install engineer --global --runtime claude --yes
-
-# Opt-in hooks (Codex SessionStart; Claude PostToolUse check-changed & PreToolUse guard-edit)
-dtkit hooks enable session-context --runtime codex --project --dry-run
 dtkit hooks enable check-changed --runtime claude --project --dry-run
 
-# Authoring, packing, updating, removing, and recovery
-dtkit create kit my-kit
-dtkit pack .\my-kit
-dtkit update engineer --project --runtime claude --preset engineering --yes
-dtkit remove engineer --project --runtime codex --dry-run
-dtkit recover --project --dry-run
+# 6. Pin & share across your team
+dtkit lock generate
+dtkit team export --out team-bundle.json
 ```
 
-## Scopes, Shared Files, and Safety
+Enable shell tab-completion (`bash`, `zsh`, or `powershell`):
 
-- **Per-runtime layout & state isolation:**
-  - **Codex (`codex`):** `<project>/AGENTS.md` / `$CODEX_HOME/AGENTS.md` (managed block), `.agents/skills/dtkit-<scope>-*/SKILL.md`, `.dtkit/content/<kit>/...`, `.dtkit/state.json`, optional `.codex/hooks.json` or `$CODEX_HOME/hooks.json`.
-  - **Gemini CLI (`gemini`):** `<project>/GEMINI.md` / `$GEMINI_CLI_HOME/.gemini/GEMINI.md` (managed block), `.gemini/skills/dtkit-gemini-project-*` / `$GEMINI_CLI_HOME/.gemini/skills/dtkit-gemini-global-*`, `.dtkit/runtimes/gemini/content/<kit>/...`, `.dtkit/runtimes/gemini/state.json`.
-  - **OpenCode (`opencode`):** Shared `AGENTS.md` (runtime-namespaced block `<!-- dtkit:begin <kit> opencode <scope> -->`) / `$OPENCODE_CONFIG_DIR/AGENTS.md` (or `~/.config/opencode/AGENTS.md`), `.opencode/skills/dtkit-opencode-project-*` / `<opencode-home>/skills/dtkit-opencode-global-*`, `.dtkit/runtimes/opencode/content/<kit>/...`, `.dtkit/runtimes/opencode/state.json`.
-  - **Cursor (`cursor`):** Project rule `.cursor/rules/dtkit-<kit>.mdc` (`alwaysApply: true`), `.cursor/skills/dtkit-cursor-<scope>-*`, `.dtkit/runtimes/cursor/content/<kit>/...`, `.dtkit/runtimes/cursor/state.json`. Global User Rules live in Cursor Settings UI and are not managed on disk (`--global` installs skills + resources only).
-  - **Claude Code (`claude`):** `<project>/CLAUDE.md` / `$CLAUDE_CONFIG_DIR/CLAUDE.md` (or `~/.claude/CLAUDE.md`, managed block), `.claude/skills/dtkit-claude-project-*` / `<claude-home>/skills/dtkit-claude-global-*`, `.dtkit/runtimes/claude/content/<kit>/...`, `.dtkit/runtimes/claude/state.json`, optional `.claude/settings.json` or `<claude-home>/settings.json`.
-- **Operational data:** Add `.dtkit/local/` to `.gitignore` so local lock files, journals, and transaction backups across all runtimes are not committed.
-- **Conflict protection:** Unowned content outside DTKit managed blocks is preserved byte-for-byte (including BOM and CRLF/LF). Modified managed files, unowned targets at whole-file paths, or blocking overrides halt mutations with exit code `3`. `--yes` only skips confirmation prompts; it never overrides conflicts.
+```bash
+dtkit completion bash   # or zsh / powershell
+```
 
-Next implementation handoff: [RC and v0.5 development plan](DTKIT-RC-AND-V05-PLAN.md) — release gates, Claude integration, reproducible evaluation, project profiles, quality checks/hooks, presets, and the subsequent roadmap.
+---
 
-More documentation: [docs/cli.md](docs/cli.md), [docs/development.md](docs/development.md), [docs/compatibility.md](docs/compatibility.md), [docs/release.md](docs/release.md), [DTKIT-IMPLEMENTATION-PLAN.md](DTKIT-IMPLEMENTATION-PLAN.md), [DTKIT-NEXT-PHASE-PLAN.md](DTKIT-NEXT-PHASE-PLAN.md).
+## Supported Runtimes & Current Status
+
+DTKit installs and manages files across all five runtimes below. Status reflects real verified evidence rather than automated unit tests alone (see [docs/compatibility.md](docs/compatibility.md)):
+
+| Runtime | Managed Files (Project Scope) | Quality Hooks / Plugin | Current Status |
+|---|---|---|---|
+| **Codex CLI** (`codex`) | `AGENTS.md` block, `.agents/skills/` | `.codex/hooks.json` (`SessionStart` `session-context`) | **Partial** (discovery verified on `0.169.0`; live hook firing & sandboxed commands unverified) |
+| **OpenCode** (`opencode`) | Namespaced `AGENTS.md` block, `.opencode/skills/` | `.opencode/plugins/dtkit-quality.js` (`tool.execute.after`) | **Partial** (14-skill discovery verified on `1.19.5`; live LLM & plugin execution unverified without credentials) |
+| **Claude Code** (`claude`) | `CLAUDE.md` block, `.claude/skills/` | `.claude/settings.json` (`PostToolUse` `check-changed`, `PreToolUse` `guard-edit`) | **Partial** (automated hook merge & lifecycle tested; live session/A-B eval blocked on credentials) |
+| **Gemini CLI** (`gemini`) | `GEMINI.md` block, `.gemini/skills/` | `.gemini/settings.json` (`AfterTool`, `BeforeTool`) | **Experimental** (`gemini` CLI absent on verification host; offline tests pass) |
+| **Cursor** (`cursor`) | `.cursor/rules/dtkit-*.mdc`, `.cursor/skills/` | `.cursor/hooks.json` (`afterFileEdit`, `version: 1`) | **Experimental** (`cursor` CLI/IDE absent on verification host; global User Rules remain UI-only) |
+
+Add `.dtkit/local/` to your `.gitignore` so machine-local locks, transaction journals, and trust approvals are not committed.
+
+---
+
+## Command Reference
+
+| Area | Commands | Purpose |
+|---|---|---|
+| **Install & Manage** | `list`, `info`, `install`, `update`, `remove`, `status`, `diff`, `recover` | Preview, install, co-exist multiple kits, update, inspect all runtimes, or recover interrupted writes |
+| **Author & Customize** | `create kit\|skill`, `validate`, `pack`, `fork` | Scaffold kits/skills, validate manifests, build deterministic `.tar.gz` + `.sha256`, or fork verified kits |
+| **Lockfile & Teams** | `lock <generate\|verify\|diff\|sign\|keygen>`, `sync`, `team <export\|import\|template>` | Reproducible installs, Ed25519 provenance verification, and secret-free team onboarding |
+| **Quality & Hooks** | `project inspect\|init`, `check`, `hooks <list\|status\|enable\|disable>` | Stack-agnostic checks (`.dtkit/project.json`) and opt-in runtime hook wiring |
+| **Diagnostics & Maintainers** | `doctor [--redact]`, `compat <snapshot\|diff>`, `completion`, `version` | Environment diagnostics, cross-runtime compatibility snapshots, shell completion |
+
+Most commands support `--dry-run`, `--diff`, `--yes`, and `--json`. See [docs/cli.md](docs/cli.md) for every flag, schema rule, and exit code (`0` success, `1` error, `2` usage/validation, `3` conflict/trust block, `4` target not found, `130` cancelled).
+
+---
+
+## Documentation
+
+- **User Guides:** [CLI Reference](docs/cli.md) · [Runtime Compatibility Matrix](docs/compatibility.md) · [Version & Deprecation Policy](docs/compatibility-policy.md) · [Release & Upgrade Guide](docs/release.md) · [Support Policy](docs/support.md)
+- **Architecture & Development:** [Development Guide](docs/development.md) · [Evaluation Harness](docs/evaluation/README.md) · [Progress & Changelog](docs/progress.md)
+- **License:** [MIT](LICENSE)
