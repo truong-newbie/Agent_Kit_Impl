@@ -14,9 +14,18 @@ When you use AI coding agents (**Claude Code**, **Cursor**, **Codex CLI**, **Gem
 
 **DTKit fixes all three from a single Go binary**—and never overwrites your personal notes or configs.
 
+### Remember Just 4 Commands Day-to-Day
+
+| Command | When to Run | What It Does |
+|---|---|---|
+| `dtkit init` | First time on a project | Sets up `docs/codebase-summary.md`, `.dtkit/project.json`, `engineer@0.5.0`, MCP, hooks, and `dtkit.lock`. |
+| `dtkit scout` | Before starting a task | Maps repo stacks/zones (`dtkit scout`), packs secret-free snippets (`--pack`), or checks blast radius (`--impact <file>`). |
+| `dtkit guard` | While planning / coding / checking | Locks edits (`read-only`, `tdd-red`, `tdd-green`, `scoped`) and verifies SHA-256 test receipts (`verify`). |
+| `dtkit update` / `dtkit refresh` | Whenever the project grows | One command to refresh `docs/codebase-summary.md`, merge new stacks into `.dtkit/project.json` (preserving your `checks`), sync installed kits, and update `dtkit.lock`. |
+
 ```mermaid
 flowchart LR
-    Dev["Your Project\n(Go, TS, Java, Python, C++, Rust, .NET)"] --> Init["dtkit init"]
+    Dev["Your Project\n(Go, TS, Java, Python, C++, Rust, .NET)"] --> Init["dtkit init / update"]
     Init --> Summary["docs/codebase-summary.md\n(via dtkit scout)"]
     Init --> Profile[".dtkit/project.json\n(Check Runner)"]
     Init --> Kit["engineer@0.5.0\n(10 Skills, 4 Workflows)"]
@@ -47,15 +56,18 @@ Using more than one coding agent on the same project? Replace `--runtime claude`
 dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 ```
 
-What this single command creates safely:
-- `docs/codebase-summary.md`: Auto-generated map of your workspace zones, languages, manifests, and API contracts (`openapi.*`, `*.proto`, `*.graphql`).
-- `.dtkit/project.json`: Detected `test` / `lint` / `typecheck` commands per zone (you explicitly approve them on first `dtkit check --yes`).
-- **Bundled `engineer@0.5.0` kit** installed cleanly for your chosen runtime(s) without overwriting your own instructions outside DTKit's managed block (`<!-- dtkit:begin ... -->`).
-- **MCP config** wired automatically (`.mcp.json`, `.cursor/mcp.json`, `.gemini/settings.json`, `opencode.json`, `.codex/mcp.json`) keeping all your existing MCP servers intact.
-- **Opt-in quality hooks** enabled (`check-changed`, `guard-edit`, or `session-context`).
-- **`dtkit.lock`** pinning exact kit versions and digests for your teammates.
+> **Windows Docker Desktop option:** If Windows Application Control blocks running unsigned `dtkit.exe` directly on your machine, you can build a local `dtkit:0.8.0` Docker image from the repo and define a PowerShell helper `function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }`. Note that when running inside a Linux container on Windows, skip `--with-hooks` (which registers container paths) and point your runtime's MCP config to `docker run --rm -i -v "<repo>:/work" -w /work dtkit:0.8.0 mcp serve --path /work`.
 
-> **Git tip:** Add `.dtkit/local/` to your `.gitignore`. DTKit keeps locks, journals, guard policies, check trust approvals, and companion caches inside `.dtkit/local/` so personal machine state is never committed.
+### What Files Does `dtkit init` Create (and What Should I Commit)?
+
+| File / Folder | What It Is For | Commit to Git? |
+|---|---|---|
+| `docs/codebase-summary.md` | Auto-generated map of zones, languages, manifests, and API contracts (`openapi.*`, `*.proto`, `*.graphql`). | Yes |
+| `.dtkit/project.json` | Detected stacks and `test` / `lint` / `typecheck` commands per zone (you explicitly trust commands before running via `dtkit check --yes`). | Yes |
+| `.dtkit/content/` & `dtkit.lock` | Shared `engineer` workflow/template docs + portable lockfile pinning versions and digests for your team (`dtkit sync`). | Yes |
+| `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, `.agents/`, `.claude/`, `.gemini/`, `.opencode/` | Managed blocks & skills for each enabled runtime. Your own content outside `<!-- dtkit:begin ... -->` is never modified. | Yes |
+| `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.gemini/settings.json`, `opencode.json` | MCP server wiring (and hooks if `--with-hooks`), preserving all existing peer servers/settings. | Yes / Review |
+| `.dtkit/local/` & `.dtkit/locks/` | Personal guard policy (`guard.json`), check receipts (`verify-receipt.json`), check trust approval, companion cache, and transaction locks. | **No — add to `.gitignore`** |
 
 ---
 
@@ -103,7 +115,7 @@ dtkit scout
 # Search for files matching "checkout" inside "backend" and pack redacted snippets (max 24 KiB)
 dtkit scout --zone backend --query checkout --pack --max-bytes 24576
 
-# Refresh docs/codebase-summary.md after structural changes
+# Refresh docs/codebase-summary.md alone after structural changes
 dtkit scout --write-summary
 
 # Check reverse-dependency blast radius & related tests before editing a core file
@@ -149,26 +161,9 @@ If an AI modifies even 1 byte of code after tests passed—or inserts `t.Skip`, 
 
 ---
 
-## 5. Importing Community Repos & External Tools (`dtkit integrate`)
+## 5. Keeping Everything Updated & Importing Tools (`dtkit update`, `dtkit integrate`)
 
-### 5.1. Import Community Skill/Rule Repos (Superpowers, Cursor `.mdc`, Claude Commands)
-Found a great skill/rule repository on GitHub (like `obra/superpowers`, Anthropic skills, or `.cursor/rules/*.mdc` packs)? Pass a local folder, GitHub `owner/repo` shorthand, or HTTPS Git URL and let DTKit convert it into a validated 5-runtime kit:
-
-```bash
-# Preview what will be imported (reads only)
-dtkit integrate import obra/superpowers --as superpowers --dry-run
-
-# Convert AND install side-by-side with engineer (Multi-Kit v3)
-dtkit integrate import obra/superpowers --as superpowers --install --runtime claude --yes
-
-# Refresh an already-imported kit atomically when upstream updates
-dtkit integrate import obra/superpowers --as superpowers --update --install --runtime claude --yes
-
-# Check both kits running together cleanly
-dtkit status --project --runtime claude
-```
-
-### 5.2. One-Command Project Refresh as Your Codebase Grows (`dtkit update` / `dtkit refresh`)
+### 5.1. One-Command Project Refresh as Your Codebase Grows (`dtkit update` / `dtkit refresh`)
 Whenever you add new modules, services, or languages (for example `frontend/` or `ai/`), keep everything fresh in one command:
 
 ```bash
@@ -180,8 +175,25 @@ dtkit update --yes
 # (alias: dtkit refresh --yes)
 ```
 
-### 5.2. Connect External Companions (`repomix`, `graphify`, `ast-grep`, `semgrep`)
-If you already have tools like `repomix`, `graphify`, `ast-grep` (`sg`), or `semgrep` installed, DTKit caches their output by SHA-256 workspace digest so unchanged code returns in milliseconds—and falls back gracefully to `dtkit scout` when missing:
+### 5.2. Import Community Skill/Rule Repos (Superpowers, Cursor `.mdc`, Claude Commands)
+Found a great skill/rule repository on GitHub (like `obra/superpowers`, Anthropic skills, or `.cursor/rules/*.mdc` packs)? Pass a local folder, GitHub `owner/repo` shorthand, or HTTPS Git URL and let DTKit convert it into a validated 5-runtime kit:
+
+```bash
+# Preview what will be imported (reads only)
+dtkit integrate import obra/superpowers --as superpowers --dry-run
+
+# Convert AND install side-by-side with engineer (Multi-Kit v3)
+dtkit integrate import obra/superpowers --as superpowers --install --runtime claude --yes
+
+# Refresh an already-imported kit atomically when upstream updates (auto-bumps patch version on change)
+dtkit integrate import obra/superpowers --as superpowers --update --install --runtime claude --yes
+
+# Check both kits running together cleanly
+dtkit status --project --runtime claude
+```
+
+### 5.3. Connect External Companions (`repomix`, `graphify`, `ast-grep`, `semgrep`)
+If you already have tools like `repomix`, `graphify`, `ast-grep` (`sg`), or `semgrep` installed, DTKit caches their output by SHA-256 workspace digest so unchanged code returns cleanly—and falls back gracefully to `dtkit scout` when missing:
 
 ```bash
 # See which companion tools are detected on PATH

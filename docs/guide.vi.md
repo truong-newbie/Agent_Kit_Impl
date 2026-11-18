@@ -1,6 +1,6 @@
 # Hướng Dẫn Sử Dụng DTKit (Tiếng Việt)
 
-Chào mừng bạn đến với **DTKit**! Tài liệu này giải thích rõ ràng, dễ hiểu cách DTKit hoạt động và cách áp dụng thực tế cho dự án cá nhân lẫn làm việc nhóm.
+Chào mừng bạn đến với **DTKit**! Tài liệu này giải thích dễ hiểu, trực quan toàn bộ cách DTKit hoạt động, các file nó tạo ra và quy trình áp dụng thực tế cho dự án cá nhân lẫn làm việc nhóm.
 
 ---
 
@@ -8,15 +8,24 @@ Chào mừng bạn đến với **DTKit**! Tài liệu này giải thích rõ r�
 
 Khi lập trình cùng AI Agent (**Claude Code**, **Cursor**, **Codex CLI**, **Gemini CLI**, **OpenCode**), hầu như ai cũng gặp 3 vấn đề khó chịu:
 
-1. **Mỗi công cụ đọc một kiểu file khác nhau:** `CLAUDE.md`, `.cursor/rules/*.mdc`, `AGENTS.md`, `GEMINI.md`, `.opencode/skills/`, cùng file cấu hình MCP và Hook hoàn toàn khác nhau. Team dùng nhiều IDE là cấu hình lệch nhau ngay.
+1. **Mỗi công cụ đọc một kiểu file khác nhau:** `CLAUDE.md`, `.cursor/rules/*.mdc`, `AGENTS.md`, `GEMINI.md`, `.opencode/skills/`, cùng file cấu hình MCP (`json`/`toml`) và Hook hoàn toàn khác nhau. Team dùng nhiều IDE là cấu hình lệch nhau ngay.
 2. **File `.md` tĩnh rất hay bị AI lờ đi:** Dù bạn dặn kỹ trong rule, AI vẫn có thể nhảy vào sửa code khi chưa lập kế hoạch, sửa tràn lan sang thư mục khác, tự ý xoá assertion/thêm `skip` để test pass giả, hoặc báo *"All tests passed"* khi chưa hề chạy test.
 3. **Dự án nhiều ngôn ngữ tốn rất nhiều token:** Repo thực tế hay có `frontend/` (TypeScript), `backend/` (Java), `ai/` (Python)... Nếu để AI tự mò `grep` cả repo thì vừa chậm vừa tốn context.
 
 **DTKit gói gọn giải pháp vào duy nhất 1 file thực thi Go**, chạy offline siêu nhanh và **tuyệt đối không ghi đè dữ liệu riêng của bạn**.
 
+### Bạn Chỉ Cần Nhớ Đúng 4 Lệnh Chính
+
+| Lệnh | Dùng khi nào | Tác dụng |
+|---|---|---|
+| `dtkit init` | Lần đầu cài vào dự án | Tạo bản đồ `docs/codebase-summary.md`, `.dtkit/project.json`, cài `engineer@0.5.0`, gắn MCP/hooks và `dtkit.lock`. |
+| `dtkit scout` | Trước khi giao task cho AI | Quét repo chỉ đọc (`dtkit scout`), gói snippet sạch secret (`--pack`), hoặc đo bán kính ảnh hưởng (`--impact <file>`). |
+| `dtkit guard` | Khi lập kế hoạch / code / test | Khóa phạm vi sửa file (`read-only`, `tdd-red`, `tdd-green`, `scoped`) và xác thực biên lai test thật (`verify`). |
+| `dtkit update` *(hoặc `dtkit refresh`)* | Mỗi khi dự án lớn lên | **1 lệnh cập nhật tất cả:** làm mới `codebase-summary.md`, gộp stack mới vào `.dtkit/project.json` (giữ nguyên `checks` cũ), đồng bộ mọi kit và `dtkit.lock`. |
+
 ```mermaid
 flowchart LR
-    Repo["Dự án của bạn\n(Go, TS, Java, Python, C++, Rust, .NET)"] --> Init["dtkit init"]
+    Repo["Dự án của bạn\n(Go, TS, Java, Python, C++, Rust, .NET)"] --> Init["dtkit init / update"]
     Init --> Scout["docs/codebase-summary.md\n(Bản đồ từ dtkit scout)"]
     Init --> Prof[".dtkit/project.json\n(Lệnh kiểm tra theo phân khu)"]
     Init --> Kit["engineer@0.5.0\n(10 Skills + 4 Workflows)"]
@@ -41,26 +50,35 @@ dtkit init --runtime claude --with-mcp --with-hooks --lock --dry-run
 dtkit init --runtime claude --with-mcp --with-hooks --lock --yes
 ```
 
-Nếu team bạn dùng nhiều công cụ AI cùng lúc, thay `--runtime claude` bằng `--all-runtimes`:
+Nếu bạn dùng nhiều công cụ AI cùng lúc (hoặc làm việc team nhiều IDE), thay `--runtime claude` bằng `--all-runtimes`:
 
 ```bash
 dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 ```
 
-Chỉ sau 1 lệnh đó, DTKit tự động chuẩn bị sẵn cho bạn:
-1. **`docs/codebase-summary.md`:** Bản đồ tổng quan các phân khu (`frontend`, `backend`, `ai`, `core`...), ngôn ngữ, manifest và API contracts (`openapi.*`, `*.proto`, `*.graphql`).
-2. **`.dtkit/project.json`:** Các lệnh `test`/`lint`/`typecheck` tương ứng cho từng phân khu (an toàn: bạn tự duyệt qua `dtkit check --yes` ở lần chạy đầu tiên).
-3. **Bộ kit `engineer@0.5.0`:** Cài sạch sẽ vào đúng thư mục của từng runtime, giữ nguyên 100% nội dung cá nhân nằm ngoài block quản lý `<!-- dtkit:begin ... -->`.
-4. **Cấu hình MCP tự động:** Gắn sẵn `dtkit mcp serve` vào `.mcp.json` / `.cursor/mcp.json` / `.gemini/settings.json` / `opencode.json` / `.codex/mcp.json` mà không làm mất các MCP server bạn đã cài trước đó.
-5. **Opt-in Quality Hooks & `dtkit.lock`:** Bật hook tự kiểm tra và ghim phiên bản vào `dtkit.lock` cho cả team dùng chung.
+> **Mẹo dùng qua Docker Desktop (nếu Windows Application Control chặn file `.exe` chưa ký):**
+> Bạn có thể build 1 image `dtkit:0.8.0` chạy nội bộ trên Docker Desktop và thêm hàm sau vào PowerShell (`notepad $PROFILE`):
+> ```powershell
+> function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }
+> ```
+> Khi chạy từ container Linux trên Windows, khởi tạo dự án bằng `dtkit init --runtime codex --with-mcp --lock --yes` (bỏ `--with-hooks`), và nếu muốn nối MCP cho app Windows hãy trỏ `command` tới `docker` với `args: ["run", "--rm", "-i", "-v", "<Đường-dẫn-dự-án>:/work", "-w", "/work", "dtkit:0.8.0", "mcp", "serve", "--path", "/work"]`.
 
-> **Mẹo Git:** Hãy thêm `.dtkit/local/` vào `.gitignore` để không commit nhầm file lock máy cá nhân, nhật ký giao dịch hay bộ nhớ đệm tạm.
+### Sau khi chạy `dtkit init`, dự án có thêm những gì?
+
+| File / Thư mục | Tác dụng | Có nên commit Git? |
+|---|---|---|
+| `docs/codebase-summary.md` | Bản đồ tổng quan các phân khu (`frontend`, `backend`, `ai`...), ngôn ngữ, manifest và API contracts (`openapi.*`, `*.proto`, `*.graphql`). | **Nên commit** |
+| `.dtkit/project.json` | Danh sách stack và lệnh `test`/`lint`/`typecheck` phát hiện được (bạn tự duyệt qua `dtkit check --yes` ở lần chạy đầu). | **Nên commit** |
+| `.dtkit/content/` & `dtkit.lock` | Quy trình dùng chung của `engineer@0.5.0` và file khóa phiên bản giúp đồng đội `dtkit sync` giống hệt nhau. | **Nên commit** |
+| `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, `.agents/`, `.claude/`, `.gemini/`, `.opencode/` | Block hướng dẫn và bộ skills riêng cho từng agent; phần ghi chú cá nhân ngoài block `<!-- dtkit:begin ... -->` được giữ nguyên 100%. | **Nên commit** |
+| `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.gemini/settings.json`, `opencode.json` | Gắn sẵn `dtkit mcp serve` (và hooks nếu dùng `--with-hooks`), không làm mất các MCP server khác của bạn. | **Nên commit / kiểm tra** |
+| `.dtkit/local/` & `.dtkit/locks/` | Chế độ khóa `guard.json` cá nhân, biên lai `verify-receipt.json`, lock tạm, bộ nhớ đệm tạm. | **Thêm vào `.gitignore`** |
 
 ---
 
 ## 3. Quy Trình Làm Việc Của Bộ Kit `engineer@0.5.0`
 
-Thay vì chia vụn mỗi ngôn ngữ một kit, DTKit dùng **1 kit `engineer` thống nhất** lấy cảm hứng từ luồng làm việc chuẩn kỹ sư (kiểu AgentKit/ClaudeKit) và kết hợp với `dtkit scout` + `docs/` để tự thích nghi với mọi ngôn ngữ:
+Thay vì chia vụn mỗi ngôn ngữ một kit, DTKit dùng **1 kit `engineer` thống nhất** kết hợp với `dtkit scout` + `docs/` để tự thích nghi với mọi ngôn ngữ:
 
 ```mermaid
 flowchart LR
@@ -97,11 +115,11 @@ dtkit scout
 # Tìm file liên quan "checkout" riêng trong "backend/", đóng gói kèm snippet đã che secret (tối đa 24 KiB)
 dtkit scout --zone backend --query checkout --pack --max-bytes 24576
 
-# Cập nhật lại docs/codebase-summary.md
-dtkit scout --write-summary
-
 # Tính trước bán kính ảnh hưởng & danh sách file test liên quan trước khi sửa một file lõi
 dtkit scout --impact backend/src/main/java/com/acme/Token.java
+
+# Cập nhật riêng docs/codebase-summary.md
+dtkit scout --write-summary
 ```
 
 `dtkit scout` luôn bỏ qua `.git`, `node_modules`, `dist`, `build`, `target`, `.venv`, file binary, symlink thoát thư mục, `.env*`, private key (`*.pem`, `*.key`) và tự che token/API key trong kết quả.
@@ -138,13 +156,25 @@ dtkit guard verify
 
 Nếu AI sửa thêm dù chỉ 1 dòng code mà chưa chạy lại test, hoặc lén chèn `t.Skip` / `pytest.skip` / `.skip(` / `@Disabled` / `GTEST_SKIP` / `#[ignore]` hay xóa assertion trong bài test:
 - `dtkit guard verify` trả mã lỗi `3` (`verification_failed`).
-- Hook `check-changed` tự động bơm cảnh báo `[TEST TAMPERING WARNING]` (hoặc `[RETRY LOOP DETECTED]` nếu fail $\ge 3$ lần liên tiếp) thẳng vào phiên làm việc của Agent.
+- Hook `check-changed` tự động bơm cảnh báo `[TEST TAMPERING WARNING]` (hoặc `[RETRY LOOP DETECTED]` nếu fail ≥ 3 lần liên tiếp) thẳng vào phiên làm việc của Agent.
 
 ---
 
-## 5. Nhập Repo Cộng Đồng & Dùng Kèm Công Cụ Ngoài (`dtkit integrate`)
+## 5. Cập Nhật Khi Dự Án Lớn Lên & Nhập Công Cụ Ngoài
 
-### 5.1. Đưa Repo Skills/Rules Ngoài (Superpowers, Cursor `.mdc`, Claude Commands) Lên Cả 5 Runtime
+### 5.1. Một Lệnh Cập Nhật Tất Cả (`dtkit update` / `dtkit refresh`)
+Khi dự án phát triển thêm thư mục mới (ví dụ thêm `frontend/`, `ai/`), thêm code mới hoặc vừa nâng cấp kit, chỉ cần chạy **1 lệnh**:
+
+```bash
+# Xem trước những gì sẽ làm mới (chưa ghi file)
+dtkit update --dry-run
+
+# Làm mới trọn gói: gộp stack mới vào .dtkit/project.json (giữ nguyên checks cũ) + đồng bộ kits + dtkit.lock + docs/codebase-summary.md
+dtkit update --yes
+# (hoặc dùng alias tương đương: dtkit refresh --yes)
+```
+
+### 5.2. Đưa Repo Skills/Rules Cộng Đồng Lên Cả 5 Runtime (`dtkit integrate import`)
 Bạn thấy một repo hay trên GitHub (ví dụ `obra/superpowers`, kho skill Anthropic, hoặc bộ `.cursor/rules/*.mdc`)? Truyền trực tiếp thư mục local, shorthand `owner/repo` của GitHub, hoặc HTTPS Git URL để chuyển đổi bằng 1 lệnh:
 
 ```bash
@@ -154,26 +184,14 @@ dtkit integrate import obra/superpowers --as superpowers --dry-run
 # Chuyển đổi thành gói DTKit chuẩn VÀ cài luôn song song với engineer (Multi-Kit v3)
 dtkit integrate import obra/superpowers --as superpowers --install --runtime claude --yes
 
-# Cập nhật lại kit đã import khi repo nguồn có phiên bản mới
+# Cập nhật lại kit đã import khi repo nguồn có phiên bản mới (tự nâng patch version nếu nội dung thay đổi)
 dtkit integrate import obra/superpowers --as superpowers --update --install --runtime claude --yes
 
 # Kiểm tra cả 2 kit cùng hoạt động bình thường
 dtkit status --project --runtime claude
 ```
 
-### 5.2. Một Lệnh Cập Nhật Tất Cả Khi Dự Án Lớn Lên (`dtkit update` / `dtkit refresh`)
-Mỗi khi dự án thêm thư mục con, ngôn ngữ mới hoặc vừa nâng cấp kit cộng đồng, chỉ cần chạy **1 lệnh**:
-
-```bash
-# Xem trước những gì cần làm mới (chưa ghi file)
-dtkit update --dry-run
-
-# Làm mới trọn gói: codebase-summary.md + gộp roots mới vào .dtkit/project.json (giữ nguyên checks cũ) + đồng bộ kits + dtkit.lock
-dtkit update --yes
-# (hoặc dùng alias: dtkit refresh --yes)
-```
-
-### 5.2. Kết Nối Công Cụ Ngoài (`repomix`, `graphify`, `ast-grep`, `semgrep`) Có Cache
+### 5.3. Kết Nối Công Cụ Ngoài (`repomix`, `graphify`, `ast-grep`, `semgrep`) Có Cache
 Nếu máy đã cài sẵn `repomix`, `graphify`, `ast-grep` (`sg`), hoặc `semgrep`:
 
 ```bash

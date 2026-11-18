@@ -18,19 +18,32 @@
 
 ---
 
-## What Problem Does DTKit Solve?
+## Only 4 Commands You Need Day-to-Day
 
-Static markdown rules (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`) are useful—but on real projects, teams quickly hit three limits:
+You don't have to memorize all 30 subcommands to get value from DTKit. Almost everything fits into **4 commands**:
+
+| Command | When to Run | What It Does |
+|---|---|---|
+| `dtkit init --all-runtimes --with-mcp --lock --yes` | Once when setting up a repo | Scans your codebase, installs `engineer@0.5.0` skills/rules, wires MCP, and creates `dtkit.lock` without touching your custom notes. |
+| `dtkit scout` / `dtkit scout --impact <file>` | Before starting a task | Maps repo zones & secrets-free code packs (`--pack`), or shows which files & tests depend on `<file>`. |
+| `dtkit guard lock --mode ...` / `verify` | While coding / reviewing | Locks AI edits (`read-only`, `tdd-red`, `tdd-green`, `scoped`) and detects skipped/weakened tests. |
+| `dtkit update --yes` *(or `dtkit refresh --yes`)* | Whenever your project grows | Updates `docs/codebase-summary.md`, merges new stacks into `.dtkit/project.json` (keeping your `checks`), syncs kits, and refreshes `dtkit.lock`. |
+
+---
+
+## Why Use DTKit Instead of Plain Markdown Rules?
+
+Static `CLAUDE.md`, `.cursorrules`, or `AGENTS.md` files help—but real teams quickly hit three walls:
 
 1. **Fragmented AI configs:** Every coding agent expects different files, skill folders, MCP JSON/TOML, and hook schemas. Updating them by hand across tools drifts immediately.
-2. **Markdown rules alone can't enforce discipline:** An agent can still edit files while *"just planning"*, wander outside your requested module, delete assertions or add `skip` to make tests pass, or claim *"All tests passed!"* without running them.
-3. **Polyglot repos waste context:** Real codebases mix stacks (`frontend/` TypeScript + `backend/` Java + `ai/` Python + native C++/Go/Rust). Letting agents blindly `grep` the whole tree burns tokens and time.
+2. **Markdown rules alone can't enforce discipline:** An agent can still edit files while *"just planning"*, wander outside your requested module, delete assertions or insert `skip` to fake passing tests, or report *"All tests passed!"* without running them.
+3. **Polyglot repos waste context:** Real codebases mix stacks (`frontend/` TypeScript + `backend/` Java + `ai/` Python + Go/C++/Rust/.NET). Letting agents blindly `grep` the whole tree burns tokens and time.
 
 **DTKit solves all three in one zero-dependency Go binary**—and preserves your personal instructions and configurations byte-for-byte.
 
 ```mermaid
 flowchart LR
-    Repo["Your Repo\n(TS, Java, Python, Go, C++, Rust, .NET)"] --> Init["dtkit init"]
+    Repo["Your Repo\n(TS, Java, Python, Go, C++, Rust, .NET)"] --> Init["dtkit init / update"]
     Init --> Scout["docs/codebase-summary.md\n(dtkit scout)"]
     Init --> Kit["engineer@0.5.0\n(10-Skill Mesh)"]
     Init --> Guard["dtkit guard\n(Firewall & SHA-256 Receipt)"]
@@ -46,12 +59,12 @@ flowchart LR
 
 ## 30-Second Quick Start
 
-### 1. Install `dtkit` (`v0.7.0`)
+### 1. Install `dtkit` (`v0.8.0`)
 
 **Linux / macOS (`~/.local/bin`):**
 
 ```bash
-bash scripts/install.sh --version 0.7.0 --bin-dir "$HOME/.local/bin"
+bash scripts/install.sh --version 0.8.0 --bin-dir "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 dtkit version --json
 ```
@@ -59,41 +72,57 @@ dtkit version --json
 **Windows PowerShell (`%LOCALAPPDATA%\Programs\dtkit\bin`):**
 
 ```powershell
-.\scripts\install.ps1 -Version "0.7.0"
+.\scripts\install.ps1 -Version "0.8.0"
 dtkit version --json
 ```
 
-Or build from source with Go `1.27.4+`:
+Or install from Go `1.27.4+`, Homebrew (`dtkit.rb`), or Scoop (`dtkit.json`) attached to each GitHub Release (templates in `packaging/`):
 
 ```bash
-go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.7.0
+go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0
 ```
 
-> Install scripts verify `SHA256SUMS` before extracting and roll back cleanly on failure. Each GitHub Release also attaches generated **Homebrew (`dtkit.rb`)** and **Scoop (`dtkit.json`)** manifests populated from `SHA256SUMS` (templates in `packaging/`). See [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) for manual checksum steps.
+> **Windows Smart App Control / Application Control note:** If Windows blocks unsigned `.exe` downloads, you can run `dtkit` instantaneously via **Docker Desktop** with zero Windows policy changes:
+> ```powershell
+> docker build -t dtkit:0.8.0 -f - . <<'EOF'
+> FROM golang:1.27.4 AS b
+> WORKDIR /s
+> COPY go.mod ./
+> COPY cmd ./cmd
+> COPY internal ./internal
+> COPY schemas ./schemas
+> RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /dtkit ./cmd/dtkit
+> FROM alpine:3.21
+> RUN apk add --no-cache git ca-certificates
+> COPY --from=b /dtkit /usr/local/bin/dtkit
+> ENTRYPOINT ["/usr/local/bin/dtkit"]
+> EOF
+> # PowerShell helper in $PROFILE:
+> function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }
+> ```
 
-### 2. Initialize Your Project in One Command
+### 2. Initialize Your Project
 
 Run inside any repository (single language or polyglot monorepo):
 
 ```bash
-# Preview everything read-only first
+# Preview everything read-only first (writes nothing)
 dtkit init --runtime claude --with-mcp --with-hooks --lock --dry-run
 
-# Apply full setup (or use --all-runtimes to configure all 5 agents at once)
-dtkit init --runtime claude --with-mcp --with-hooks --lock --yes
-
-# Later, as your project grows, refresh summary + project.json roots + kits + dtkit.lock in one command
-dtkit update --yes
+# Or configure all 5 coding agents at once
+dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 ```
 
-That single command sets up:
-- **`docs/codebase-summary.md`** — fast polyglot map of zones, languages, manifests, and API contracts (`dtkit scout`).
-- **`.dtkit/project.json`** — detected `test`/`lint`/`typecheck` commands per workspace zone (approved by you before running via `dtkit check --yes`).
-- **`engineer@0.5.0`** — unified 10-skill lifecycle (`Brainstorm -> Scout -> Plan -> Implement -> Test -> Review -> Docs`).
-- **Auto-wired MCP & Quality Hooks** — registers `dtkit mcp serve` and `check-changed`/`guard-edit` hooks while preserving your existing servers and settings.
-- **`dtkit.lock`** — pins kit digests so every teammate installs identical verified bytes.
+#### What Does `dtkit init` Add to Your Project?
 
-> Add `.dtkit/local/` to `.gitignore` so personal locks, transaction journals, guard rules, and companion caches stay local.
+| Path Added | Purpose | Git Recommendation |
+|---|---|---|
+| `docs/codebase-summary.md` | Up-to-date map of zones, languages, manifests, and API contracts. | Commit |
+| `.dtkit/project.json` | Detected stacks & quality check commands (approved by you before running). | Commit |
+| `.dtkit/content/` & `dtkit.lock` | Shared workflow docs and pinned kit versions/digests for teammates (`dtkit sync`). | Commit |
+| `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, `.agents/`, `.claude/`, `.gemini/`, `.opencode/` | Managed blocks & skill directories for your selected agent(s); personal text outside `dtkit:begin/end` is never overwritten. | Commit (or pick only `--runtime <yours>`) |
+| `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.gemini/settings.json`, `opencode.json` | MCP server wiring (preserves existing servers); hooks if `--with-hooks` was passed. | Commit / review |
+| `.dtkit/local/` & `.dtkit/locks/` | Local guard state (`guard.json`), check receipts (`verify-receipt.json`), transaction locks. | **Add to `.gitignore`** |
 
 ---
 
@@ -117,7 +146,7 @@ Need a lighter footprint? Install a focused preset anytime:
 - `--preset engineering`: full 19-component skill mesh (default)
 
 ### 2. Phase Firewall & Anti-Fake-Pass Guard (`dtkit guard`)
-Lock what AI agents are allowed to modify at each phase—stored in `.dtkit/local/guard.json`, which hooks protect from AI edits:
+Lock what AI agents are allowed to modify at each phase—stored in `.dtkit/local/guard.json`, which `guard-edit` hooks protect from AI edits:
 
 ```bash
 dtkit guard lock --mode read-only                      # Block 100% of file edits while planning/reviewing
@@ -129,22 +158,28 @@ dtkit guard verify                                     # Fails (exit 3) if works
 `dtkit guard verify` and `check-changed` hooks detect **test tampering** across Go, Python, JS/TS, Java/Kotlin, C/C++, Rust, and C# (`t.Skip`, `pytest.skip`, `.skip(`, `@Disabled`, `GTEST_SKIP`, `#[ignore]`, removed assertions), verify SHA-256 `verify-receipt.json` check receipts, and raise `[RETRY LOOP DETECTED]` after 3+ consecutive failures.
 
 ### 3. Polyglot Reconnaissance, Impact Graph & Built-In MCP (`dtkit scout`, `dtkit mcp`)
-Scan any multi-language codebase in milliseconds without leaking `.env` files, private keys, or secrets, or compute reverse-dependency impact across Go, TS/JS, Python, Java, and C/C++:
+Scan any multi-language codebase without leaking `.env` files, private keys, or secrets, or compute reverse-dependency impact across Go, TS/JS, Python, Java, and C/C++:
 
 ```bash
 dtkit scout --zone backend --query checkout --pack --max-bytes 24576
 dtkit scout --impact backend/src/main/java/com/acme/Token.java
 ```
 
-Agents can also call `dtkit_scout`, `dtkit_context_impact`, `dtkit_project_inspect`, `dtkit_guard_status`, and `dtkit_guard_verify` natively over JSON-RPC 2.0 via `dtkit mcp serve` (`dtkit mcp enable --runtime claude --yes`).
+Agents can also call `dtkit_scout`, `dtkit_context_impact`, `dtkit_project_inspect`, `dtkit_guard_status`, and `dtkit_guard_verify` natively over JSON-RPC 2.0 via `dtkit mcp serve`.
 
-### 4. Import Community Repos & External Companions (`dtkit integrate`)
-Bring in your favorite community workflows and CLI tools without giving up cross-runtime compatibility or safety:
+### 4. One-Command Refresh When Your Project Grows (`dtkit update` / `dtkit refresh`)
+Added a new `frontend/` or `ai/` service, updated an imported community kit, or changed files across the repo? Run one command:
 
+```bash
+dtkit update --dry-run   # Preview what would refresh
+dtkit update --yes       # Refreshes docs/codebase-summary.md, merges new roots into .dtkit/project.json (preserving checks), syncs kits & dtkit.lock
+```
+
+### 5. Import Community Repos, External Companions & Team Sync (`dtkit integrate`)
 ```bash
 # Convert local dirs, GitHub shorthands (owner/repo), or HTTPS Git repos into 5-runtime DTKit packages
 dtkit integrate import obra/superpowers --as superpowers --install --runtime claude --yes
-# Refresh an imported kit atomically when upstream updates:
+# Refresh an imported kit cleanly when upstream updates (auto-bumps patch version when content changes)
 dtkit integrate import obra/superpowers --as superpowers --update --install --runtime claude --yes
 
 # Check & run external tools (repomix, graphify, ast-grep, semgrep) with SHA-256 caching and dtkit scout fallback
@@ -152,34 +187,31 @@ dtkit integrate list
 dtkit integrate run repomix --zone backend
 ```
 
-### 5. Safe Multi-Kit Coexistence, Forking & Team Sync
-- **Side-by-side kits:** Install multiple kits (`engineer` + `superpowers` + custom forks) in the same `(runtime, scope)` cleanly via `state.json` v3.
-- **Controlled customization:** Never edit managed files directly; run `dtkit fork engineer --as my-kit`, customize safely, preview bounded diffs with `dtkit diff`, and share via `dtkit lock` + `dtkit team export|import`.
-
 ---
 
-## Supported Runtimes & Current Status
+## Supported Runtimes & Verification Status
 
-DTKit supports all five runtimes below. Labels strictly distinguish automated Go/container verification from live interactive runtime sessions (see [docs/compatibility.md](docs/compatibility.md) for the full 4-layer matrix):
+See [docs/compatibility.md](docs/compatibility.md) for the full 4-layer verification matrix:
 
 | Runtime | Managed Files (Project Scope) | Quality Hooks / Plugin | MCP Config | Verification Status |
 |---|---|---|---|---|
 | **Codex CLI** (`codex`) | `AGENTS.md`, `.agents/skills/` | `.codex/hooks.json` (`SessionStart`) | `.codex/config.toml` | **Partial** (discovery verified on `0.169.0`; live hook firing unverified) |
 | **OpenCode** (`opencode`) | `AGENTS.md` (namespaced), `.opencode/skills/` | `.opencode/plugins/dtkit-quality.js` | `opencode.json` | **Partial** (14-skill discovery verified on `1.19.5`; live session unverified without creds) |
-| **Claude Code** (`claude`) | `CLAUDE.md`, `.claude/skills/` | `.claude/settings.json` (`PostToolUse`, `PreToolUse`) | `.mcp.json` | **Partial** (automated hook & lifecycle verified; live session/A-B eval blocked on creds) |
-| **Gemini CLI** (`gemini`) | `GEMINI.md`, `.gemini/skills/` | `.gemini/settings.json` (`AfterTool`, `BeforeTool`) | `.gemini/settings.json` | **Experimental** (`gemini` CLI absent on verification host; offline tests pass) |
+| **Claude Code** (`claude`) | `CLAUDE.md`, `.claude/skills/` | `.claude/settings.json` (`PostToolUse`, `PreToolUse`) | `.mcp.json` | **Partial** (automated hook & lifecycle verified; live A/B session blocked on creds) |
+| **Gemini CLI** (`gemini`) | `GEMINI.md`, `.gemini/skills/` | `.gemini/settings.json` (`AfterTool`, `BeforeTool`) | `.gemini/settings.json` | **Partial / Experimental** (live `0.68.0` 10-skill & MCP STDIO connection verified; live A/B hit Free-Tier 429) |
 | **Cursor** (`cursor`) | `.cursor/rules/dtkit-*.mdc`, `.cursor/skills/` | `.cursor/hooks.json` (`afterFileEdit`) | `.cursor/mcp.json` | **Experimental** (`cursor` CLI absent on verification host; global rules UI-only) |
 
 ---
 
-## Command Reference
+## Complete Command Map
 
 | Area | Commands | Purpose |
 |---|---|---|
-| **Bootstrap & Install** | `init`, `list`, `info`, `install`, `update`, `remove`, `status`, `diff`, `recover` | 1-command onboarding, multi-kit installs, bounded diffs, atomic rollback & recovery |
-| **Scout, Guard & MCP** | `scout`, `project inspect\|init`, `check`, `guard <status\|lock\|unlock\|verify>`, `hooks`, `mcp` | Polyglot reconnaissance, `.dtkit/project.json` checks, phase firewall, SHA-256 check receipts, hooks & MCP wiring |
-| **Import, Fork & Pack** | `integrate <list\|import\|tool\|run>`, `fork`, `create kit\|skill`, `validate`, `pack` | Community repo importer, companion digest cache (`repomix`, `graphify`, `ast-grep`, `semgrep`), deterministic `.tar.gz` |
-| **Team & Governance** | `lock <generate\|verify\|diff\|sign\|keygen>`, `sync`, `team`, `compat`, `doctor`, `completion` | Reproducible team sync, Ed25519 provenance, compat snapshots, redacted diagnostics & shell completion |
+| **Daily Core** | `init`, `update`, `refresh`, `scout`, `guard <status\|lock\|unlock\|verify>` | Setup, 1-command project refresh, polyglot context/impact, phase firewall & check proof |
+| **Kit Lifecycle** | `status`, `install`, `remove`, `diff`, `doctor`, `recover` | Multi-kit installs, bounded diffs, redacted diagnostics & crash recovery |
+| **Project & MCP/Hooks** | `project <inspect\|init>`, `check`, `mcp <serve\|status\|enable\|disable>`, `hooks`, `hook` | Stack detection, trusted check runner, built-in STDIO MCP server & runtime hooks |
+| **Ecosystem & Authoring** | `integrate <list\|import\|tool\|run>`, `fork`, `create kit\|skill`, `validate`, `pack`, `list`, `info` | Community importer, companion digest cache, custom kit authoring & tarballs |
+| **Team & Utilities** | `lock <generate\|verify\|diff\|sign\|keygen>`, `sync`, `team`, `compat`, `completion`, `version`, `help` | Lockfiles, Ed25519 signing, team bundles, compat snapshots & shell completions |
 
 Most commands support `--dry-run`, `--diff`, `--yes`, and `--json`. See [docs/cli.md](docs/cli.md) for complete flags and exit codes (`0` OK, `1` error, `2` usage, `3` conflict/unverified, `4` missing runtime, `130` cancelled).
 
