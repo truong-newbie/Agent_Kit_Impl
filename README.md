@@ -81,6 +81,9 @@ dtkit init --runtime claude --with-mcp --with-hooks --lock --dry-run
 
 # Apply full setup (or use --all-runtimes to configure all 5 agents at once)
 dtkit init --runtime claude --with-mcp --with-hooks --lock --yes
+
+# Later, as your project grows, refresh summary + project.json roots + kits + dtkit.lock in one command
+dtkit update --yes
 ```
 
 That single command sets up:

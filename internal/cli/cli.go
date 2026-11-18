@@ -32,7 +32,9 @@ Usage:
   dtkit diff [<kit>[@<ver>]] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--redact] [--json]
   dtkit install <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit status [--runtime <codex|gemini|opencode|cursor|claude>|--all-runtimes] [--project|--global] [--path <dir>] [--redact] [--json]
+  dtkit update [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--dry-run] [--redact] [--yes] [--json]
   dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
+  dtkit refresh [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--dry-run] [--redact] [--yes] [--json]
   dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]
@@ -105,6 +107,8 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runStatus(ctx, args[1:], deps)
 	case "update":
 		return runUpdate(ctx, args[1:], deps)
+	case "refresh":
+		return runRefresh(ctx, args[1:], deps)
 	case "remove":
 		return runRemove(ctx, args[1:], deps)
 	case "recover":
@@ -183,7 +187,10 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit pack <directory> [--out <file.tar.gz>] [--json]\n")
 		return err
 	case "update":
-		_, err := io.WriteString(out, "Usage: dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit update [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--dry-run] [--redact] [--yes] [--json]\n       dtkit update <kit>[@<ver>] --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--preset <name>|--components <list>] [--path <dir>] [--from <dir|archive>] [--source <url>] [--sha256 <hex>] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]\n")
+		return err
+	case "refresh":
+		_, err := io.WriteString(out, "Usage: dtkit refresh [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--dry-run] [--redact] [--yes] [--json]\n")
 		return err
 	case "remove":
 		_, err := io.WriteString(out, "Usage: dtkit remove <kit> --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--dry-run] [--yes] [--json]\n")

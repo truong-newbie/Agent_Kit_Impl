@@ -93,6 +93,27 @@ type TeamTemplateResult struct {
 	SkippedFiles []string `json:"skippedFiles,omitempty"`
 }
 
+// UpdateKitOutcome records the update status of one installed kit in a runtime during project-wide dtkit update.
+type UpdateKitOutcome struct {
+	Runtime string `json:"runtime"`
+	KitID   string `json:"kitId"`
+	From    string `json:"from,omitempty"`
+	To      string `json:"to,omitempty"`
+	Status  string `json:"status"` // "updated" | "would_update" | "up_to_date" | "skipped" | "conflict"
+	Detail  string `json:"detail,omitempty"`
+}
+
+// UpdateSummary summarizes a project-wide dtkit update / dtkit refresh run.
+type UpdateSummary struct {
+	Root               string             `json:"root"`
+	CodebaseSummary    bool               `json:"codebaseSummaryUpdated"`
+	ProjectProfile     bool               `json:"projectProfileUpdated"`
+	AddedRoots         []string           `json:"addedRoots,omitempty"`
+	NewSuggestedChecks int                `json:"newSuggestedChecks,omitempty"`
+	Kits               []UpdateKitOutcome `json:"kits"`
+	LockfileUpdated    bool               `json:"lockfileUpdated"`
+}
+
 type Envelope struct {
 	SchemaVersion  int                          `json:"schemaVersion"`
 	Command        string                       `json:"command"`
@@ -141,6 +162,7 @@ type Envelope struct {
 	CompanionRun   *companion.RunResult         `json:"companionRun,omitempty"`
 	MCPConfigs     []mcp.MCPConfigStatus        `json:"mcpConfigs,omitempty"`
 	InitSummary    *InitSummary                 `json:"initSummary,omitempty"`
+	UpdateSummary  *UpdateSummary               `json:"updateSummary,omitempty"`
 	Warnings       []string                     `json:"warnings"`
 	Errors         []apperr.Error               `json:"errors"`
 }

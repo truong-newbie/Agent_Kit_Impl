@@ -189,4 +189,35 @@ func TestImportGitHubShorthandHTTPSValidationAndUpdate(t *testing.T) {
 	if err != nil || !strings.Contains(string(rawSkill), "Updated skill body v2") {
 		t.Fatalf("expected updated skill body on disk, got err=%v body=%s", err, string(rawSkill))
 	}
+
+	// With Update: true and empty Version, changing source content auto-bumps patch version (0.2.0 -> 0.2.1),
+	// while unchanged content preserves 0.2.1 without spurious bumps.
+	skillBody = "# Remote Superpowers\nUpdated skill body v3.\n"
+	res3, err := ImportKit(ImportOptions{
+		SourceDir:       "obra/superpowers",
+		TargetParentDir: outParent,
+		KitID:           "superpowers",
+		Update:          true,
+		FetchGitRepo:    fakeFetch,
+	})
+	if err != nil {
+		t.Fatalf("auto-bump patch --update failed: %v", err)
+	}
+	if res3.Version != "0.2.1" || res3.PackageDigest == res2.PackageDigest {
+		t.Fatalf("expected auto-bumped version 0.2.1 with new digest, got %+v", res3)
+	}
+
+	res4, err := ImportKit(ImportOptions{
+		SourceDir:       "obra/superpowers",
+		TargetParentDir: outParent,
+		KitID:           "superpowers",
+		Update:          true,
+		FetchGitRepo:    fakeFetch,
+	})
+	if err != nil {
+		t.Fatalf("unchanged --update failed: %v", err)
+	}
+	if res4.Version != "0.2.1" || res4.PackageDigest != res3.PackageDigest {
+		t.Fatalf("expected unchanged content to stay 0.2.1, got %+v", res4)
+	}
 }

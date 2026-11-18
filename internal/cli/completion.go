@@ -14,7 +14,7 @@ _dtkit_complete() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    local cmds="version help list info validate create fork pack doctor diff install status update remove recover project check scout guard mcp integrate init lock sync team compat hooks hook completion"
+    local cmds="version help list info validate create fork pack doctor diff install status update refresh remove recover project check scout guard mcp integrate init lock sync team compat hooks hook completion"
     local runtimes="codex gemini opencode cursor claude"
     local presets="minimal review-only engineering"
 
@@ -96,7 +96,8 @@ _dtkit() {
         'diff:Preview bounded content diff and ownership'
         'install:Install a kit into project or global scope'
         'status:Show installed kit status'
-        'update:Update installed kit'
+        'update:Update project context, kits, and lockfile (or a specific kit)'
+        'refresh:Alias for project-wide dtkit update'
         'remove:Remove an installed kit safely'
         'recover:Recover unfinished transactions'
         'project:Inspect or initialize .dtkit/project.json'
@@ -141,7 +142,7 @@ const powerShellCompletionScript = `# PowerShell completion for dtkit
 Register-ArgumentCompleter -Native -CommandName dtkit -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $tokens = $commandAst.CommandElements | ForEach-Object { $_.Extent.Text }
-    $cmds = @('version','help','list','info','validate','create','fork','pack','doctor','diff','install','status','update','remove','recover','project','check','scout','guard','mcp','integrate','init','lock','sync','team','compat','hooks','hook','completion')
+    $cmds = @('version','help','list','info','validate','create','fork','pack','doctor','diff','install','status','update','refresh','remove','recover','project','check','scout','guard','mcp','integrate','init','lock','sync','team','compat','hooks','hook','completion')
     $runtimes = @('codex','gemini','opencode','cursor','claude')
     $presets = @('minimal','review-only','engineering')
     $flags = @('--project','--global','--runtime','--all-runtimes','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--diff','--yes','--json','--redact','--changed','--all','--allow-autofix','--as','--dir','--version','--same-id','--lock','--trust','--require-signature','--source-ref','--key-file','--key-id','--baseline','--query','--zone','--impact','--pack','--max-bytes','--write-summary','--mode','--allow','--deny','--protect-tests','--install','--update','--no-cache','--with-mcp','--with-hooks')

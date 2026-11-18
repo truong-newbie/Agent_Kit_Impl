@@ -168,6 +168,18 @@ dtkit integrate import obra/superpowers --as superpowers --update --install --ru
 dtkit status --project --runtime claude
 ```
 
+### 5.2. One-Command Project Refresh as Your Codebase Grows (`dtkit update` / `dtkit refresh`)
+Whenever you add new modules, services, or languages (for example `frontend/` or `ai/`), keep everything fresh in one command:
+
+```bash
+# Preview what changed (codebase-summary.md, new roots in .dtkit/project.json, installed kits, dtkit.lock)
+dtkit update --dry-run
+
+# Apply everything safely (keeps your custom checks in .dtkit/project.json untouched)
+dtkit update --yes
+# (alias: dtkit refresh --yes)
+```
+
 ### 5.2. Connect External Companions (`repomix`, `graphify`, `ast-grep`, `semgrep`)
 If you already have tools like `repomix`, `graphify`, `ast-grep` (`sg`), or `semgrep` installed, DTKit caches their output by SHA-256 workspace digest so unchanged code returns in milliseconds—and falls back gracefully to `dtkit scout` when missing:
 

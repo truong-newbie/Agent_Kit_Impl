@@ -240,3 +240,65 @@ func TestInspectPolyglotMonorepoStacks(t *testing.T) {
 		}
 	}
 }
+
+func TestSyncProfileMergesNewRootsPreservesUserChecks(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "home")
+	repo := filepath.Join(base, "sync-repo")
+
+	goMod := filepath.Join(repo, "go.mod")
+	if err := os.MkdirAll(repo, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(goMod, []byte("module example.com/app\n\ngo 1.22\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	env := paths.Environment{
+		Getwd:       func() (string, error) { return repo, nil },
+		UserHomeDir: func() (string, error) { return home, nil },
+	}
+	initRes, err := Init(context.Background(), env, InitOptions{Path: repo})
+	if err != nil || !initRes.Created {
+		t.Fatalf("initial Init failed: %+v err=%v", initRes, err)
+	}
+	// Record initial check count & trust digest.
+	initTrust := initRes.TrustDigest
+
+	// Grow repository with a new Python AI zone + pytest check.
+	pyProj := filepath.Join(repo, "ai", "pyproject.toml")
+	if err := os.MkdirAll(filepath.Dir(pyProj), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pyProj, []byte("[project]\nname = \"ai\"\ndependencies = [\"pytest\"]\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dryRes, err := SyncProfile(context.Background(), env, SyncOptions{Path: repo, DryRun: true})
+	if err != nil || !dryRes.Updated || len(dryRes.AddedRoots) == 0 || dryRes.NewSuggestedChecks == 0 {
+		t.Fatalf("expected dry-run sync to detect new root and suggested check: %+v err=%v", dryRes, err)
+	}
+	// Dry run must leave original file untouched.
+	loadedBefore, _, _, err := LoadProfile(repo)
+	if err != nil || len(loadedBefore.Roots) != 1 {
+		t.Fatalf("expected dry-run not to modify profile, got roots=%+v err=%v", loadedBefore.Roots, err)
+	}
+
+	applyRes, err := SyncProfile(context.Background(), env, SyncOptions{Path: repo, DryRun: false})
+	if err != nil || !applyRes.Updated {
+		t.Fatalf("expected SyncProfile apply to update profile: %+v err=%v", applyRes, err)
+	}
+	loadedAfter, _, _, err := LoadProfile(repo)
+	if err != nil || len(loadedAfter.Roots) != 2 {
+		t.Fatalf("expected 2 merged roots after sync, got %+v err=%v", loadedAfter.Roots, err)
+	}
+	if gotTrust := CommandsTrustDigest(loadedAfter); gotTrust != initTrust {
+		t.Fatalf("expected SyncProfile to preserve user checks/trust digest untouched (%s != %s)", gotTrust, initTrust)
+	}
+
+	// Second sync should be a clean no-op.
+	noopRes, err := SyncProfile(context.Background(), env, SyncOptions{Path: repo, DryRun: false})
+	if err != nil || noopRes.Updated {
+		t.Fatalf("expected second SyncProfile to be no-op, got %+v err=%v", noopRes, err)
+	}
+}

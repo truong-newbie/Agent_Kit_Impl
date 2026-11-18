@@ -151,4 +151,44 @@ func TestCLIInitIntegrateImportCompanionAndMCPConfig(t *testing.T) {
 	if err != nil || impGraphEnv.ScoutImpact == nil || len(impGraphEnv.ScoutImpact.DirectDependents) == 0 || len(impGraphEnv.ScoutImpact.RelatedTests) == 0 {
 		t.Fatalf("dtkit scout --impact failed: %v (%s)", err, impGraphRaw)
 	}
+
+	// 6. Test integrate import --update --install auto patch bump + unified dtkit update / dtkit refresh
+	skillFile := filepath.Join(extSrc, "skills", "tdd", "SKILL.md")
+	if wErr := os.WriteFile(skillFile, []byte("# Strict TDD v2\nUpdated guidance.\n"), 0644); wErr != nil {
+		t.Fatal(wErr)
+	}
+	impUpEnv, impUpRaw, err := run("integrate", "import", extSrc, "--as", "superpowers", "--update", "--install", "--runtime", "claude", "--path", repo, "--yes", "--json")
+	if err != nil || impUpEnv.Import == nil || impUpEnv.Import.Version != "0.1.1" {
+		t.Fatalf("integrate import --update --install without --version failed: %v (%s)", err, impUpRaw)
+	}
+
+	// Grow repo with a new Python AI zone so dtkit update refreshes summary + project.json + kits + dtkit.lock
+	aiPkg := filepath.Join(repo, "ai", "pyproject.toml")
+	aiSrc := filepath.Join(repo, "ai", "src", "embed.py")
+	if err := os.MkdirAll(filepath.Dir(aiSrc), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(aiPkg, []byte("[project]\nname = \"ai\"\nversion = \"0.1.0\"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(aiSrc, []byte("def embed(x): return [len(x)]\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	updDryEnv, updDryRaw, err := run("update", "--path", repo, "--dry-run", "--json")
+	if err != nil || updDryEnv.UpdateSummary == nil || !updDryEnv.UpdateSummary.CodebaseSummary || !updDryEnv.UpdateSummary.ProjectProfile {
+		t.Fatalf("dtkit update --dry-run failed: %v (%s)", err, updDryRaw)
+	}
+	updApplyEnv, updApplyRaw, err := run("update", "--path", repo, "--yes", "--json")
+	if err != nil || updApplyEnv.UpdateSummary == nil || !updApplyEnv.UpdateSummary.CodebaseSummary || !updApplyEnv.UpdateSummary.ProjectProfile {
+		t.Fatalf("dtkit update --yes failed: %v (%s)", err, updApplyRaw)
+	}
+	if sumBytes, rErr := os.ReadFile(filepath.Join(repo, "docs", "codebase-summary.md")); rErr != nil || !strings.Contains(string(sumBytes), "python") {
+		t.Fatalf("expected updated codebase-summary.md to mention python/ai, err=%v", rErr)
+	}
+
+	refEnv, refRaw, err := run("refresh", "--path", repo, "--yes", "--json")
+	if err != nil || refEnv.UpdateSummary == nil || refEnv.UpdateSummary.CodebaseSummary || refEnv.UpdateSummary.ProjectProfile {
+		t.Fatalf("expected idempotent dtkit refresh no-op, got err=%v (%s)", err, refRaw)
+	}
 }

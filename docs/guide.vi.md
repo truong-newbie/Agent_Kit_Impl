@@ -161,6 +161,18 @@ dtkit integrate import obra/superpowers --as superpowers --update --install --ru
 dtkit status --project --runtime claude
 ```
 
+### 5.2. Một Lệnh Cập Nhật Tất Cả Khi Dự Án Lớn Lên (`dtkit update` / `dtkit refresh`)
+Mỗi khi dự án thêm thư mục con, ngôn ngữ mới hoặc vừa nâng cấp kit cộng đồng, chỉ cần chạy **1 lệnh**:
+
+```bash
+# Xem trước những gì cần làm mới (chưa ghi file)
+dtkit update --dry-run
+
+# Làm mới trọn gói: codebase-summary.md + gộp roots mới vào .dtkit/project.json (giữ nguyên checks cũ) + đồng bộ kits + dtkit.lock
+dtkit update --yes
+# (hoặc dùng alias: dtkit refresh --yes)
+```
+
 ### 5.2. Kết Nối Công Cụ Ngoài (`repomix`, `graphify`, `ast-grep`, `semgrep`) Có Cache
 Nếu máy đã cài sẵn `repomix`, `graphify`, `ast-grep` (`sg`), hoặc `semgrep`:
 

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing/fstest"
 	"time"
@@ -314,37 +315,63 @@ func ImportKit(opts ImportOptions) (ImportResult, error) {
 		items = append(items, ImportedItem{Kind: "workflow", ComponentID: compID, SourceRel: w.sourceRel, TargetRel: targetRel})
 	}
 
-	pkg := catalog.Package{
-		SchemaVersion:        1,
-		ID:                   kitID,
-		Name:                 name,
-		Version:              version,
-		Description:          fmt.Sprintf("Imported community kit %s (%d components).", kitID, len(components)),
-		RuntimeTargets:       []string{"codex", "gemini", "opencode", "cursor", "claude"},
-		Scopes:               []string{"project", "global"},
-		RequiresCapabilities: []string{"skills"},
-		OptionalCapabilities: []string{"instructions"},
-		PackageDependencies:  []string{},
-		Components:           components,
-	}
-	pkgBytes, err := json.MarshalIndent(pkg, "", "  ")
-	if err != nil {
-		return res, err
-	}
-	pkgBytes = append(pkgBytes, '\n')
-	memFS["package.json"] = &fstest.MapFile{Data: pkgBytes}
-
-	if err := catalog.Validate(pkg, memFS); err != nil {
-		return res, err
-	}
-	for _, rt := range pkg.RuntimeTargets {
-		if _, err := adapter.RenderForRuntime(rt, pkg, memFS, "project"); err != nil {
-			return res, err
+	var existingVer, existingDig string
+	hasExistingImported := false
+	if opts.Update && strings.TrimSpace(opts.Version) == "" {
+		if exVer, exDig, ok := readExistingImportedMeta(outDir); ok {
+			existingVer, existingDig, hasExistingImported = exVer, exDig, true
+			version = exVer
 		}
 	}
-	digest, err := catalog.Digest(memFS)
+
+	buildPkgAndDigest := func(ver string) (catalog.Package, string, error) {
+		p := catalog.Package{
+			SchemaVersion:        1,
+			ID:                   kitID,
+			Name:                 name,
+			Version:              ver,
+			Description:          fmt.Sprintf("Imported community kit %s (%d components).", kitID, len(components)),
+			RuntimeTargets:       []string{"codex", "gemini", "opencode", "cursor", "claude"},
+			Scopes:               []string{"project", "global"},
+			RequiresCapabilities: []string{"skills"},
+			OptionalCapabilities: []string{"instructions"},
+			PackageDependencies:  []string{},
+			Components:           components,
+		}
+		pb, mErr := json.MarshalIndent(p, "", "  ")
+		if mErr != nil {
+			return catalog.Package{}, "", mErr
+		}
+		pb = append(pb, '\n')
+		memFS["package.json"] = &fstest.MapFile{Data: pb}
+		if vErr := catalog.Validate(p, memFS); vErr != nil {
+			return catalog.Package{}, "", vErr
+		}
+		for _, rt := range p.RuntimeTargets {
+			if _, rErr := adapter.RenderForRuntime(rt, p, memFS, "project"); rErr != nil {
+				return catalog.Package{}, "", rErr
+			}
+		}
+		dig, dErr := catalog.Digest(memFS)
+		if dErr != nil {
+			return catalog.Package{}, "", dErr
+		}
+		return p, dig, nil
+	}
+
+	pkg, digest, err := buildPkgAndDigest(version)
 	if err != nil {
 		return res, err
+	}
+	if hasExistingImported && digest != existingDig {
+		bumped := bumpPatchVersion(existingVer)
+		if bumped != "" && bumped != version {
+			version = bumped
+			pkg, digest, err = buildPkgAndDigest(version)
+			if err != nil {
+				return res, err
+			}
+		}
 	}
 
 	detectedFormat := "mixed"
@@ -660,4 +687,24 @@ func normalizeSkillTemplate(slug, kitID, primaryRuleID string, raw []byte) []byt
 		}
 	}
 	return []byte(strings.TrimSpace(out.String()) + "\n")
+}
+
+func readExistingImportedMeta(outDir string) (string, string, bool) {
+	pkg, _, dig, err := catalog.LoadDir(outDir)
+	if err != nil || !catalog.IsValidVersion(pkg.Version) {
+		return "", "", false
+	}
+	return pkg.Version, dig, true
+}
+
+func bumpPatchVersion(ver string) string {
+	parts := strings.Split(strings.TrimSpace(ver), ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s.%d", parts[0], parts[1], patch+1)
 }
