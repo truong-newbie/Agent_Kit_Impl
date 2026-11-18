@@ -140,6 +140,14 @@ flowchart LR
     E --> F["6. Review & Sync Docs"]
 ```
 
+> **Where do I invoke skills (`brainstorm`, `plan`, `implement`, `review`, ...)?**
+> Do **not** type `dtkit brainstorm` or `dtkit plan` in your shell—those are **in-chat agent skills** installed by `dtkit init`, not CLI subcommands:
+> - **Terminal (`dtkit ...`):** infrastructure & protection (`init`, `update`, `scout`, `guard`, `status`, `integrate`).
+> - **Inside your AI Agent chat:** invoke skills directly using your runtime's syntax:
+>   - **Codex CLI:** `$dtkit-project-brainstorm`, `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-review`
+>   - **Claude Code:** `/dtkit-claude-project-brainstorm`, `/dtkit-claude-project-plan`, `/dtkit-claude-project-implement`
+>   - **Gemini CLI / Cursor / OpenCode:** reference `dtkit-<runtime>-project-<skill>` (e.g. `dtkit-gemini-project-plan`) or simply ask *"use the DTKit brainstorm and plan skills before editing code"*.
+
 Need a lighter footprint? Install a focused preset anytime:
 - `--preset minimal`: `ask`, `explain`, `plan` only
 - `--preset review-only`: `review` + security audit checklist only

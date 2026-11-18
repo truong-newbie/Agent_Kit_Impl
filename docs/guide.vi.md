@@ -94,6 +94,14 @@ flowchart LR
 - **Nhóm kiểm toán & đồng bộ tài liệu:** `review` (tích hợp checklist bảo mật), `docs` (cập nhật `docs/codebase-summary.md`, `docs/system-architecture.md`, `docs/code-standards.md`)
 - **4 quy trình chuẩn:** `feature`, `bugfix`, `review`, `bootstrap-docs`
 
+### Cách Gọi `brainstorm`, `plan`, `implement`... (Terminal vs. Khung Chat AI)
+Lưu ý rất quan trọng cho người mới: **không gõ `dtkit brainstorm` hay `dtkit plan` ngoài PowerShell/Terminal** (những cái đó là **Skills**, không phải lệnh CLI):
+- **Ngoài Terminal (`dtkit ...`):** chỉ chạy lệnh quản lý & bảo vệ (`dtkit init`, `dtkit update`, `dtkit scout`, `dtkit guard`, `dtkit status`).
+- **Bên trong khung chat với AI Agent:** gọi trực tiếp các skill mà `dtkit init` đã cài sẵn:
+  - **Codex CLI (thêm `$` phía trước):** `$dtkit-project-brainstorm`, `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-review`
+  - **Claude Code (thêm `/` phía trước):** `/dtkit-claude-project-brainstorm`, `/dtkit-claude-project-plan`, `/dtkit-claude-project-implement`, `/dtkit-claude-project-review`
+  - **Gemini CLI / Cursor / OpenCode:** gõ `/` hoặc nhắc thẳng tên skill (`dtkit-gemini-project-plan`, `dtkit-cursor-project-plan`, `dtkit-opencode-project-plan`), hay dặn tự nhiên *"hãy brainstorm và lập plan trước, chưa sửa code"*.
+
 Nếu chỉ cần cài gọn nhẹ (chỉ lấy phần hỏi/giải thích/lập kế hoạch hoặc chỉ review):
 
 ```bash

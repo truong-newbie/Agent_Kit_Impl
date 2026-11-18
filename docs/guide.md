@@ -90,6 +90,14 @@ flowchart LR
 - **Quality & living memory:** `review` (includes security checklist), `docs` (keeps `docs/codebase-summary.md`, `docs/system-architecture.md`, and `docs/code-standards.md` accurate)
 - **End-to-end workflows:** `feature`, `bugfix`, `review`, `bootstrap-docs`
 
+### How to Call Skills (`brainstorm`, `plan`, `implement`...) vs. CLI Commands
+There are **no** shell commands named `dtkit brainstorm` or `dtkit plan`. Always separate the two layers:
+- **In your terminal (`dtkit ...`):** run CLI operations (`dtkit init`, `dtkit update`, `dtkit scout`, `dtkit guard`, `dtkit status`).
+- **Inside your AI Agent chat window:** trigger the installed skills (`dtkit init` placed them in `.agents/skills/`, `.claude/skills/`, `.gemini/skills/`, `.cursor/skills/`, `.opencode/skills/`):
+  - **Codex CLI (prefix `$`):** `$dtkit-project-brainstorm`, `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-review`
+  - **Claude Code (prefix `/`):** `/dtkit-claude-project-brainstorm`, `/dtkit-claude-project-plan`, `/dtkit-claude-project-implement`, `/dtkit-claude-project-review`
+  - **Gemini CLI / Cursor / OpenCode:** mention `dtkit-<runtime>-project-<skill>` (for example `dtkit-gemini-project-plan` or `dtkit-cursor-project-plan`) or simply prompt *"Use the DTKit brainstorm and plan skills first without editing files."*
+
 ### Selecting a Lighter Preset
 If you only want planning or review helpers instead of the full 19-component kit:
 
