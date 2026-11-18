@@ -4,11 +4,11 @@ DTKit is a single-binary Go CLI toolkit for packaging, validating, and safely in
 
 ## Current Status
 
-- **Release Stream:** `main` integrates release-hardening (`N00`–`N12`, `A01`–`A04`) and v0.5 engineering (`B01`–`B08`, `engineer@0.4.0`), tracked for the `v0.5.0-rc.1` pre-release candidate (`release.yml` builds Windows/Linux/macOS archives + `SHA256SUMS` on tag push).
+- **Release Stream:** `main` integrates release-hardening (`N00`–`N12`, `A01`–`A04`), v0.5 engineering (`B01`–`B08`, `engineer@0.4.0`), and Milestone C (`C01`–`C06`), tagged for **`v0.6.0`** (`release.yml` builds Windows/Linux/macOS archives + `SHA256SUMS` and creates a Draft GitHub Release on tag push).
 - **Implemented (automated-tested in Go / Docker):**
-  - Core CLI & safety engine (`version`, `help`, `list`, `info`, `validate`, `doctor`, `install`, `status`, `update`, `remove`, `recover`) with `--dry-run`, `--yes`, `--json`, `--preset` (`minimal`, `review-only`, `engineering`), `--components`, managed blocks, PID/token locks, transaction journals, and conditional rollback.
-  - Project profile & quality runner (`dtkit project inspect|init`, `dtkit check [--changed|--all] [--allow-autofix]`) using strict argv-only `.dtkit/project.json` and explicit trust digests in `.dtkit/local/check-trust.json`.
-  - Opt-in runtime hooks (`dtkit hooks list|status|enable|disable`) for `codex` (`session-context` `SessionStart`) and `claude` (`check-changed` `PostToolUse`, `guard-edit` `PreToolUse` in `.claude/settings.json` / `$CLAUDE_CONFIG_DIR/settings.json`).
+  - Core CLI & safety engine (`version`, `help`, `list`, `info`, `validate`, `doctor`, `install`, `status`, `update`, `remove`, `recover`, `completion`) with `--dry-run`, `--diff`, `--yes`, `--json`, `--preset` (`minimal`, `review-only`, `engineering`), `--components`, state v3 multi-kit registry (`v1`/`v2` backward-compatible), managed blocks, PID/token locks, transaction journals, and conditional rollback.
+  - Project profile, quality runner & workflows (`dtkit project inspect|init`, `dtkit check [--changed|--all] [--allow-autofix]`, `dtkit diff`, `dtkit fork`, `dtkit lock <generate|verify|diff|sign|keygen>`, `dtkit sync`, `dtkit team <export|import|template>`, `dtkit compat <snapshot|diff>`) using strict argv-only `.dtkit/project.json`, portable `dtkit.lock`, Ed25519 trust policies, and `.dtkit/local/check-trust.json`.
+  - Opt-in runtime hooks & plugins (`dtkit hooks list|status|enable|disable`) for `codex` (`SessionStart` `session-context`), `claude` (`PostToolUse` `check-changed`, `PreToolUse` `guard-edit`), `gemini` (`AfterTool` `check-changed`, `BeforeTool` `guard-edit`), `cursor` (`afterFileEdit` `check-changed`), and `opencode` (`.opencode/plugins/dtkit-quality.js` `tool.execute.after`).
   - Independent authoring & packaging (`dtkit create kit|skill`, `dtkit pack`, `--from <dir|archive>`, `--source <url>`, `--sha256`, `--offline`, digest cache) and `engineer@0.4.0` repository-neutral engineering kit.
   - Five runtime adapters (`codex`, `gemini`, `opencode`, `cursor`, `claude`) — 5-runtime coexistence, migration, preset switching, and state separation tested in automation.
 - **Verification & Benchmark Truthfulness Boundary:**
@@ -21,7 +21,7 @@ See [docs/compatibility.md](docs/compatibility.md) for the per-runtime 4-layer e
 
 ## Terminal Installation (Pinned Release Binary)
 
-For a published release/pre-release tag (such as `v0.5.0-rc.1`)—or when building local archives via `.\scripts\package.ps1 -Version 0.5.0-rc.1`—follow the checksum-verified, user-local installation steps in [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) using [scripts/install.sh](scripts/install.sh) or [scripts/install.ps1](scripts/install.ps1) (never skip `SHA256SUMS` verification).
+For a published release/pre-release tag (such as `v0.6.0`)—or when building local archives via `.\scripts\package.ps1 -Version 0.6.0`—follow the checksum-verified, user-local installation steps in [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) using [scripts/install.sh](scripts/install.sh) or [scripts/install.ps1](scripts/install.ps1) (never skip `SHA256SUMS` verification).
 
 ## Build and Verification (Dev Source)
 

@@ -1,6 +1,6 @@
 # Release Readiness Checklist
 
-> **Current Repository Split:** `main` (`f81ce6e`) contains the v0.1 Codex baseline with **0 published tags / 0 GitHub Releases**. The complete multi-runtime codebase (`codex`, `gemini`, `opencode`, `cursor`), hooks, distribution commands, and release-hardening backlog (`N00`–`N12`) live on branch **`feat/release-hardening`** (branched from `feat/runtime-cursor-v0.4` `936043f`).
+> **Current Release Stream (`main`):** All Mốc A (`N00`–`N12`, `A01`–`A04`), Mốc B (`B01`–`B08`), and Mốc C (`C01`–`C06`) milestones are merged into `main`, tagged **`v0.6.0`** (creating a Draft non-prerelease GitHub Release via [release.yml](../.github/workflows/release.yml) for maintainer review/publication, while preserving truthful `partial`/`experimental` live-runtime labels in [compatibility.md](./compatibility.md)).
 
 ## Owner Decisions Already Confirmed
 
@@ -97,6 +97,16 @@ dtkit install engineer --project --dry-run
   1. Remove installed kit artifacts safely: `dtkit remove engineer --project --yes` (and `--global` / `--runtime <rt>` where installed).
   2. If Codex hooks were enabled, disable them **before** deleting or moving the `dtkit` binary: `dtkit hooks disable session-context --project --yes` (or `--global`).
   3. Only then delete `~/.local/bin/dtkit` or `%LOCALAPPDATA%\Programs\dtkit\bin\dtkit.exe`.
+
+## Changelog (`0.6.0` Release vs. `v0.5.0-rc.1` / `0.4.0-rc.1`)
+
+- **Multi-Kit State Registry v3 & Shell Completion (`C01`, `C04a`):** Added backward-compatible `schemaVersion: 3` multi-kit state registry, kit-namespaced skill directories (`<prefix><kitID>-<slug>`), cross-kit ownership collision enforcement, transactional rollback, and `dtkit completion <bash|zsh|powershell>`.
+- **Preview Diff, Explain & Controlled Kit Fork (`C02`):** Added `dtkit diff`, `dtkit fork`, `--diff`, and `--redact` with bounded/redacted unified diffs isolated to DTKit-managed blocks.
+- **Portable `dtkit.lock`, Reproducible Sync & Ed25519 Trust (`C03`):** Added `schemas/lock.schema.json`, `dtkit lock <generate|verify|diff|sign|keygen>`, `dtkit sync [--offline] [--require-signature]`, and stdlib Ed25519 key rotation/revocation/expiration verification before install mutations.
+- **Portable Team Onboarding & Multi-Runtime Inspect (`C04`):** Added `dtkit team <export|import|template>`, secret-free team bundles (`schemas/team.schema.json`), and unified `dtkit status --all-runtimes` across all 5 runtimes.
+- **Multi-Runtime Quality Hooks & Plugins (`C05`):** Added opt-in quality hooks/plugins for Gemini CLI (`.gemini/settings.json` `AfterTool`/`BeforeTool`), Cursor (`.cursor/hooks.json` `afterFileEdit`), and OpenCode (`.opencode/plugins/dtkit-quality.js` `tool.execute.after`) alongside Codex and Claude Code.
+- **Periodic Compatibility Checks & Perf Budgets (`C06`):** Added `dtkit compat <snapshot|diff>`, committed baseline [last-known-good-compat.json](./verification/last-known-good-compat.json), weekly [compat-periodic.yml](../.github/workflows/compat-periodic.yml), [compatibility-policy.md](./compatibility-policy.md), and cohort-isolated `RegressionBudget` evaluation (`internal/eval/perf.go`).
+- **Release Gate Honesty:** Maintainer approved cutting **`v0.6.0`** (Draft GitHub Release, non-prerelease) while preserving `partial` / `experimental` (`unverified` live) support boundaries in [compatibility.md](./compatibility.md) until live API credentials (`claude`, `opencode`, `codex` sandbox) and `gemini`/`cursor` CLIs are supplied.
 
 ## Changelog (`0.4.0-rc.1` Candidate vs. `v0.1` `f81ce6e` Baseline)
 

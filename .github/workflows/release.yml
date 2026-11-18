@@ -1,12 +1,12 @@
-name: Release candidate
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (without v prefix, e.g. 0.4.0-rc.1)'
+        description: 'Release version (without v prefix, e.g. 0.6.0 or 0.6.0-rc.1)'
         required: true
-        default: '0.4.0-rc.1'
+        default: '0.6.0'
       publish_draft:
         description: 'Create a draft GitHub Release (requires tag ref or maintainer approval)'
         required: true
@@ -172,22 +172,32 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
+          PRERELEASE_FLAG=()
+          RELEASE_LABEL="Draft Release"
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE_FLAG=(--prerelease)
+            RELEASE_LABEL="Draft Release Candidate"
+          fi
           NOTES_FILE=$(mktemp)
           {
-            printf '## DTKit %s (Draft Release Candidate)\n\n' "$VERSION"
+            printf '## DTKit %s (%s)\n\n' "$VERSION" "$RELEASE_LABEL"
             printf 'Built from commit `%s` after passing formatting, `go test -race`, `go vet`, SHA256 verification, and native Windows/Linux/macOS extracted-binary lifecycle smoke tests.\n\n' "$COMMIT"
+            printf '### Highlights\n'
+            printf -- '- **Multi-Kit State v3 & Shell Completion (`C01`, `C04a`):** Side-by-side multi-kit installs/updates/removals with backward-compatible v1/v2 single-kit states and `dtkit completion <bash|zsh|powershell>`.\n'
+            printf -- '- **Diff, Fork, Lockfile & Team Onboarding (`C02`–`C04`):** `dtkit diff`, `dtkit fork`, portable `dtkit.lock` + `dtkit sync` with Ed25519 provenance verification, `dtkit team export|import|template`, and `dtkit status --all-runtimes`.\n'
+            printf -- '- **Opt-In Runtime Quality Hooks & Compatibility Checks (`C05`–`C06`):** Quality hooks/plugins across Codex, Claude Code, Gemini CLI, Cursor, and OpenCode, `dtkit compat snapshot|diff`, baseline matrix `docs/verification/last-known-good-compat.json`, and cohort performance regression budgets.\n\n'
             printf '### Runtime Support Boundary\n'
             printf -- '- **Codex CLI (`codex`):** Partial (project discovery & isolated `CODEX_HOME` `AGENTS.md` verified; sandbox/hook trust caveats documented in `docs/compatibility.md`).\n'
-            printf -- '- **OpenCode (`opencode`):** Partial (project/global/coexistence discovery verified; live LLM turn unverified without credentials).\n'
+            printf -- '- **OpenCode (`opencode`):** Partial (project/global/coexistence discovery verified; live LLM turn & live `dtkit-quality.js` plugin execution unverified without credentials).\n'
             printf -- '- **Claude Code (`claude`):** Partial (adapter, `.claude/settings.json` hooks, preset lifecycle verified in automation; live session/A-B eval blocked on valid credentials & budget).\n'
-            printf -- '- **Gemini CLI (`gemini`) & Cursor (`cursor`):** Experimental / `unverified` (absent on verification host).\n\n'
+            printf -- '- **Gemini CLI (`gemini`) & Cursor (`cursor`):** Experimental / `unverified` live (absent on verification host; adapters and opt-in hooks covered by automated offline tests).\n\n'
             printf '### Checksums\n```\n'
             cat dist/SHA256SUMS
             printf '```\n'
           } > "$NOTES_FILE"
           gh release create "$TAG" dist/dtkit_*.zip dist/dtkit_*.tar.gz dist/SHA256SUMS \
             --draft \
-            --prerelease \
+            "${PRERELEASE_FLAG[@]}" \
             --title "DTKit ${VERSION}" \
             --target "${GITHUB_SHA}" \
             --notes-file "$NOTES_FILE"
