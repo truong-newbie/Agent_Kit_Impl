@@ -21,7 +21,7 @@ Checksum-verified installers download pinned archives (`windows_amd64.zip`, `lin
 **Linux / macOS (`~/.local/bin`):**
 
 ```bash
-bash scripts/install.sh --version 0.6.0 --bin-dir "$HOME/.local/bin"
+bash scripts/install.sh --version 0.7.0 --bin-dir "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 dtkit version --json
 ```
@@ -29,7 +29,7 @@ dtkit version --json
 **Windows PowerShell (`%LOCALAPPDATA%\Programs\dtkit\bin`):**
 
 ```powershell
-.\scripts\install.ps1 -Version "0.6.0"
+.\scripts\install.ps1 -Version "0.7.0"
 dtkit version --json
 ```
 
@@ -40,7 +40,7 @@ dtkit version --json
 Requires Go `1.27.4+` (or Docker Desktop via `.\scripts\verify-docker.ps1`):
 
 ```bash
-go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.6.0
+go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.7.0
 ```
 
 ---

@@ -1,6 +1,6 @@
 # Release Readiness Checklist
 
-> **Current Release Stream (`main`):** All Mốc A (`N00`–`N12`, `A01`–`A04`), Mốc B (`B01`–`B08`), and Mốc C (`C01`–`C06`) milestones are merged into `main`, tagged **`v0.6.0`** (creating a Draft non-prerelease GitHub Release via [release.yml](../.github/workflows/release.yml) for maintainer review/publication, while preserving truthful `partial`/`experimental` live-runtime labels in [compatibility.md](./compatibility.md)).
+> **Current Release Stream (`main`):** All Mốc A (`N00`–`N12`, `A01`–`A04`), Mốc B (`B01`–`B08`), Mốc C (`C01`–`C06`), and v0.7 Core + Extensions (`D01`–`D04`, `E01`–`E03`) milestones are merged into `main`, tagged **`v0.7.0`** (creating a Draft non-prerelease GitHub Release via [release.yml](../.github/workflows/release.yml) for maintainer review/publication, while preserving truthful `partial`/`experimental` live-runtime labels in [compatibility.md](./compatibility.md)).
 
 ## Owner Decisions Already Confirmed
 
@@ -97,6 +97,14 @@ dtkit install engineer --project --dry-run
   1. Remove installed kit artifacts safely: `dtkit remove engineer --project --yes` (and `--global` / `--runtime <rt>` where installed).
   2. If Codex hooks were enabled, disable them **before** deleting or moving the `dtkit` binary: `dtkit hooks disable session-context --project --yes` (or `--global`).
   3. Only then delete `~/.local/bin/dtkit` or `%LOCALAPPDATA%\Programs\dtkit\bin\dtkit.exe`.
+
+## Changelog (`0.7.0` Release vs. `0.6.0`)
+
+- **Polyglot Reconnaissance & Living Summary (`D01`):** Extended `dtkit project inspect|init` (`schemas/project.schema.json`) to detect Java/Kotlin (`pom.xml`, `build.gradle*`), C/C++ (`CMakeLists.txt`), Rust (`Cargo.toml`), and .NET (`*.sln`, `*.csproj`) alongside Go/Node/TS/Python, and added `dtkit scout [--query] [--zone] [--pack] [--write-summary]` for secret-redacted polyglot reconnaissance and `docs/codebase-summary.md` generation.
+- **Phase Edit Firewall, Test-Tampering Guard & Verification Receipts (`D02`):** Added `dtkit guard <status|lock|unlock|verify>` storing phase policies (`unlocked`, `read-only`, `tdd-red`, `tdd-green`, `scoped` with `**` globs and `--protect-tests`) in `.dtkit/local/guard.json` enforced by `guard-edit` hooks, polyglot test-tampering detection (`added_skip`, `removed_test_case`, `reduced_assertions`), cryptographic `.dtkit/local/verify-receipt.json` SHA-256 check proofs, and 3+ consecutive failure retry-loop warnings.
+- **Unified `engineer@0.5.0` Skill Mesh (`D03`):** Upgraded `engineer` to `0.5.0` (19 components / 10 skills: `brainstorm`, `scout`, `plan`, `implement`, `debug`, `test`, `review`, `docs`, `explain`, `ask`, plus `rule/documentation-management` and `workflow/bootstrap-docs`) while keeping `minimal` and `review-only` presets backward compatible.
+- **Built-In STDIO MCP Server & Auto-Config (`D04`, `E03`):** Added `dtkit mcp serve` (JSON-RPC 2.0 `2024-11-05` exposing `dtkit_scout`, `dtkit_project_inspect`, `dtkit_guard_status`, `dtkit_guard_verify`) and `dtkit mcp <status|enable|disable>` across `.mcp.json` (`claude`), `.cursor/mcp.json` (`cursor`), `.gemini/settings.json` (`gemini`), `opencode.json` (`opencode`), and `.codex/mcp.json` (`codex`).
+- **Universal Community Importer, Companion Cache & `dtkit init` (`E01`–`E03`):** Added `dtkit integrate import` (converting Superpowers, Claude commands/skills, Cursor `.mdc` rules, etc. into 5-runtime DTKit packages), `dtkit integrate <list|tool|run>` (`repomix`, `graphify`, `ast-grep`, `semgrep` with SHA-256 workspace-digest caching and `dtkit scout` fallback), and one-command `dtkit init`.
 
 ## Changelog (`0.6.0` Release vs. `v0.5.0-rc.1` / `0.4.0-rc.1`)
 
