@@ -427,3 +427,90 @@ func SelectionsEqual(a, b *SelectionSpec) bool {
 	}
 	return true
 }
+
+// ApplyProjectOverrides overlays any matching files under <projectRoot>/.dtkit/overrides/<pkg.ID>/
+// onto baseFS so projects can customize individual rules, templates, workflows, or skills without forking.
+func ApplyProjectOverrides(projectRoot string, pkg Package, baseFS fs.FS) (fs.FS, []string, error) {
+	if strings.TrimSpace(projectRoot) == "" {
+		return baseFS, nil, nil
+	}
+	overrideRoot := filepath.Join(projectRoot, ".dtkit", "overrides", pkg.ID)
+	info, statErr := os.Lstat(overrideRoot)
+	if os.IsNotExist(statErr) {
+		return baseFS, nil, nil
+	}
+	if statErr != nil {
+		return nil, nil, statErr
+	}
+	if paths.IsReparseOrSymlink(info) {
+		return nil, nil, apperr.WithPath(apperr.Conflict("symlink_not_allowed", "project override directory cannot be a symlink"), ".dtkit/overrides/"+pkg.ID)
+	}
+	if !info.IsDir() {
+		return nil, nil, apperr.WithPath(apperr.Usage("invalid_override_dir", "project override path must be a directory"), ".dtkit/overrides/"+pkg.ID)
+	}
+
+	candidates := make([]string, 0, len(pkg.Components))
+	for _, c := range pkg.Components {
+		switch c.Kind {
+		case "rule", "template", "workflow":
+			candidates = append(candidates, c.Source)
+		case "skill":
+			candidates = append(candidates, c.Source+"/SKILL.md.tmpl")
+		}
+	}
+
+	replacements := map[string][]byte{}
+	var applied []string
+	for _, rel := range candidates {
+		target, rErr := paths.ResolveTarget(overrideRoot, rel)
+		if rErr != nil {
+			return nil, nil, rErr
+		}
+		fInfo, lErr := os.Lstat(target)
+		if os.IsNotExist(lErr) {
+			continue
+		}
+		if lErr != nil {
+			return nil, nil, lErr
+		}
+		if paths.IsReparseOrSymlink(fInfo) {
+			return nil, nil, apperr.WithPath(apperr.Conflict("symlink_not_allowed", fmt.Sprintf("override file %s cannot be a symlink", rel)), rel)
+		}
+		if !fInfo.Mode().IsRegular() {
+			continue
+		}
+		if fInfo.Size() > MaxFileBytes {
+			return nil, nil, apperr.WithPath(apperr.Usage("file_too_large", fmt.Sprintf("override file %s exceeds max file size", rel)), rel)
+		}
+		data, readErr := os.ReadFile(target)
+		if readErr != nil {
+			return nil, nil, readErr
+		}
+		replacements[rel] = data
+		applied = append(applied, rel)
+	}
+	if len(replacements) == 0 {
+		return baseFS, nil, nil
+	}
+
+	memFS := fstest.MapFS{}
+	err := fs.WalkDir(baseFS, ".", func(rel string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil || rel == "." || d.IsDir() {
+			return walkErr
+		}
+		data, rErr := fs.ReadFile(baseFS, rel)
+		if rErr != nil {
+			return rErr
+		}
+		if rep, ok := replacements[rel]; ok {
+			data = rep
+		}
+		memFS[rel] = &fstest.MapFile{Data: data}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	sort.Strings(applied)
+	return memFS, applied, nil
+}

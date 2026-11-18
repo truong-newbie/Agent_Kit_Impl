@@ -70,8 +70,15 @@ func TestMCPServeInitializeListAndToolsCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	tools := listResp["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 5 {
-		t.Fatalf("expected 5 tools, got %d", len(tools))
+	if len(tools) != 6 {
+		t.Fatalf("expected 6 tools, got %d", len(tools))
+	}
+	for _, rawTool := range tools {
+		tm := rawTool.(map[string]any)
+		ann, ok := tm["annotations"].(map[string]any)
+		if !ok || ann["readOnlyHint"] != true || ann["destructiveHint"] != false || ann["idempotentHint"] != true {
+			t.Fatalf("expected readOnly/idempotent annotations on tool %v, got %v", tm["name"], tm["annotations"])
+		}
 	}
 
 	if !strings.Contains(lines[2], "backend/Auth.java") {

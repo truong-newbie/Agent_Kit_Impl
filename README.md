@@ -24,7 +24,7 @@ You don't have to memorize all 30 subcommands to get value from DTKit. Almost ev
 
 | Command | When to Run | What It Does |
 |---|---|---|
-| `dtkit init --all-runtimes --with-mcp --lock --yes` | Once when setting up a repo | Scans your codebase, installs `engineer@0.5.0` skills/rules, wires MCP, and creates `dtkit.lock` without touching your custom notes. |
+| `dtkit init --all-runtimes --with-mcp --lock --yes` | Once when setting up a repo | Scans your codebase, installs `engineer@0.6.0` skills/rules, wires MCP, and creates `dtkit.lock` without touching your custom notes. |
 | `dtkit scout` / `dtkit scout --impact <file>` | Before starting a task | Maps repo zones & secrets-free code packs (`--pack`), or shows which files & tests depend on `<file>`. |
 | `dtkit guard lock --mode ...` / `verify` | While coding / reviewing | Locks AI edits (`read-only`, `tdd-red`, `tdd-green`, `scoped`) and detects skipped/weakened tests. |
 | `dtkit update --yes` *(or `dtkit refresh --yes`)* | Whenever your project grows | Updates `docs/codebase-summary.md`, merges new stacks into `.dtkit/project.json` (keeping your `checks`), syncs kits, and refreshes `dtkit.lock`. |
@@ -45,7 +45,7 @@ Static `CLAUDE.md`, `.cursorrules`, or `AGENTS.md` files help—but real teams q
 flowchart LR
     Repo["Your Repo\n(TS, Java, Python, Go, C++, Rust, .NET)"] --> Init["dtkit init / update"]
     Init --> Scout["docs/codebase-summary.md\n(dtkit scout)"]
-    Init --> Kit["engineer@0.5.0\n(10-Skill Mesh)"]
+    Init --> Kit["engineer@0.6.0\n(11-Skill Mesh)"]
     Init --> Guard["dtkit guard\n(Firewall & SHA-256 Receipt)"]
     Init --> MCP["dtkit mcp serve\n(Built-In STDIO Tools)"]
     Ext["Community Repos & CLIs\n(Superpowers, .mdc, Repomix, Graphify)"] --> Integrate["dtkit integrate"]
@@ -149,30 +149,31 @@ dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 
 ## Core Features That Go Beyond Plain Markdown
 
-### 1. Guided Engineering Lifecycle (`engineer@0.5.0`)
-Instead of shipping disconnected kits per language, DTKit uses **one unified `engineer` kit** that scouts your repository's real structure and adapts to every service zone:
+### 1. Guided Engineering Lifecycle (`engineer@0.6.0`)
+Instead of shipping disconnected kits per language, DTKit uses **one unified `engineer` kit** that scouts your repository's real structure, honors your project constitution (`.dtkit/constitution.md` / `docs/code-standards.md`), and adapts to every service zone:
 
 ```mermaid
 flowchart LR
     A["1. Brainstorm"] --> B["2. Scout"]
-    B --> C["3. Plan"]
+    B --> C["3. Plan (Approval Gate)"]
     C --> D["4. Implement (Cook)"]
-    D --> E["5. Test & Debug"]
+    D --> E["5. Test, Converge & Debug"]
     E --> F["6. Review & Sync Docs"]
 ```
 
-> **Where do I invoke skills (`brainstorm`, `plan`, `implement`, `review`, ...)?**
-> Do **not** type `dtkit brainstorm` or `dtkit plan` in your shell—those are **in-chat agent skills** installed by `dtkit init`, not CLI subcommands:
-> - **Terminal (`dtkit ...`):** infrastructure & protection (`init`, `update`, `scout`, `guard`, `status`, `integrate`).
+> **Where do I invoke skills (`brainstorm`, `plan`, `implement`, `converge`, `review`, ...)?**
+> Do **not** type `dtkit brainstorm` or `dtkit plan` in your shell—those are **in-chat agent skills** installed by `dtkit init`, not CLI subcommands (`dtkit converge`, `dtkit scout`, `dtkit guard`, etc. are CLI subcommands):
+> - **Terminal (`dtkit ...`):** infrastructure & protection (`init`, `update`, `scout`, `converge`, `guard`, `status`, `integrate`).
 > - **Inside your AI Agent chat:** invoke skills directly using your runtime's syntax:
->   - **Codex CLI:** `$dtkit-project-brainstorm`, `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-review`
->   - **Claude Code:** `/dtkit-claude-project-brainstorm`, `/dtkit-claude-project-plan`, `/dtkit-claude-project-implement`
+>   - **Codex CLI / Antigravity (`--runtime agy`):** `$dtkit-project-brainstorm`, `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-converge`, `$dtkit-project-review`
+>   - **Claude Code:** `/dtkit-claude-project-brainstorm`, `/dtkit-claude-project-plan`, `/dtkit-claude-project-implement`, `/dtkit-claude-project-converge`
 >   - **Gemini CLI / Cursor / OpenCode:** reference `dtkit-<runtime>-project-<skill>` (e.g. `dtkit-gemini-project-plan`) or simply ask *"use the DTKit brainstorm and plan skills before editing code"*.
 
-Need a lighter footprint? Install a focused preset anytime:
+Need a lighter footprint or want to customize one template without forking?
 - `--preset minimal`: `ask`, `explain`, `plan` only
 - `--preset review-only`: `review` + security audit checklist only
-- `--preset engineering`: full 19-component skill mesh (default)
+- `--preset engineering`: full 21-component skill mesh (11 skills including `converge`, default)
+- **Project-local overrides (`.dtkit/overrides/engineer/`):** place a customized file at `.dtkit/overrides/engineer/skills/plan/SKILL.md.tmpl` (or `rules/`, `workflows/`, `templates/`) to override just that component across `install`, `update`, `diff`, and `lock`.
 
 ### 2. Phase Firewall & Anti-Fake-Pass Guard (`dtkit guard`)
 Lock what AI agents are allowed to modify at each phase—stored in `.dtkit/local/guard.json`, which `guard-edit` hooks protect from AI edits:
@@ -186,15 +187,16 @@ dtkit guard verify                                     # Fails (exit 3) if works
 
 `dtkit guard verify` and `check-changed` hooks detect **test tampering** across Go, Python, JS/TS, Java/Kotlin, C/C++, Rust, and C# (`t.Skip`, `pytest.skip`, `.skip(`, `@Disabled`, `GTEST_SKIP`, `#[ignore]`, removed assertions), verify SHA-256 `verify-receipt.json` check receipts, and raise `[RETRY LOOP DETECTED]` after 3+ consecutive failures.
 
-### 3. Polyglot Reconnaissance, Impact Graph & Built-In MCP (`dtkit scout`, `dtkit mcp`)
-Scan any multi-language codebase without leaking `.env` files, private keys, or secrets, or compute reverse-dependency impact across Go, TS/JS, Python, Java, and C/C++:
+### 3. Polyglot Reconnaissance, Convergence & Built-In MCP (`dtkit scout`, `dtkit converge`, `dtkit mcp`)
+Scan any multi-language codebase without leaking `.env` files, private keys, or secrets, compute reverse-dependency impact across Go, TS/JS, Python, Java, and C/C++, or verify Plan ↔ Code drift:
 
 ```bash
 dtkit scout --zone backend --query checkout --pack --max-bytes 24576
 dtkit scout --impact backend/src/main/java/com/acme/Token.java
+dtkit converge --dry-run
 ```
 
-Agents can also call `dtkit_scout`, `dtkit_context_impact`, `dtkit_project_inspect`, `dtkit_guard_status`, and `dtkit_guard_verify` natively over JSON-RPC 2.0 via `dtkit mcp serve`.
+Agents can also call `dtkit_scout`, `dtkit_context_impact`, `dtkit_project_inspect`, `dtkit_guard_status`, `dtkit_guard_verify`, and `dtkit_converge` natively over JSON-RPC 2.0 via `dtkit mcp serve` (each carrying standard MCP `readOnlyHint`/`idempotentHint` safety annotations).
 
 ### 4. One-Command Refresh When Your Project Grows (`dtkit update` / `dtkit refresh`)
 Added a new `frontend/` or `ai/` service, updated an imported community kit, or changed files across the repo? Run one command:
@@ -227,8 +229,9 @@ See [docs/compatibility.md](docs/compatibility.md) for the full 4-layer verifica
 | **Codex CLI** (`codex`) | `AGENTS.md`, `.agents/skills/` | `.codex/hooks.json` (`SessionStart`) | `.codex/config.toml` | **Partial** (discovery verified on `0.169.0`; live hook firing unverified) |
 | **OpenCode** (`opencode`) | `AGENTS.md` (namespaced), `.opencode/skills/` | `.opencode/plugins/dtkit-quality.js` | `opencode.json` | **Partial** (14-skill discovery verified on `1.19.5`; live session unverified without creds) |
 | **Claude Code** (`claude`) | `CLAUDE.md`, `.claude/skills/` | `.claude/settings.json` (`PostToolUse`, `PreToolUse`) | `.mcp.json` | **Partial** (automated hook & lifecycle verified; live A/B session blocked on creds) |
-| **Gemini CLI** (`gemini`) | `GEMINI.md`, `.gemini/skills/` | `.gemini/settings.json` (`AfterTool`, `BeforeTool`) | `.gemini/settings.json` | **Partial / Experimental** (live `0.68.0` 10-skill & MCP STDIO connection verified; live A/B hit Free-Tier 429) |
+| **Gemini CLI** (`gemini`) | `GEMINI.md`, `.gemini/skills/` | `.gemini/settings.json` (`AfterTool`, `BeforeTool`) | `.gemini/settings.json` | **Partial / Experimental** (live `0.68.0` skill & MCP STDIO connection verified; live A/B hit Free-Tier 429) |
 | **Cursor** (`cursor`) | `.cursor/rules/dtkit-*.mdc`, `.cursor/skills/` | `.cursor/hooks.json` (`afterFileEdit`) | `.cursor/mcp.json` | **Experimental** (`cursor` CLI absent on verification host; global rules UI-only) |
+| **Antigravity alias** (`agy`) | Maps to `codex` (`AGENTS.md`, `.agents/skills/`) | Same as `codex` | Same as `codex` | **Alias** (`--runtime agy` normalizes cleanly to `codex`) |
 
 ---
 
@@ -236,7 +239,7 @@ See [docs/compatibility.md](docs/compatibility.md) for the full 4-layer verifica
 
 | Area | Commands | Purpose |
 |---|---|---|
-| **Daily Core** | `init`, `update`, `refresh`, `scout`, `guard <status\|lock\|unlock\|verify>` | Setup, 1-command project refresh, polyglot context/impact, phase firewall & check proof |
+| **Daily Core** | `init`, `update`, `refresh`, `scout`, `converge`, `guard <status\|lock\|unlock\|verify>` | Setup, 1-command project refresh, polyglot context/impact, Plan↔Code convergence, phase firewall & check proof |
 | **Kit Lifecycle** | `status`, `install`, `remove`, `diff`, `doctor`, `recover` | Multi-kit installs, bounded diffs, redacted diagnostics & crash recovery |
 | **Project & MCP/Hooks** | `project <inspect\|init>`, `check`, `mcp <serve\|status\|enable\|disable>`, `hooks`, `hook` | Stack detection, trusted check runner, built-in STDIO MCP server & runtime hooks |
 | **Ecosystem & Authoring** | `integrate <list\|import\|tool\|run>`, `fork`, `create kit\|skill`, `validate`, `pack`, `list`, `info` | Community importer, companion digest cache, custom kit authoring & tarballs |

@@ -14,8 +14,8 @@ _dtkit_complete() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    local cmds="version help list info validate create fork pack doctor diff install status update refresh remove recover project check scout guard mcp integrate init lock sync team compat hooks hook completion"
-    local runtimes="codex gemini opencode cursor claude"
+    local cmds="version help list info validate create fork pack doctor diff install status update refresh remove recover project check scout converge guard mcp integrate init lock sync team compat hooks hook completion"
+    local runtimes="codex gemini opencode cursor claude agy"
     local presets="minimal review-only engineering"
 
     if [ "$COMP_CWORD" -eq 1 ]; then
@@ -74,7 +74,7 @@ _dtkit_complete() {
             ;;
     esac
 
-    local flags="--project --global --runtime --all-runtimes --preset --components --path --from --source --sha256 --offline --dry-run --diff --yes --json --redact --changed --all --allow-autofix --as --dir --version --same-id --lock --trust --require-signature --source-ref --key-file --key-id --baseline --query --zone --impact --pack --max-bytes --write-summary --mode --allow --deny --protect-tests --install --update --no-cache --with-mcp --with-hooks"
+    local flags="--project --global --runtime --all-runtimes --preset --components --path --from --source --sha256 --offline --dry-run --diff --yes --json --redact --changed --all --allow-autofix --as --dir --version --same-id --lock --trust --require-signature --source-ref --key-file --key-id --baseline --query --zone --impact --pack --max-bytes --write-summary --plan --append-tasks --mode --allow --deny --protect-tests --install --update --no-cache --with-mcp --with-hooks"
     COMPREPLY=( $(compgen -W "$flags" -- "$cur") )
 }
 complete -F _dtkit_complete dtkit
@@ -103,6 +103,7 @@ _dtkit() {
         'project:Inspect or initialize .dtkit/project.json'
         'check:Run trusted project quality checks'
         'scout:Scan polyglot codebase layout and generate summary'
+        'converge:Assess plan/checklist/file/receipt convergence'
         'guard:Manage edit firewall, test protection, and check receipt verification'
         'mcp:Serve or configure built-in DTKit STDIO MCP server'
         'integrate:Import community repos or wire external companion tools'
@@ -142,10 +143,10 @@ const powerShellCompletionScript = `# PowerShell completion for dtkit
 Register-ArgumentCompleter -Native -CommandName dtkit -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $tokens = $commandAst.CommandElements | ForEach-Object { $_.Extent.Text }
-    $cmds = @('version','help','list','info','validate','create','fork','pack','doctor','diff','install','status','update','refresh','remove','recover','project','check','scout','guard','mcp','integrate','init','lock','sync','team','compat','hooks','hook','completion')
-    $runtimes = @('codex','gemini','opencode','cursor','claude')
+    $cmds = @('version','help','list','info','validate','create','fork','pack','doctor','diff','install','status','update','refresh','remove','recover','project','check','scout','converge','guard','mcp','integrate','init','lock','sync','team','compat','hooks','hook','completion')
+    $runtimes = @('codex','gemini','opencode','cursor','claude','agy')
     $presets = @('minimal','review-only','engineering')
-    $flags = @('--project','--global','--runtime','--all-runtimes','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--diff','--yes','--json','--redact','--changed','--all','--allow-autofix','--as','--dir','--version','--same-id','--lock','--trust','--require-signature','--source-ref','--key-file','--key-id','--baseline','--query','--zone','--impact','--pack','--max-bytes','--write-summary','--mode','--allow','--deny','--protect-tests','--install','--update','--no-cache','--with-mcp','--with-hooks')
+    $flags = @('--project','--global','--runtime','--all-runtimes','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--diff','--yes','--json','--redact','--changed','--all','--allow-autofix','--as','--dir','--version','--same-id','--lock','--trust','--require-signature','--source-ref','--key-file','--key-id','--baseline','--query','--zone','--impact','--pack','--max-bytes','--write-summary','--plan','--append-tasks','--mode','--allow','--deny','--protect-tests','--install','--update','--no-cache','--with-mcp','--with-hooks')
 
     if ($tokens.Count -le 2 -and ($wordToComplete -eq $tokens[-1] -or $tokens.Count -eq 1)) {
         return $cmds | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }

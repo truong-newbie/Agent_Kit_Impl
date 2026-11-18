@@ -207,6 +207,11 @@ func runDiff(ctx context.Context, args []string, deps Deps) error {
 	if err != nil {
 		return fail(err)
 	}
+	if applied, oErr := applyProjectOverridesToResolved(scope, roots, &resolved); oErr != nil {
+		return fail(oErr)
+	} else if len(applied) > 0 {
+		env.Warnings = append(env.Warnings, fmt.Sprintf("applied %d project override(s) from .dtkit/overrides/%s", len(applied), resolved.Package.ID))
+	}
 	sourceResolved = true
 	pkg := resolved.Package
 	source := resolved.Source

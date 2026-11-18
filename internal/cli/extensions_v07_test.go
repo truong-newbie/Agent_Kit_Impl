@@ -192,3 +192,76 @@ func TestCLIInitIntegrateImportCompanionAndMCPConfig(t *testing.T) {
 		t.Fatalf("expected idempotent dtkit refresh no-op, got err=%v (%s)", err, refRaw)
 	}
 }
+
+func TestSpecKitLearningsConvergeOverridesAndAgyAlias(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "home")
+	repo := filepath.Join(base, "repo")
+	if err := os.MkdirAll(repo, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module example.com/app\n\ngo 1.22\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "implementation-plan.md"), []byte("# Plan\n- [ ] Create `pkg/todo.go`\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "tasks.md"), []byte("# Tasks\n- [x] Init\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	env := paths.Environment{
+		Getwd:       func() (string, error) { return repo, nil },
+		UserHomeDir: func() (string, error) { return home, nil },
+	}
+	run := func(args ...string) (Envelope, string, error) {
+		var out, errBuf bytes.Buffer
+		deps := DefaultDeps(strings.NewReader(""), &out, &errBuf)
+		deps.Env = env
+		err := RunWithDeps(context.Background(), args, deps)
+		var parsed Envelope
+		_ = json.Unmarshal(out.Bytes(), &parsed)
+		return parsed, out.String() + errBuf.String(), err
+	}
+
+	// 1. S01: Install using agy runtime alias -> AGENTS.md + .agents/skills/dtkit-project-converge
+	instEnv, instRaw, err := run("install", "engineer", "--project", "--runtime", "agy", "--path", repo, "--yes", "--json")
+	if err != nil || instEnv.Runtime != "codex" || instEnv.Kit == nil || instEnv.Kit.Version != "0.6.0" {
+		t.Fatalf("install via agy alias failed: %v (%s)", err, instRaw)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, ".agents", "skills", "dtkit-project-converge", "SKILL.md")); statErr != nil {
+		t.Fatalf("expected engineer@0.6.0 converge skill rendered: %v", statErr)
+	}
+
+	// 2. S05: Add project-local template override without forking -> dtkit update applies override & status stays healthy
+	overridePath := filepath.Join(repo, ".dtkit", "overrides", "engineer", "templates", "implementation-plan.md")
+	if err := os.MkdirAll(filepath.Dir(overridePath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	customPlanTmpl := "# Custom Company Implementation Plan\nMust include rollback checklist.\n"
+	if err := os.WriteFile(overridePath, []byte(customPlanTmpl), 0644); err != nil {
+		t.Fatal(err)
+	}
+	updEnv, updRaw, err := run("update", "--path", repo, "--yes", "--json")
+	if err != nil || updEnv.UpdateSummary == nil || len(updEnv.UpdateSummary.Kits) != 1 || updEnv.UpdateSummary.Kits[0].Status != "updated" {
+		t.Fatalf("expected project update to apply local override, got %v (%s)", err, updRaw)
+	}
+	renderedTmpl, rErr := os.ReadFile(filepath.Join(repo, ".dtkit", "content", "engineer", "templates", "implementation-plan.md"))
+	if rErr != nil || !strings.Contains(string(renderedTmpl), "Custom Company Implementation Plan") {
+		t.Fatalf("expected overridden template content on disk, err=%v body=%s", rErr, string(renderedTmpl))
+	}
+	stEnv, stRaw, err := run("status", "--project", "--runtime", "codex", "--path", repo, "--json")
+	if err != nil || len(stEnv.Installations) != 1 || !stEnv.Installations[0].Healthy {
+		t.Fatalf("expected overridden project kit status healthy, got %v (%s)", err, stRaw)
+	}
+
+	// 3. S03: dtkit converge --append-tasks --yes appends unmet item
+	convEnv, convRaw, err := run("converge", "--path", repo, "--plan", "implementation-plan.md", "--append-tasks", "tasks.md", "--yes", "--json")
+	if err != nil || convEnv.Convergence == nil || convEnv.Convergence.Status != "incomplete" || len(convEnv.Convergence.MissingFiles) != 1 {
+		t.Fatalf("dtkit converge failed: %v (%s)", err, convRaw)
+	}
+	tasksBytes, _ := os.ReadFile(filepath.Join(repo, "tasks.md"))
+	if !strings.Contains(string(tasksBytes), "## Phase Convergence") || !strings.Contains(string(tasksBytes), "pkg/todo.go") {
+		t.Fatalf("expected appended convergence phase in tasks.md:\n%s", string(tasksBytes))
+	}
+}

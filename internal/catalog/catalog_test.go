@@ -12,7 +12,7 @@ func TestEmbeddedEngineer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.ID != "engineer" || len(p.Components) != 19 {
+	if p.ID != "engineer" || len(p.Components) != 21 {
 		t.Fatalf("unexpected package: %+v", p)
 	}
 	for _, c := range p.Components {

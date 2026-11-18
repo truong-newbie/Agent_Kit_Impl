@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -99,7 +100,7 @@ func planUpdateWithRegistry(runtimeName, scope string, roots map[string]string, 
 	}
 	adapterMigration := false
 	if cmp == 0 {
-		if pkgDigest != existing.Kit.Digest {
+		if pkgDigest != existing.Kit.Digest && !hasProjectOverridesDir(scope, roots, pkg.ID) {
 			return planner.InstallPlan{}, reg, existing, false, apperr.WithHint(
 				apperr.Conflict("immutable_version", fmt.Sprintf("package version %s has a different digest than installed state; bump package version to update", pkg.Version)),
 				"bump kit version in package.json; to replace an unreleased dev snapshot at the same version, run 'dtkit remove' then 'dtkit install'",
@@ -383,4 +384,17 @@ func parseSemver(v string) ([3]int, error) {
 		out[i] = n
 	}
 	return out, nil
+}
+
+func hasProjectOverridesDir(scope string, roots map[string]string, kitID string) bool {
+	if scope != "project" || kitID == "" {
+		return false
+	}
+	projRoot := roots["project"]
+	if projRoot == "" {
+		return false
+	}
+	overrideDir := filepath.Join(projRoot, ".dtkit", "overrides", kitID)
+	info, err := os.Lstat(overrideDir)
+	return err == nil && !paths.IsReparseOrSymlink(info) && info.IsDir()
 }

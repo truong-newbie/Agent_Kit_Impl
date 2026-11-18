@@ -38,10 +38,19 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
+// ToolAnnotations advertises MCP safety hints so clients know DTKit tools are non-destructive and read-only.
+type ToolAnnotations struct {
+	ReadOnlyHint    bool `json:"readOnlyHint"`
+	DestructiveHint bool `json:"destructiveHint"`
+	IdempotentHint  bool `json:"idempotentHint"`
+	OpenWorldHint   bool `json:"openWorldHint"`
+}
+
 type toolDefinition struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	InputSchema map[string]any `json:"inputSchema"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	InputSchema map[string]any   `json:"inputSchema"`
+	Annotations *ToolAnnotations `json:"annotations,omitempty"`
 }
 
 type toolCallParams struct {
@@ -142,10 +151,17 @@ func dispatch(ctx context.Context, env paths.Environment, defaultRoot string, re
 
 // ToolDefinitions returns the MCP tool metadata advertised by dtkit mcp serve.
 func ToolDefinitions() []toolDefinition {
+	ro := &ToolAnnotations{
+		ReadOnlyHint:    true,
+		DestructiveHint: false,
+		IdempotentHint:  true,
+		OpenWorldHint:   false,
+	}
 	return []toolDefinition{
 		{
 			Name:        "dtkit_scout",
 			Description: "Scan repository layout, workspace zones (FE/BE/AI/DB), languages, contracts, and matched files read-only.",
+			Annotations: ro,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -160,6 +176,7 @@ func ToolDefinitions() []toolDefinition {
 		{
 			Name:        "dtkit_project_inspect",
 			Description: "Inspect detected workspace stacks (Go, Node/TS, Python, Java, C++, Rust, .NET) and quality checks strictly read-only.",
+			Annotations: ro,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -170,6 +187,7 @@ func ToolDefinitions() []toolDefinition {
 		{
 			Name:        "dtkit_guard_status",
 			Description: "Read active DTKit edit firewall mode, allowed/denied globs, failure streak, and verification receipt status.",
+			Annotations: ro,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -180,6 +198,7 @@ func ToolDefinitions() []toolDefinition {
 		{
 			Name:        "dtkit_guard_verify",
 			Description: "Verify cryptographic test receipt matches the current workspace digest and check for test tampering.",
+			Annotations: ro,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -190,11 +209,24 @@ func ToolDefinitions() []toolDefinition {
 		{
 			Name:        "dtkit_context_impact",
 			Description: "Compute intra-repo reverse dependencies (direct/transitive dependents) and related tests across Go, TS/JS, Python, Java, and C/C++.",
+			Annotations: ro,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"path":  map[string]any{"type": "string", "description": "Optional repository path override."},
 					"paths": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Changed file path(s) relative to repository root."},
+				},
+			},
+		},
+		{
+			Name:        "dtkit_converge",
+			Description: "Assess plan/spec checklist completion, referenced files on disk, and test receipt readiness strictly read-only.",
+			Annotations: ro,
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{"type": "string", "description": "Optional repository path override."},
+					"plan": map[string]any{"type": "string", "description": "Optional workspace-relative plan/spec markdown path."},
 				},
 			},
 		},
@@ -277,6 +309,14 @@ func executeTool(ctx context.Context, env paths.Environment, defaultRoot string,
 			changed = append(changed, strings.TrimSpace(single))
 		}
 		rep, err := scout.AnalyzeImpact(ctx, env, targetPath, changed)
+		return encodeToolJSON(rep, err)
+
+	case "dtkit_converge":
+		planPath := ""
+		if p, ok := params.Arguments["plan"].(string); ok {
+			planPath = strings.TrimSpace(p)
+		}
+		rep, err := scout.AnalyzeConvergence(ctx, env, targetPath, planPath)
 		return encodeToolJSON(rep, err)
 
 	default:

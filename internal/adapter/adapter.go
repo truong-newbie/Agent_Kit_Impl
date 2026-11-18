@@ -343,12 +343,18 @@ var profiles = map[string]RuntimeProfile{
 	},
 }
 
-// NormalizeRuntime returns DefaultRuntime when runtime is empty.
+// NormalizeRuntime returns DefaultRuntime when runtime is empty and maps runtime aliases
+// such as Antigravity (agy/antigravity) to the matching shared AGENTS.md/.agents layout ("codex").
 func NormalizeRuntime(runtime string) string {
-	if runtime == "" {
+	trimmed := strings.ToLower(strings.TrimSpace(runtime))
+	switch trimmed {
+	case "":
 		return DefaultRuntime
+	case "agy", "antigravity":
+		return "codex"
+	default:
+		return trimmed
 	}
-	return runtime
 }
 
 // SupportedRuntimes returns implemented runtime identifiers in deterministic order.

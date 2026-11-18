@@ -23,7 +23,7 @@ func TestRenderScopeAndDeterminism(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(a) != 20 || len(a) != len(b) {
+		if len(a) != 22 || len(a) != len(b) {
 			t.Fatalf("unexpected artifacts: %d", len(a))
 		}
 		skillCount := 0
@@ -42,7 +42,7 @@ func TestRenderScopeAndDeterminism(t *testing.T) {
 				skillCount++
 			}
 		}
-		if skillCount != 10 || instructionCount != 1 {
+		if skillCount != 11 || instructionCount != 1 {
 			t.Fatalf("skills=%d blocks=%d", skillCount, instructionCount)
 		}
 	}

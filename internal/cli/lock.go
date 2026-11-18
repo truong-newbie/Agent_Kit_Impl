@@ -286,6 +286,9 @@ func resolveLockSourceForInstalled(projectRoot string, inst state.Installation, 
 	if inst.Kit.ID == "engineer" && (inst.Kit.SourceKind == "" || inst.Kit.SourceKind == "bundled") {
 		pkg, srcFS, err := catalog.Engineer()
 		if err == nil && pkg.Version == inst.Kit.Version {
+			if overFS, _, oErr := catalog.ApplyProjectOverrides(projectRoot, pkg, srcFS); oErr == nil {
+				srcFS = overFS
+			}
 			if dig, dErr := catalog.Digest(srcFS); dErr == nil && dig == inst.Kit.Digest {
 				return dist.LockSource{Kind: "bundled"}, "", pkg.RuntimeTargets, nil
 			}

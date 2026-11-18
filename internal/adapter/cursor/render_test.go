@@ -19,13 +19,13 @@ func TestRenderCursorScopesAndCapabilityFallback(t *testing.T) {
 
 	refPattern := regexp.MustCompile(`(?:\$HOME/)?(\.dtkit/runtimes/cursor/content/[a-zA-Z0-9._/-]+)`)
 
-	// Project scope emits 20 artifacts including .cursor/rules/dtkit-engineer.mdc (alwaysApply: true).
+	// Project scope emits 22 artifacts including .cursor/rules/dtkit-engineer.mdc (alwaysApply: true).
 	projArts, err := Render(p, source, "project")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(projArts) != 20 {
-		t.Fatalf("project: expected 20 artifacts, got %d", len(projArts))
+	if len(projArts) != 22 {
+		t.Fatalf("project: expected 22 artifacts, got %d", len(projArts))
 	}
 	sawRule, skillCount := false, 0
 	pathsMap := map[string]adapter.Artifact{}
@@ -44,7 +44,7 @@ func TestRenderCursorScopesAndCapabilityFallback(t *testing.T) {
 			skillCount++
 		}
 	}
-	if !sawRule || skillCount != 10 {
+	if !sawRule || skillCount != 11 {
 		t.Fatalf("project rule=%v skills=%d", sawRule, skillCount)
 	}
 	for _, a := range projArts {
@@ -58,13 +58,13 @@ func TestRenderCursorScopesAndCapabilityFallback(t *testing.T) {
 		}
 	}
 
-	// Global scope has no file-based User Rules instruction artifact (19 artifacts: 10 skills + 9 resources).
+	// Global scope has no file-based User Rules instruction artifact (21 artifacts: 11 skills + 10 resources).
 	globArts, err := Render(p, source, "global")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(globArts) != 19 {
-		t.Fatalf("global: expected 19 artifacts (skills+resources, no on-disk global instruction file), got %d", len(globArts))
+	if len(globArts) != 21 {
+		t.Fatalf("global: expected 21 artifacts (skills+resources, no on-disk global instruction file), got %d", len(globArts))
 	}
 	globSkills := 0
 	for _, a := range globArts {
@@ -78,7 +78,7 @@ func TestRenderCursorScopesAndCapabilityFallback(t *testing.T) {
 			globSkills++
 		}
 	}
-	if globSkills != 10 {
-		t.Fatalf("global: expected 10 skills, got %d", globSkills)
+	if globSkills != 11 {
+		t.Fatalf("global: expected 11 skills, got %d", globSkills)
 	}
 }

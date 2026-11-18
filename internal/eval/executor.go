@@ -98,6 +98,22 @@ func buildCLIArgs(req ExecRequest) ([]string, []string, error) {
 			args = append(args, "--model", req.ModelID)
 		}
 		return args, []string{"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENCODE_API_KEY"}, nil
+	case "gemini":
+		args := []string{"--skip-trust", "-p", req.Scenario.Prompt, "--output-format", "json"}
+		if req.ModelID != "" {
+			args = append(args, "-m", req.ModelID)
+		}
+		return args, []string{"GEMINI_API_KEY"}, nil
+	case "agy", "antigravity":
+		args := []string{"--output-format", "json"}
+		if req.ModelID != "" {
+			args = append(args, "--model", req.ModelID)
+		}
+		if strings.TrimSpace(req.WorkspaceDir) != "" {
+			args = append(args, "--add-dir", req.WorkspaceDir)
+		}
+		args = append(args, "--print", req.Scenario.Prompt)
+		return args, []string{"GEMINI_API_KEY"}, nil
 	default:
 		return nil, nil, fmt.Errorf("CLIExecutor does not support headless runtime %q", req.Runtime)
 	}
@@ -107,7 +123,7 @@ func isolatedEnv(homeDir string, extraEnv []string, allowHostAuth bool, authKeys
 	deny := map[string]bool{
 		"HOME": true, "USERPROFILE": true, "HOMEDRIVE": true, "HOMEPATH": true,
 		"XDG_CONFIG_HOME": true, "XDG_DATA_HOME": true, "XDG_STATE_HOME": true,
-		"CODEX_HOME": true, "CLAUDE_CONFIG_DIR": true,
+		"CODEX_HOME": true, "CLAUDE_CONFIG_DIR": true, "GEMINI_CLI_HOME": true,
 	}
 	if !allowHostAuth {
 		for _, k := range []string{"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENCODE_API_KEY", "GEMINI_API_KEY"} {
@@ -131,6 +147,7 @@ func isolatedEnv(homeDir string, extraEnv []string, allowHostAuth bool, authKeys
 	stateHome := filepath.Join(homeDir, ".local", "state")
 	codexHome := filepath.Join(homeDir, ".codex")
 	claudeHome := filepath.Join(homeDir, ".claude")
+	geminiHome := filepath.Join(homeDir, ".gemini")
 	env = append(env,
 		"HOME="+homeDir,
 		"USERPROFILE="+homeDir,
@@ -139,6 +156,7 @@ func isolatedEnv(homeDir string, extraEnv []string, allowHostAuth bool, authKeys
 		"XDG_STATE_HOME="+stateHome,
 		"CODEX_HOME="+codexHome,
 		"CLAUDE_CONFIG_DIR="+claudeHome,
+		"GEMINI_CLI_HOME="+geminiHome,
 	)
 	env = append(env, extraEnv...)
 	return env
@@ -167,6 +185,16 @@ func hasIsolatedAuth(runtime, homeDir string) bool {
 	case "codex":
 		_, err := os.Stat(filepath.Join(homeDir, ".codex", "auth.json"))
 		return err == nil
+	case "gemini":
+		for _, rel := range []string{"google_accounts.json", "oauth_creds.json", "settings.json"} {
+			if _, err := os.Stat(filepath.Join(homeDir, ".gemini", rel)); err == nil {
+				return true
+			}
+		}
+		return false
+	case "agy", "antigravity":
+		_, err := os.Stat(filepath.Join(homeDir, ".gemini", "antigravity"))
+		return err == nil
 	default:
 		return false
 	}
@@ -182,6 +210,8 @@ func looksAuthOrQuotaBlocked(out string) bool {
 		"missing api key",
 		"insufficient quota",
 		"exceeded budget",
+		"quota exceeded",
+		"terminalquotaerror",
 		"rate limit",
 	} {
 		if strings.Contains(lower, needle) {

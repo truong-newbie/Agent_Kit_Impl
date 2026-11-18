@@ -68,6 +68,30 @@ func resolveKitSource(ctx context.Context, deps Deps, kitSpec, fromPath, sourceU
 	}, nil
 }
 
+func applyProjectOverridesToResolved(scope string, roots map[string]string, resolved *dist.ResolvedPackage) ([]string, error) {
+	if scope != "project" || resolved == nil {
+		return nil, nil
+	}
+	projRoot := roots["project"]
+	if projRoot == "" {
+		return nil, nil
+	}
+	overFS, applied, err := catalog.ApplyProjectOverrides(projRoot, resolved.Package, resolved.Source)
+	if err != nil {
+		return nil, err
+	}
+	if len(applied) == 0 {
+		return nil, nil
+	}
+	dig, err := catalog.Digest(overFS)
+	if err != nil {
+		return nil, err
+	}
+	resolved.Source = overFS
+	resolved.PackageDigest = dig
+	return applied, nil
+}
+
 func persistResolvedCache(env paths.Environment, resolved dist.ResolvedPackage) error {
 	if !resolved.HasPendingCacheWrite() {
 		return nil

@@ -22,6 +22,7 @@ Evaluate code changes with priority on correctness, security boundaries, cross-s
 3. Audit systematically:
    - **Correctness & Concurrency:** edge cases, race conditions, timeouts, cancellation, resource/FD leaks.
    - **Security:** SQL/Command/Template injection, path traversal/symlink escape, SSRF, broken AuthN/AuthZ, unsafe deserialization, secret leaks.
+   - **Constitution & Convergence:** check `.dtkit/constitution.md` / `docs/code-standards.md` `MUST`/`NEVER` rules (`CRITICAL` if violated) and run `{{index .SkillNames "converge"}}` (`dtkit converge`) when a plan exists.
    - **Test Integrity:** verify tests were not skipped, weakened, or deleted to mask failures (`dtkit guard verify`).
 4. Verify each finding directly in code (`path:line`) and separate confirmed defects from open questions.
 5. Present prioritized findings using `{{index .ResourcePaths "template/review-report"}}`.

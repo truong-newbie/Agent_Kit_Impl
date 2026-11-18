@@ -23,7 +23,7 @@ Read the request, repository rules (`{{index .ResourcePaths "rule/engineering"}}
 1. Inspect workspace zones, entrypoints, callers, cross-zone contracts, and test conventions directly involved in the task.
 2. Separate observed facts from assumptions; surface unresolved edge cases and scope boundaries.
 3. Decompose implementation into small, independently verifiable phases (for multi-service tasks: Contract/Schema -> Backend/Worker -> Frontend -> Integration).
-4. Specify exact files, tests to write (Red/Green), verification commands, and recommended `dtkit guard` lock mode per phase following `{{index .ResourcePaths "template/implementation-plan"}}`.
+4. Cross-check against `.dtkit/constitution.md` or `docs/code-standards.md` (any conflict is **CRITICAL**). Specify exact files, tests to write (Red/Green), verification commands, and recommended `dtkit guard` lock mode per phase following `{{index .ResourcePaths "template/implementation-plan"}}` (require explicit user approval before switching from `read-only` to `tdd-red`/`implement`).
 
 ## Constraints
 - **Read-only planning:** Do not modify source, configuration, or test files when asked only to plan.

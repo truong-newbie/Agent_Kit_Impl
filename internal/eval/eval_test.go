@@ -112,8 +112,8 @@ func ApplyDiscount(totalCents int64, percent int) (int64, error) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rec.Outcome != OutcomePassed || !rec.EvaluatorPassed || rec.ScopeViolation || rec.TestTampering || rec.KitVersion != "0.5.0" {
-			t.Fatalf("expected passed with_kit run on current engineer kit 0.5.0, got %+v", rec)
+		if rec.Outcome != OutcomePassed || !rec.EvaluatorPassed || rec.ScopeViolation || rec.TestTampering || rec.KitVersion != "0.6.0" {
+			t.Fatalf("expected passed with_kit run on current engineer kit 0.6.0, got %+v", rec)
 		}
 	})
 
@@ -306,5 +306,17 @@ func TestCLIExecutorIsolatedFailureModes(t *testing.T) {
 	}
 	if !looksAuthOrQuotaBlocked("Error: Not logged in. Please run `claude auth login`.") {
 		t.Fatal("expected auth block heuristic match")
+	}
+	if !looksAuthOrQuotaBlocked("TerminalQuotaError: Quota exceeded for metric") {
+		t.Fatal("expected quota exceeded heuristic match")
+	}
+
+	gArgs, gEnv, err := buildCLIArgs(ExecRequest{Runtime: "gemini", ModelID: "gemini-2.5-flash", Scenario: Scenario{Prompt: "fix bug"}})
+	if err != nil || len(gEnv) != 1 || gEnv[0] != "GEMINI_API_KEY" || !strings.Contains(strings.Join(gArgs, " "), "--skip-trust") || !strings.Contains(strings.Join(gArgs, " "), "--output-format json") {
+		t.Fatalf("unexpected gemini CLI args: %v env=%v err=%v", gArgs, gEnv, err)
+	}
+	aArgs, aEnv, err := buildCLIArgs(ExecRequest{Runtime: "agy", WorkspaceDir: ws, Scenario: Scenario{Prompt: "check plan"}})
+	if err != nil || len(aEnv) != 1 || aEnv[0] != "GEMINI_API_KEY" || !strings.Contains(strings.Join(aArgs, " "), "--add-dir") || !strings.Contains(strings.Join(aArgs, " "), "--print") {
+		t.Fatalf("unexpected agy CLI args: %v env=%v err=%v", aArgs, aEnv, err)
 	}
 }

@@ -29,8 +29,8 @@ func TestRenderOpenCodeScopesAndDeterminism(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(a) != 20 || len(a) != len(b) {
-			t.Fatalf("%s: expected 20 artifacts, got %d", scope, len(a))
+		if len(a) != 22 || len(a) != len(b) {
+			t.Fatalf("%s: expected 22 artifacts, got %d", scope, len(a))
 		}
 		pathsMap := map[string]adapter.Artifact{}
 		skillCount := 0
@@ -67,7 +67,7 @@ func TestRenderOpenCodeScopesAndDeterminism(t *testing.T) {
 				}
 			}
 		}
-		if skillCount != 10 || instrCount != 1 {
+		if skillCount != 11 || instrCount != 1 {
 			t.Fatalf("%s: skills=%d instr=%d", scope, skillCount, instrCount)
 		}
 		for _, art := range a {
