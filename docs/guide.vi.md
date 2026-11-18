@@ -18,9 +18,10 @@ Khi lập trình cùng AI Agent (**Claude Code**, **Cursor**, **Codex CLI**, **G
 
 | Lệnh | Dùng khi nào | Tác dụng |
 |---|---|---|
-| `dtkit init` | Lần đầu cài vào dự án | Tạo bản đồ `docs/codebase-summary.md`, `.dtkit/project.json`, cài `engineer@0.6.0`, gắn MCP/hooks và `dtkit.lock`. |
+| `dtkit init` | Lần đầu cài vào dự án | Tạo bản đồ `docs/codebase-summary.md`, `.dtkit/project.json`, cài `engineer@0.7.0`, gắn MCP/hooks và `dtkit.lock`. |
 | `dtkit scout` | Trước khi giao task cho AI | Quét repo chỉ đọc (`dtkit scout`), gói snippet sạch secret (`--pack`), hoặc đo bán kính ảnh hưởng (`--impact <file>`). |
-| `dtkit converge` | Sau khi code / trước lúc review | Soi lệch giữa **Plan ↔ Code** chỉ đọc (`--dry-run`) hoặc nối thêm task còn thiếu (`--append-tasks <file> --yes`). |
+| `dtkit spec` | Khi làm tính năng mới / lớn | Tạo khung (`init <slug>`) hoặc kiểm tra (`check`) file `docs/specs/<slug>.md` (`P1/P2`, `Given/When/Then`, `FR-xxx`, `SC-xxx`, `[NEEDS CLARIFICATION]`). |
+| `dtkit converge` | Sau khi code / trước lúc review | Soi lệch giữa **Spec ↔ Plan ↔ Code** chỉ đọc (`--spec <file> --dry-run`) hoặc nối thêm task còn thiếu (`--append-tasks <file> --yes`). |
 | `dtkit guard` | Khi lập kế hoạch / code / test | Khóa phạm vi sửa file (`read-only`, `tdd-red`, `tdd-green`, `scoped`) và xác thực biên lai test thật (`verify`). |
 | `dtkit update` *(hoặc `dtkit refresh`)* | Mỗi khi dự án lớn lên | **1 lệnh cập nhật tất cả:** làm mới `codebase-summary.md`, gộp stack mới vào `.dtkit/project.json` (giữ nguyên `checks` cũ), đồng bộ mọi kit + `.dtkit/overrides/` và `dtkit.lock`. |
 
@@ -29,7 +30,7 @@ flowchart LR
     Repo["Dự án của bạn\n(Go, TS, Java, Python, C++, Rust, .NET)"] --> Init["dtkit init / update"]
     Init --> Scout["docs/codebase-summary.md\n(Bản đồ từ dtkit scout)"]
     Init --> Prof[".dtkit/project.json\n(Lệnh kiểm tra theo phân khu)"]
-    Init --> Kit["engineer@0.6.0\n(11 Skills + 4 Workflows)"]
+    Init --> Kit["engineer@0.7.0\n(11 Skills, 4 Workflows, Spec)"]
     Init --> Guard["dtkit guard\n(Khóa phạm vi + Chống sửa bẩn test)"]
     Init --> MCP["dtkit mcp serve\n(Tự gắn vào cấu hình Agent)"]
     Kit --> Agents["Claude Code • Cursor • Codex CLI\nGemini CLI • OpenCode"]
@@ -79,7 +80,7 @@ dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 |---|---|---|
 | `docs/codebase-summary.md` | Bản đồ tổng quan các phân khu (`frontend`, `backend`, `ai`...), ngôn ngữ, manifest và API contracts (`openapi.*`, `*.proto`, `*.graphql`). | **Nên commit** |
 | `.dtkit/project.json` | Danh sách stack và lệnh `test`/`lint`/`typecheck` phát hiện được (bạn tự duyệt qua `dtkit check --yes` ở lần chạy đầu). | **Nên commit** |
-| `.dtkit/content/` & `dtkit.lock` | Quy trình dùng chung của `engineer@0.6.0` và file khóa phiên bản giúp đồng đội `dtkit sync` giống hệt nhau. | **Nên commit** |
+| `.dtkit/content/` & `dtkit.lock` | Quy trình dùng chung của `engineer@0.7.0` và file khóa phiên bản giúp đồng đội `dtkit sync` giống hệt nhau. | **Nên commit** |
 | `.dtkit/constitution.md` & `.dtkit/overrides/` | Hiến pháp kỹ thuật dự án (tùy chọn) và file ghi đè template cục bộ mà không cần fork kit. | **Nên commit** |
 | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, `.agents/`, `.claude/`, `.gemini/`, `.opencode/` | Block hướng dẫn và bộ skills riêng cho từng agent; phần ghi chú cá nhân ngoài block `<!-- dtkit:begin ... -->` được giữ nguyên 100%. | **Nên commit** |
 | `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.gemini/settings.json`, `opencode.json` | Gắn sẵn `dtkit mcp serve` (và hooks nếu dùng `--with-hooks`), không làm mất các MCP server khác của bạn. | **Nên commit / kiểm tra** |
@@ -87,27 +88,27 @@ dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 
 ---
 
-## 3. Quy Trình Làm Việc Của Bộ Kit `engineer@0.6.0`
+## 3. Quy Trình Làm Việc Của Bộ Kit `engineer@0.7.0`
 
 Thay vì chia vụn mỗi ngôn ngữ một kit, DTKit dùng **1 kit `engineer` thống nhất** kết hợp với `dtkit scout` + `.dtkit/constitution.md` + `docs/` để tự thích nghi với mọi ngôn ngữ:
 
 ```mermaid
 flowchart LR
-    A["1. Brainstorm\n(Hỏi làm rõ & So sánh phương án)"] --> B["2. Scout\n(dtkit scout khoanh vùng file)"]
-    B --> C["3. Plan\n(Cổng duyệt & Hiến pháp)"]
+    A["1. Brainstorm / Spec\n(docs/specs/<slug>.md)"] --> B["2. Scout\n(dtkit scout khoanh vùng file)"]
+    B --> C["3. Plan\n(Map FR-xxx & Cổng duyệt)"]
     C --> D["4. Implement (Cook)\n(tdd-red -> tdd-green)"]
-    D --> E["5. Test, Converge & Debug\n(dtkit check + converge + guard verify)"]
+    D --> E["5. Test, Converge & Debug\n(dtkit check + converge --spec + verify)"]
     E --> F["6. Review & Docs\n(Audit bảo mật + Cập nhật docs/)"]
 ```
 
-- **Nhóm chỉ đọc (nghiêm cấm sửa file):** `brainstorm`, `scout`, `plan` (bắt buộc tôn trọng `.dtkit/constitution.md` / `docs/code-standards.md` và chờ bạn duyệt trước khi code), `explain`, `ask`
-- **Nhóm thực thi & kiểm chứng:** `implement`, `debug`, `test`, `converge` (đối chiếu Plan ↔ Code và nối task còn thiếu không ghi đè)
-- **Nhóm kiểm toán & đồng bộ tài liệu:** `review` (tích hợp checklist bảo mật & hiến pháp), `docs` (cập nhật `docs/codebase-summary.md`, `docs/system-architecture.md`, `docs/code-standards.md`)
+- **Nhóm chỉ đọc (nghiêm cấm sửa code):** `brainstorm` (xuất `docs/specs/<slug>.md` khi làm feature lớn), `scout`, `plan` (map `FR-xxx` từ spec, tôn trọng `.dtkit/constitution.md` / `docs/code-standards.md` và chờ bạn duyệt trước khi code), `explain`, `ask`
+- **Nhóm thực thi & kiểm chứng:** `implement`, `debug`, `test`, `converge` (đối chiếu Spec ↔ Plan ↔ Code và nối task còn thiếu không ghi đè)
+- **Nhóm kiểm toán & đồng bộ tài liệu:** `review` (tích hợp checklist bảo mật, đối chiếu spec & hiến pháp), `docs` (cập nhật `docs/codebase-summary.md`, `docs/system-architecture.md`, `docs/code-standards.md`)
 - **4 quy trình chuẩn:** `feature`, `bugfix`, `review`, `bootstrap-docs`
 
 ### Cách Gọi `brainstorm`, `plan`, `implement`... (Terminal vs. Khung Chat AI)
-Lưu ý rất quan trọng cho người mới: **không gõ `dtkit brainstorm` hay `dtkit plan` ngoài PowerShell/Terminal** (những cái đó là **Skills**, không phải lệnh CLI; riêng `dtkit converge` thì có cả lệnh CLI lẫn skill chat):
-- **Ngoài Terminal (`dtkit ...`):** chỉ chạy lệnh quản lý & bảo vệ (`dtkit init`, `dtkit update`, `dtkit scout`, `dtkit converge`, `dtkit guard`, `dtkit status`).
+Lưu ý rất quan trọng cho người mới: **không gõ `dtkit brainstorm` hay `dtkit plan` ngoài PowerShell/Terminal** (những cái đó là **Skills**, không phải lệnh CLI; riêng `dtkit spec` và `dtkit converge` có cả lệnh CLI hỗ trợ):
+- **Ngoài Terminal (`dtkit ...`):** chỉ chạy lệnh quản lý & bảo vệ (`dtkit init`, `dtkit update`, `dtkit scout`, `dtkit spec`, `dtkit converge`, `dtkit guard`, `dtkit status`).
 - **Bên trong khung chat với AI Agent:** gọi trực tiếp các skill mà `dtkit init` đã cài sẵn:
   - **Codex CLI / Antigravity (`--runtime agy`, thêm `$` phía trước):** `$dtkit-project-brainstorm`, `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-converge`, `$dtkit-project-review`
   - **Claude Code (thêm `/` phía trước):** `/dtkit-claude-project-brainstorm`, `/dtkit-claude-project-plan`, `/dtkit-claude-project-implement`, `/dtkit-claude-project-converge`, `/dtkit-claude-project-review`

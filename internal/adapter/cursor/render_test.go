@@ -19,13 +19,13 @@ func TestRenderCursorScopesAndCapabilityFallback(t *testing.T) {
 
 	refPattern := regexp.MustCompile(`(?:\$HOME/)?(\.dtkit/runtimes/cursor/content/[a-zA-Z0-9._/-]+)`)
 
-	// Project scope emits 22 artifacts including .cursor/rules/dtkit-engineer.mdc (alwaysApply: true).
+	// Project scope emits 23 artifacts including .cursor/rules/dtkit-engineer.mdc (alwaysApply: true).
 	projArts, err := Render(p, source, "project")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(projArts) != 22 {
-		t.Fatalf("project: expected 22 artifacts, got %d", len(projArts))
+	if len(projArts) != 23 {
+		t.Fatalf("project: expected 23 artifacts, got %d", len(projArts))
 	}
 	sawRule, skillCount := false, 0
 	pathsMap := map[string]adapter.Artifact{}
@@ -58,13 +58,13 @@ func TestRenderCursorScopesAndCapabilityFallback(t *testing.T) {
 		}
 	}
 
-	// Global scope has no file-based User Rules instruction artifact (21 artifacts: 11 skills + 10 resources).
+	// Global scope has no file-based User Rules instruction artifact (22 artifacts: 11 skills + 11 resources).
 	globArts, err := Render(p, source, "global")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(globArts) != 21 {
-		t.Fatalf("global: expected 21 artifacts (skills+resources, no on-disk global instruction file), got %d", len(globArts))
+	if len(globArts) != 22 {
+		t.Fatalf("global: expected 22 artifacts (skills+resources, no on-disk global instruction file), got %d", len(globArts))
 	}
 	globSkills := 0
 	for _, a := range globArts {

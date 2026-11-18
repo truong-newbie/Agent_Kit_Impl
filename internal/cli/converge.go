@@ -19,7 +19,7 @@ func runConverge(ctx context.Context, args []string, deps Deps) error {
 		return err
 	}
 
-	var targetPath, planPath, appendTasksPath string
+	var targetPath, planPath, specPath, appendTasksPath string
 	var dryRun, yes bool
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -35,6 +35,12 @@ func runConverge(ctx context.Context, args []string, deps Deps) error {
 				return fail(apperr.Usage("missing_flag_value", "--plan requires a markdown file path"))
 			}
 			planPath = args[i]
+		case "--spec":
+			i++
+			if i >= len(args) {
+				return fail(apperr.Usage("missing_flag_value", "--spec requires a markdown file path"))
+			}
+			specPath = args[i]
 		case "--append-tasks":
 			i++
 			if i >= len(args) {
@@ -59,7 +65,7 @@ func runConverge(ctx context.Context, args []string, deps Deps) error {
 		))
 	}
 
-	rep, err := scout.AnalyzeConvergence(ctx, deps.Env, targetPath, planPath)
+	rep, err := scout.AnalyzeConvergenceWithSpec(ctx, deps.Env, targetPath, planPath, specPath)
 	if err != nil {
 		return fail(err)
 	}
@@ -83,7 +89,7 @@ func runConverge(ctx context.Context, args []string, deps Deps) error {
 		}
 		tasksUpdated = updated
 	} else if appendTasksPath != "" && dryRun {
-		tasksUpdated = len(rep.UnmetItems) > 0 || len(rep.MissingFiles) > 0
+		tasksUpdated = len(rep.UnmetItems) > 0 || len(rep.MissingFiles) > 0 || len(rep.UnresolvedClarifications) > 0 || len(rep.UncoveredRequirements) > 0
 	}
 	if appendTasksPath != "" {
 		env.Installed = &tasksUpdated

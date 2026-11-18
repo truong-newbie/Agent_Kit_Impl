@@ -24,7 +24,7 @@ You don't have to memorize all 30 subcommands to get value from DTKit. Almost ev
 
 | Command | When to Run | What It Does |
 |---|---|---|
-| `dtkit init --all-runtimes --with-mcp --lock --yes` | Once when setting up a repo | Scans your codebase, installs `engineer@0.6.0` skills/rules, wires MCP, and creates `dtkit.lock` without touching your custom notes. |
+| `dtkit init --all-runtimes --with-mcp --lock --yes` | Once when setting up a repo | Scans your codebase, installs `engineer@0.7.0` skills/rules, wires MCP, and creates `dtkit.lock` without touching your custom notes. |
 | `dtkit scout` / `dtkit scout --impact <file>` | Before starting a task | Maps repo zones & secrets-free code packs (`--pack`), or shows which files & tests depend on `<file>`. |
 | `dtkit guard lock --mode ...` / `verify` | While coding / reviewing | Locks AI edits (`read-only`, `tdd-red`, `tdd-green`, `scoped`) and detects skipped/weakened tests. |
 | `dtkit update --yes` *(or `dtkit refresh --yes`)* | Whenever your project grows | Updates `docs/codebase-summary.md`, merges new stacks into `.dtkit/project.json` (keeping your `checks`), syncs kits, and refreshes `dtkit.lock`. |
@@ -45,7 +45,7 @@ Static `CLAUDE.md`, `.cursorrules`, or `AGENTS.md` files help—but real teams q
 flowchart LR
     Repo["Your Repo\n(TS, Java, Python, Go, C++, Rust, .NET)"] --> Init["dtkit init / update"]
     Init --> Scout["docs/codebase-summary.md\n(dtkit scout)"]
-    Init --> Kit["engineer@0.6.0\n(11-Skill Mesh)"]
+    Init --> Kit["engineer@0.7.0\n(11-Skill Mesh + Spec)"]
     Init --> Guard["dtkit guard\n(Firewall & SHA-256 Receipt)"]
     Init --> MCP["dtkit mcp serve\n(Built-In STDIO Tools)"]
     Ext["Community Repos & CLIs\n(Superpowers, .mdc, Repomix, Graphify)"] --> Integrate["dtkit integrate"]
@@ -149,21 +149,26 @@ dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 
 ## Core Features That Go Beyond Plain Markdown
 
-### 1. Guided Engineering Lifecycle (`engineer@0.6.0`)
+### 1. Guided Engineering Lifecycle (`engineer@0.7.0`)
 Instead of shipping disconnected kits per language, DTKit uses **one unified `engineer` kit** that scouts your repository's real structure, honors your project constitution (`.dtkit/constitution.md` / `docs/code-standards.md`), and adapts to every service zone:
 
 ```mermaid
 flowchart LR
-    A["1. Brainstorm"] --> B["2. Scout"]
+    A["1. Brainstorm / Spec"] --> B["2. Scout"]
     B --> C["3. Plan (Approval Gate)"]
     C --> D["4. Implement (Cook)"]
     D --> E["5. Test, Converge & Debug"]
     E --> F["6. Review & Sync Docs"]
 ```
 
+- **11 composable skills:** `brainstorm` (outputs optional structured `docs/specs/<slug>.md` with `P1/P2` stories, `Given/When/Then`, `FR-xxx`, `SC-xxx`), `scout`, `plan`, `explain`, `ask` (read-only discovery/planning), `implement`, `debug`, `test`, `converge` (Spec ↔ Plan ↔ Code drift audit & append-only task sync), `review` (with security audit), and `docs` (keeps `docs/` current).
+- **4 end-to-end workflows:** `feature`, `bugfix`, `review`, `bootstrap-docs`.
+- **100% stack-agnostic templates:** no hardcoded language checklists inside prompts; rules point agents directly to `dtkit scout` + `.dtkit/project.json` + `.dtkit/constitution.md` + `docs/`.
+- **Project-local overrides without forking:** drop any customized skill, rule, workflow, or template under `.dtkit/overrides/engineer/` and `install`, `update`, `diff`, and `lock` pick it up automatically on top of the upstream kit.
+
 > **Where do I invoke skills (`brainstorm`, `plan`, `implement`, `converge`, `review`, ...)?**
-> Do **not** type `dtkit brainstorm` or `dtkit plan` in your shell—those are **in-chat agent skills** installed by `dtkit init`, not CLI subcommands (`dtkit converge`, `dtkit scout`, `dtkit guard`, etc. are CLI subcommands):
-> - **Terminal (`dtkit ...`):** infrastructure & protection (`init`, `update`, `scout`, `converge`, `guard`, `status`, `integrate`).
+> Do **not** type `dtkit brainstorm` or `dtkit plan` in your shell—those are **in-chat agent skills** installed by `dtkit init`, not CLI subcommands (`dtkit spec`, `dtkit converge`, `dtkit scout`, `dtkit guard`, etc. are CLI subcommands):
+> - **Terminal (`dtkit ...`):** infrastructure & protection (`init`, `update`, `scout`, `spec`, `converge`, `guard`, `status`, `integrate`).
 > - **Inside your AI Agent chat:** invoke skills directly using your runtime's syntax:
 >   - **Codex CLI / Antigravity (`--runtime agy`):** `$dtkit-project-brainstorm`, `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-converge`, `$dtkit-project-review`
 >   - **Claude Code:** `/dtkit-claude-project-brainstorm`, `/dtkit-claude-project-plan`, `/dtkit-claude-project-implement`, `/dtkit-claude-project-converge`
@@ -172,7 +177,7 @@ flowchart LR
 Need a lighter footprint or want to customize one template without forking?
 - `--preset minimal`: `ask`, `explain`, `plan` only
 - `--preset review-only`: `review` + security audit checklist only
-- `--preset engineering`: full 21-component skill mesh (11 skills including `converge`, default)
+- `--preset engineering`: full 22-component skill mesh (11 skills + `feature-spec.md`, default)
 - **Project-local overrides (`.dtkit/overrides/engineer/`):** place a customized file at `.dtkit/overrides/engineer/skills/plan/SKILL.md.tmpl` (or `rules/`, `workflows/`, `templates/`) to override just that component across `install`, `update`, `diff`, and `lock`.
 
 ### 2. Phase Firewall & Anti-Fake-Pass Guard (`dtkit guard`)
@@ -193,10 +198,11 @@ Scan any multi-language codebase without leaking `.env` files, private keys, or 
 ```bash
 dtkit scout --zone backend --query checkout --pack --max-bytes 24576
 dtkit scout --impact backend/src/main/java/com/acme/Token.java
-dtkit converge --dry-run
+dtkit spec init auth-sso --yes && dtkit spec check docs/specs/auth-sso.md
+dtkit converge --spec docs/specs/auth-sso.md --dry-run
 ```
 
-Agents can also call `dtkit_scout`, `dtkit_context_impact`, `dtkit_project_inspect`, `dtkit_guard_status`, `dtkit_guard_verify`, and `dtkit_converge` natively over JSON-RPC 2.0 via `dtkit mcp serve` (each carrying standard MCP `readOnlyHint`/`idempotentHint` safety annotations).
+Agents can also call `dtkit_scout`, `dtkit_context_impact`, `dtkit_project_inspect`, `dtkit_guard_status`, `dtkit_guard_verify`, `dtkit_spec_check`, and `dtkit_converge` natively over JSON-RPC 2.0 via `dtkit mcp serve` (each carrying standard MCP `readOnlyHint`/`idempotentHint` safety annotations).
 
 ### 4. One-Command Refresh When Your Project Grows (`dtkit update` / `dtkit refresh`)
 Added a new `frontend/` or `ai/` service, updated an imported community kit, or changed files across the repo? Run one command:
@@ -239,7 +245,7 @@ See [docs/compatibility.md](docs/compatibility.md) for the full 4-layer verifica
 
 | Area | Commands | Purpose |
 |---|---|---|
-| **Daily Core** | `init`, `update`, `refresh`, `scout`, `converge`, `guard <status\|lock\|unlock\|verify>` | Setup, 1-command project refresh, polyglot context/impact, Plan↔Code convergence, phase firewall & check proof |
+| **Daily Core** | `init`, `update`, `refresh`, `scout`, `spec <init\|check>`, `converge`, `guard <status\|lock\|unlock\|verify>` | Setup, 1-command project refresh, polyglot context/impact, structured feature specs, Spec↔Plan↔Code convergence, phase firewall & check proof |
 | **Kit Lifecycle** | `status`, `install`, `remove`, `diff`, `doctor`, `recover` | Multi-kit installs, bounded diffs, redacted diagnostics & crash recovery |
 | **Project & MCP/Hooks** | `project <inspect\|init>`, `check`, `mcp <serve\|status\|enable\|disable>`, `hooks`, `hook` | Stack detection, trusted check runner, built-in STDIO MCP server & runtime hooks |
 | **Ecosystem & Authoring** | `integrate <list\|import\|tool\|run>`, `fork`, `create kit\|skill`, `validate`, `pack`, `list`, `info` | Community importer, companion digest cache, custom kit authoring & tarballs |

@@ -19,18 +19,19 @@ Explore problem requirements, constraints, and solution trade-offs before commit
 - Problem statement, goals, constraints, and existing repository context.
 
 ## Steps
-1. Inspect existing conventions and constraints without modifying any files (lock `dtkit guard lock --mode read-only` if needed).
+1. Inspect existing conventions and constraints without modifying any source or test files (lock `dtkit guard lock --mode read-only` if needed).
 2. Identify critical ambiguities affecting data models, public APIs, security, or user workflows.
-3. Ask concise, targeted clarifying questions; avoid trivial or already-answered questions.
+3. Ask concise, targeted clarifying questions (cap material `[NEEDS CLARIFICATION: ...]` markers at 3); avoid trivial or already-answered questions.
 4. Present 2-3 viable design approaches with explicit trade-offs (complexity, compatibility, risk) and a clear recommendation.
-5. Once agreed, hand off cleanly to `{{index .SkillNames "scout"}}` and `{{index .SkillNames "plan"}}`.
+5. For multi-step or cross-zone features (skip for small localized bugfixes), once aligned, capture the agreed **What & Why** in `docs/specs/<slug>.md` (or via `dtkit spec init <slug>`) following `{{index .ResourcePaths "template/feature-spec"}}` (`P1/P2` user stories, `Given/When/Then` scenarios, `FR-xxx`, Non-Goals, `SC-xxx`).
+6. Ensure zero unresolved `[NEEDS CLARIFICATION]` markers remain before handing off cleanly to `{{index .SkillNames "scout"}}` and `{{index .SkillNames "plan"}}`.
 
 ## Constraints
-- **Strictly read-only:** Do not edit source, config, or test files during brainstorming.
+- **Strictly read-only on codebase:** Do not edit source, config, or test files during brainstorming (only produce/update `docs/specs/<slug>.md` when the user asks to record the spec).
 - Favor YAGNI and reuse of existing repository patterns over speculative abstractions.
 
 ## Output
-Concise problem framing, clarified constraints, compared options with trade-offs, recommended architecture, and open decisions.
+Concise problem framing, clarified constraints, compared options with trade-offs, recommended architecture, optional `docs/specs/<slug>.md` structured spec, and open decisions.
 
 ## Examples
 1. **Ambiguous auth feature:** User says "Add SSO login." -> Ask about IdP type (OIDC vs SAML), session storage, and role mapping, then compare 2 integration architectures without editing code.

@@ -14,7 +14,7 @@ _dtkit_complete() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    local cmds="version help list info validate create fork pack doctor diff install status update refresh remove recover project check scout converge guard mcp integrate init lock sync team compat hooks hook completion"
+    local cmds="version help list info validate create fork pack doctor diff install status update refresh remove recover project check scout spec converge guard mcp integrate init lock sync team compat hooks hook completion"
     local runtimes="codex gemini opencode cursor claude agy"
     local presets="minimal review-only engineering"
 
@@ -38,6 +38,10 @@ _dtkit_complete() {
             ;;
         project)
             COMPREPLY=( $(compgen -W "inspect init" -- "$cur") )
+            return 0
+            ;;
+        spec)
+            COMPREPLY=( $(compgen -W "init check" -- "$cur") )
             return 0
             ;;
         hooks)
@@ -74,7 +78,7 @@ _dtkit_complete() {
             ;;
     esac
 
-    local flags="--project --global --runtime --all-runtimes --preset --components --path --from --source --sha256 --offline --dry-run --diff --yes --json --redact --changed --all --allow-autofix --as --dir --version --same-id --lock --trust --require-signature --source-ref --key-file --key-id --baseline --query --zone --impact --pack --max-bytes --write-summary --plan --append-tasks --mode --allow --deny --protect-tests --install --update --no-cache --with-mcp --with-hooks"
+    local flags="--project --global --runtime --all-runtimes --preset --components --path --from --source --sha256 --offline --dry-run --diff --yes --json --redact --changed --all --allow-autofix --as --dir --version --same-id --lock --trust --require-signature --source-ref --key-file --key-id --baseline --query --zone --impact --pack --max-bytes --write-summary --spec --title --plan --append-tasks --mode --allow --deny --protect-tests --install --update --no-cache --with-mcp --with-hooks"
     COMPREPLY=( $(compgen -W "$flags" -- "$cur") )
 }
 complete -F _dtkit_complete dtkit
@@ -103,7 +107,8 @@ _dtkit() {
         'project:Inspect or initialize .dtkit/project.json'
         'check:Run trusted project quality checks'
         'scout:Scan polyglot codebase layout and generate summary'
-        'converge:Assess plan/checklist/file/receipt convergence'
+        'spec:Scaffold or validate structured feature specifications'
+        'converge:Assess spec/plan/checklist/file/receipt convergence'
         'guard:Manage edit firewall, test protection, and check receipt verification'
         'mcp:Serve or configure built-in DTKit STDIO MCP server'
         'integrate:Import community repos or wire external companion tools'
@@ -129,6 +134,7 @@ _dtkit() {
         --preset) _values 'preset' $presets ;;
         completion) _values 'shell' bash zsh powershell ;;
         project) _values 'subcommand' inspect init ;;
+        spec) _values 'subcommand' init check ;;
         guard) _values 'subcommand' status lock unlock verify ;;
         mcp) _values 'subcommand' serve status enable disable ;;
         integrate) _values 'subcommand' list import tool run ;;
@@ -143,10 +149,10 @@ const powerShellCompletionScript = `# PowerShell completion for dtkit
 Register-ArgumentCompleter -Native -CommandName dtkit -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
     $tokens = $commandAst.CommandElements | ForEach-Object { $_.Extent.Text }
-    $cmds = @('version','help','list','info','validate','create','fork','pack','doctor','diff','install','status','update','refresh','remove','recover','project','check','scout','converge','guard','mcp','integrate','init','lock','sync','team','compat','hooks','hook','completion')
+    $cmds = @('version','help','list','info','validate','create','fork','pack','doctor','diff','install','status','update','refresh','remove','recover','project','check','scout','spec','converge','guard','mcp','integrate','init','lock','sync','team','compat','hooks','hook','completion')
     $runtimes = @('codex','gemini','opencode','cursor','claude','agy')
     $presets = @('minimal','review-only','engineering')
-    $flags = @('--project','--global','--runtime','--all-runtimes','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--diff','--yes','--json','--redact','--changed','--all','--allow-autofix','--as','--dir','--version','--same-id','--lock','--trust','--require-signature','--source-ref','--key-file','--key-id','--baseline','--query','--zone','--impact','--pack','--max-bytes','--write-summary','--plan','--append-tasks','--mode','--allow','--deny','--protect-tests','--install','--update','--no-cache','--with-mcp','--with-hooks')
+    $flags = @('--project','--global','--runtime','--all-runtimes','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--diff','--yes','--json','--redact','--changed','--all','--allow-autofix','--as','--dir','--version','--same-id','--lock','--trust','--require-signature','--source-ref','--key-file','--key-id','--baseline','--query','--zone','--impact','--pack','--max-bytes','--write-summary','--spec','--title','--plan','--append-tasks','--mode','--allow','--deny','--protect-tests','--install','--update','--no-cache','--with-mcp','--with-hooks')
 
     if ($tokens.Count -le 2 -and ($wordToComplete -eq $tokens[-1] -or $tokens.Count -eq 1)) {
         return $cmds | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
@@ -157,6 +163,7 @@ Register-ArgumentCompleter -Native -CommandName dtkit -ScriptBlock {
         '--preset' { $presets }
         'completion' { @('bash','zsh','powershell') }
         'project' { @('inspect','init') }
+        'spec' { @('init','check') }
         'guard' { @('status','lock','unlock','verify') }
         'mcp' { @('serve','status','enable','disable') }
         'integrate' { @('list','import','tool','run') }

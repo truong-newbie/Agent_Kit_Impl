@@ -15,7 +15,7 @@ Verify that every requirement, referenced file, and invariant in the approved pl
 - Requirements have not been planned yet (`{{index .SkillNames "plan"}}`).
 
 ## Steps
-1. Run `dtkit converge --json` (or MCP `dtkit_converge`) to inspect open `- [ ]` checklist items, missing plan-referenced files, and `dtkit guard verify` receipt status.
+1. Run `dtkit converge --json` (pass `--spec <file>` when a feature spec exists under `docs/specs/`, or call MCP `dtkit_converge`) to inspect open `- [ ]` checklist items, unresolved `[NEEDS CLARIFICATION]` markers, uncovered spec `FR-xxx` requirements, missing plan-referenced files, and `dtkit guard verify` receipt status.
 2. Read the project constitution (`.dtkit/constitution.md` or `docs/code-standards.md` when present); classify any `MUST`/`NEVER` violation as **CRITICAL**.
 3. Report gaps using `{{index .ResourcePaths "template/convergence-report"}}`.
 4. Only when remaining items exist and the user requests updating a task tracker, run `dtkit converge --append-tasks <file> --yes` (append-only, never deleting history); when converged, leave files untouched.

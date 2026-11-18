@@ -18,10 +18,11 @@ When you use AI coding agents (**Claude Code**, **Cursor**, **Codex CLI**, **Gem
 
 | Command | When to Run | What It Does |
 |---|---|---|
-| `dtkit init` | First time on a project | Sets up `docs/codebase-summary.md`, `.dtkit/project.json`, `engineer@0.6.0`, MCP, hooks, and `dtkit.lock`. |
+| `dtkit init` | First time on a project | Sets up `docs/codebase-summary.md`, `.dtkit/project.json`, `engineer@0.7.0`, MCP, hooks, and `dtkit.lock`. |
 | `dtkit scout` | Before starting a task | Maps repo stacks/zones (`dtkit scout`), packs secret-free snippets (`--pack`), or checks blast radius (`--impact <file>`). |
+| `dtkit spec` | For large / ambiguous features | Scaffolds (`init <slug>`) or validates (`check`) `docs/specs/<slug>.md` (`P1/P2`, `Given/When/Then`, `FR-xxx`, `SC-xxx`, `[NEEDS CLARIFICATION]`). |
 | `dtkit guard` | While planning / coding / checking | Locks edits (`read-only`, `tdd-red`, `tdd-green`, `scoped`) and verifies SHA-256 test receipts (`verify`). |
-| `dtkit converge` | After coding / before review | Audits Plan ↔ Code drift read-only (`--dry-run`) or appends missing checklist tasks (`--append-tasks <file> --yes`). |
+| `dtkit converge` | After coding / before review | Audits Spec ↔ Plan ↔ Code drift read-only (`--spec <file> --dry-run`) or appends missing checklist tasks (`--append-tasks <file> --yes`). |
 | `dtkit update` / `dtkit refresh` | Whenever the project grows | One command to refresh `docs/codebase-summary.md`, merge new stacks into `.dtkit/project.json` (preserving your `checks`), sync installed kits & `.dtkit/overrides/`, and update `dtkit.lock`. |
 
 ```mermaid
@@ -29,7 +30,7 @@ flowchart LR
     Dev["Your Project\n(Go, TS, Java, Python, C++, Rust, .NET)"] --> Init["dtkit init / update"]
     Init --> Summary["docs/codebase-summary.md\n(via dtkit scout)"]
     Init --> Profile[".dtkit/project.json\n(Check Runner)"]
-    Init --> Kit["engineer@0.6.0\n(11 Skills, 4 Workflows)"]
+    Init --> Kit["engineer@0.7.0\n(11 Skills, 4 Workflows, Spec)"]
     Init --> Guard["dtkit guard\n(Edit Firewall & Test Proof)"]
     Init --> MCP["dtkit mcp serve\n(Auto-wired to Runtimes)"]
     Kit --> Runtimes["Claude Code • Cursor • Codex CLI\nGemini CLI • OpenCode"]
@@ -99,21 +100,21 @@ flowchart LR
 ```
 
 ### Included Skills (11) & Workflows (4)
-- **Read-only discovery & design:** `brainstorm`, `scout`, `plan` (enforces `.dtkit/constitution.md` / `docs/code-standards.md` and requires user approval before coding), `explain`, `ask`
-- **Execution & verification:** `implement`, `debug`, `test`, `converge` (Plan ↔ Code drift check & append-only task sync)
-- **Quality & living memory:** `review` (includes security checklist & constitution audit), `docs` (keeps `docs/codebase-summary.md`, `docs/system-architecture.md`, and `docs/code-standards.md` accurate)
+- **Read-only discovery & design:** `brainstorm` (includes `template/feature-spec` for writing `docs/specs/<slug>.md`), `scout`, `plan` (enforces `.dtkit/constitution.md` / `docs/code-standards.md`, maps `FR-xxx`, and requires user approval before coding), `explain`, `ask`
+- **Execution & verification:** `implement`, `debug`, `test`, `converge` (Spec ↔ Plan ↔ Code drift check & append-only task sync)
+- **Quality & living memory:** `review` (includes security checklist, spec compliance & constitution audit), `docs` (keeps `docs/codebase-summary.md`, `docs/system-architecture.md`, and `docs/code-standards.md` accurate)
 - **End-to-end workflows:** `feature`, `bugfix`, `review`, `bootstrap-docs`
 
 ### How to Call Skills (`brainstorm`, `plan`, `implement`...) vs. CLI Commands
 There are **no** shell commands named `dtkit brainstorm` or `dtkit plan`. Always separate the two layers:
-- **In your terminal (`dtkit ...`):** run CLI operations (`dtkit init`, `dtkit update`, `dtkit scout`, `dtkit converge`, `dtkit guard`, `dtkit status`).
+- **In your terminal (`dtkit ...`):** run CLI operations (`dtkit init`, `dtkit update`, `dtkit scout`, `dtkit spec`, `dtkit converge`, `dtkit guard`, `dtkit status`).
 - **Inside your AI Agent chat window:** trigger the installed skills (`dtkit init` placed them in `.agents/skills/`, `.claude/skills/`, `.gemini/skills/`, `.cursor/skills/`, `.opencode/skills/`):
   - **Codex CLI / Antigravity (`--runtime agy`, prefix `$`):** `$dtkit-project-brainstorm`, `$dtkit-project-plan`, `$dtkit-project-implement`, `$dtkit-project-converge`, `$dtkit-project-review`
   - **Claude Code (prefix `/`):** `/dtkit-claude-project-brainstorm`, `/dtkit-claude-project-plan`, `/dtkit-claude-project-implement`, `/dtkit-claude-project-converge`, `/dtkit-claude-project-review`
   - **Gemini CLI / Cursor / OpenCode:** mention `dtkit-<runtime>-project-<skill>` (for example `dtkit-gemini-project-plan` or `dtkit-cursor-project-plan`) or simply prompt *"Use the DTKit brainstorm and plan skills first without editing files."*
 
 ### Selecting a Lighter Preset
-If you only want planning or review helpers instead of the full 21-component kit:
+If you only want planning or review helpers instead of the full 22-component kit:
 
 ```bash
 # Lightweight: ask + explain + plan only

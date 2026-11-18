@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
@@ -226,11 +227,14 @@ func TestSpecKitLearningsConvergeOverridesAndAgyAlias(t *testing.T) {
 
 	// 1. S01: Install using agy runtime alias -> AGENTS.md + .agents/skills/dtkit-project-converge
 	instEnv, instRaw, err := run("install", "engineer", "--project", "--runtime", "agy", "--path", repo, "--yes", "--json")
-	if err != nil || instEnv.Runtime != "codex" || instEnv.Kit == nil || instEnv.Kit.Version != "0.6.0" {
+	if err != nil || instEnv.Runtime != "codex" || instEnv.Kit == nil || instEnv.Kit.Version != "0.7.0" {
 		t.Fatalf("install via agy alias failed: %v (%s)", err, instRaw)
 	}
 	if _, statErr := os.Stat(filepath.Join(repo, ".agents", "skills", "dtkit-project-converge", "SKILL.md")); statErr != nil {
-		t.Fatalf("expected engineer@0.6.0 converge skill rendered: %v", statErr)
+		t.Fatalf("expected engineer@0.7.0 converge skill rendered: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, ".dtkit", "content", "engineer", "templates", "feature-spec.md")); statErr != nil {
+		t.Fatalf("expected feature-spec.md template rendered: %v", statErr)
 	}
 
 	// 2. S05: Add project-local template override without forking -> dtkit update applies override & status stays healthy
@@ -263,5 +267,27 @@ func TestSpecKitLearningsConvergeOverridesAndAgyAlias(t *testing.T) {
 	tasksBytes, _ := os.ReadFile(filepath.Join(repo, "tasks.md"))
 	if !strings.Contains(string(tasksBytes), "## Phase Convergence") || !strings.Contains(string(tasksBytes), "pkg/todo.go") {
 		t.Fatalf("expected appended convergence phase in tasks.md:\n%s", string(tasksBytes))
+	}
+
+	// 4. Feature Spec CLI: dtkit spec init + dtkit spec check + dtkit converge --spec
+	specInitEnv, specInitRaw, err := run("spec", "init", "todo-export", "--title", "Todo Export", "--path", repo, "--yes", "--json")
+	if err != nil || specInitEnv.SpecReport == nil || specInitEnv.SpecReport.SpecPath != "docs/specs/todo-export.md" {
+		t.Fatalf("dtkit spec init failed: %v (%s)", err, specInitRaw)
+	}
+	specCheckEnv, specCheckRaw, err := run("spec", "check", "docs/specs/todo-export.md", "--path", repo, "--json")
+	if apperr.ExitCodeOf(err) != apperr.ExitConflict || specCheckEnv.SpecReport == nil || specCheckEnv.SpecReport.Status != "needs_clarification" {
+		t.Fatalf("expected initial template spec to flag needs_clarification (exit 3), got err=%v raw=%s", err, specCheckRaw)
+	}
+	resolvedSpec := "# Feature Specification: Todo Export\n\n### User Story 1 — CSV Export (Priority: P1)\n- **Given** todos exist, **When** exporting CSV, **Then** download valid CSV.\n\n- **FR-001:** Export CSV.\n- **SC-001:** Under 1s.\n"
+	if wErr := os.WriteFile(filepath.Join(repo, "docs", "specs", "todo-export.md"), []byte(resolvedSpec), 0644); wErr != nil {
+		t.Fatal(wErr)
+	}
+	specValidEnv, specValidRaw, err := run("spec", "check", "docs/specs/todo-export.md", "--path", repo, "--json")
+	if err != nil || specValidEnv.SpecReport == nil || specValidEnv.SpecReport.Status != "valid" {
+		t.Fatalf("expected valid spec check, got err=%v raw=%s", err, specValidRaw)
+	}
+	convSpecEnv, convSpecRaw, err := run("converge", "--path", repo, "--plan", "implementation-plan.md", "--spec", "docs/specs/todo-export.md", "--dry-run", "--json")
+	if err != nil || convSpecEnv.Convergence == nil || convSpecEnv.Convergence.SpecPath != "docs/specs/todo-export.md" || len(convSpecEnv.Convergence.UncoveredRequirements) != 1 {
+		t.Fatalf("expected converge --spec to surface uncovered FR-001, got err=%v raw=%s", err, convSpecRaw)
 	}
 }

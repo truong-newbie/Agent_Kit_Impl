@@ -157,6 +157,7 @@ type Envelope struct {
 	Scout          *scout.Report                `json:"scout,omitempty"`
 	ScoutImpact    *scout.ImpactReport          `json:"scoutImpact,omitempty"`
 	Convergence    *scout.ConvergenceReport     `json:"convergence,omitempty"`
+	SpecReport     *scout.SpecReport            `json:"specReport,omitempty"`
 	GuardStatus    *guard.StatusReport          `json:"guardStatus,omitempty"`
 	Import         *dist.ImportResult           `json:"import,omitempty"`
 	Companions     []companion.CompanionStatus  `json:"companions,omitempty"`

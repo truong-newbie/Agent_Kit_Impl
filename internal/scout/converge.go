@@ -14,20 +14,24 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
-// ConvergenceReport summarizes plan/checklist/file/receipt alignment for a repository.
+// ConvergenceReport summarizes spec/plan/checklist/file/receipt alignment for a repository.
 type ConvergenceReport struct {
-	Root            string   `json:"root"`
-	PlanPath        string   `json:"planPath,omitempty"`
-	Constitution    string   `json:"constitutionPath,omitempty"`
-	Status          string   `json:"status"` // "converged" | "incomplete" | "unverified" | "no_plan"
-	TotalItems      int      `json:"totalItems"`
-	CompletedItems  int      `json:"completedItems"`
-	UnmetItems      []string `json:"unmetItems,omitempty"`
-	ReferencedFiles []string `json:"referencedFiles,omitempty"`
-	ExistingFiles   []string `json:"existingFiles,omitempty"`
-	MissingFiles    []string `json:"missingFiles,omitempty"`
-	ReceiptVerified bool     `json:"receiptVerified"`
-	ReceiptReason   string   `json:"receiptReason,omitempty"`
+	Root                     string   `json:"root"`
+	SpecPath                 string   `json:"specPath,omitempty"`
+	PlanPath                 string   `json:"planPath,omitempty"`
+	Constitution             string   `json:"constitutionPath,omitempty"`
+	Status                   string   `json:"status"` // "converged" | "incomplete" | "unverified" | "no_plan"
+	TotalItems               int      `json:"totalItems"`
+	CompletedItems           int      `json:"completedItems"`
+	UnmetItems               []string `json:"unmetItems,omitempty"`
+	SpecRequirements         []string `json:"specRequirements,omitempty"`
+	UncoveredRequirements    []string `json:"uncoveredRequirements,omitempty"`
+	UnresolvedClarifications []string `json:"unresolvedClarifications,omitempty"`
+	ReferencedFiles          []string `json:"referencedFiles,omitempty"`
+	ExistingFiles            []string `json:"existingFiles,omitempty"`
+	MissingFiles             []string `json:"missingFiles,omitempty"`
+	ReceiptVerified          bool     `json:"receiptVerified"`
+	ReceiptReason            string   `json:"receiptReason,omitempty"`
 }
 
 var (
@@ -57,6 +61,12 @@ var (
 // AnalyzeConvergence compares a plan/spec markdown artifact against actual repository files
 // and the cryptographic check receipt strictly read-only.
 func AnalyzeConvergence(ctx context.Context, env paths.Environment, rawRoot, planRel string) (ConvergenceReport, error) {
+	return AnalyzeConvergenceWithSpec(ctx, env, rawRoot, planRel, "")
+}
+
+// AnalyzeConvergenceWithSpec compares an optional feature spec, plan/checklist markdown artifact,
+// actual repository files, and the cryptographic check receipt strictly read-only.
+func AnalyzeConvergenceWithSpec(ctx context.Context, env paths.Environment, rawRoot, planRel, specRel string) (ConvergenceReport, error) {
 	if err := ctx.Err(); err != nil {
 		return ConvergenceReport{}, apperr.Cancelled("convergence analysis cancelled")
 	}
@@ -81,38 +91,56 @@ func AnalyzeConvergence(ctx context.Context, env paths.Environment, rawRoot, pla
 	if err != nil {
 		return ConvergenceReport{}, err
 	}
+	specRep, err := InspectSpec(ctx, env, root, specRel)
+	if err != nil {
+		return ConvergenceReport{}, err
+	}
+	if specRep.Status != "no_spec" {
+		rep.SpecPath = specRep.SpecPath
+		rep.SpecRequirements = specRep.FunctionalRequirements
+		rep.UnresolvedClarifications = specRep.UnresolvedClarifications
+	}
+
 	vStat, vErr := guard.VerifyWorkspace(root)
 	if vErr == nil {
 		rep.ReceiptVerified = vStat.Verified
 		rep.ReceiptReason = vStat.Reason
 	}
 
-	if resolvedPlanRel == "" {
+	if resolvedPlanRel == "" && rep.SpecPath == "" {
 		return rep, nil
 	}
-	rep.PlanPath = resolvedPlanRel
 
-	rawPlan, err := os.ReadFile(planAbs)
-	if err != nil {
-		return ConvergenceReport{}, err
-	}
-	openItems, doneCount := parseChecklistLines(string(rawPlan))
-	rep.UnmetItems = openItems
-	rep.CompletedItems = doneCount
-	rep.TotalItems = len(openItems) + doneCount
+	planText := ""
+	if resolvedPlanRel != "" {
+		rep.PlanPath = resolvedPlanRel
+		rawPlan, readErr := os.ReadFile(planAbs)
+		if readErr != nil {
+			return ConvergenceReport{}, readErr
+		}
+		planText = string(rawPlan)
+		openItems, doneCount := parseChecklistLines(planText)
+		rep.UnmetItems = openItems
+		rep.CompletedItems = doneCount
+		rep.TotalItems = len(openItems) + doneCount
 
-	refs := extractReferencedFiles(string(rawPlan))
-	rep.ReferencedFiles = refs
-	for _, rel := range refs {
-		if isExistingWorkspaceEntry(root, rel) {
-			rep.ExistingFiles = append(rep.ExistingFiles, rel)
-		} else {
-			rep.MissingFiles = append(rep.MissingFiles, rel)
+		refs := extractReferencedFiles(planText)
+		rep.ReferencedFiles = refs
+		for _, rel := range refs {
+			if isExistingWorkspaceEntry(root, rel) {
+				rep.ExistingFiles = append(rep.ExistingFiles, rel)
+			} else {
+				rep.MissingFiles = append(rep.MissingFiles, rel)
+			}
 		}
 	}
 
+	if len(rep.SpecRequirements) > 0 {
+		rep.UncoveredRequirements = findUncoveredRequirements(root, planText, rep.ExistingFiles, rep.SpecRequirements)
+	}
+
 	switch {
-	case len(rep.UnmetItems) > 0 || len(rep.MissingFiles) > 0:
+	case len(rep.UnmetItems) > 0 || len(rep.MissingFiles) > 0 || len(rep.UnresolvedClarifications) > 0 || len(rep.UncoveredRequirements) > 0:
 		rep.Status = "incomplete"
 	case !rep.ReceiptVerified:
 		rep.Status = "unverified"
@@ -122,10 +150,10 @@ func AnalyzeConvergence(ctx context.Context, env paths.Environment, rawRoot, pla
 	return rep, nil
 }
 
-// AppendConvergenceTasks appends unmet checklist items and missing referenced files to tasksRel
-// in append-only fashion, leaving the file untouched byte-for-byte when already converged.
+// AppendConvergenceTasks appends unmet checklist items, missing referenced files,
+// and unresolved spec gaps to tasksRel in append-only fashion, leaving the file untouched byte-for-byte when already converged.
 func AppendConvergenceTasks(root, tasksRel string, rep ConvergenceReport) (bool, error) {
-	if len(rep.UnmetItems) == 0 && len(rep.MissingFiles) == 0 {
+	if len(rep.UnmetItems) == 0 && len(rep.MissingFiles) == 0 && len(rep.UnresolvedClarifications) == 0 && len(rep.UncoveredRequirements) == 0 {
 		return false, nil
 	}
 	cleanRel := filepath.ToSlash(strings.TrimSpace(tasksRel))
@@ -172,6 +200,18 @@ func AppendConvergenceTasks(root, tasksRel string, rep ConvergenceReport) (bool,
 			additions = append(additions, line)
 		}
 	}
+	for _, clar := range rep.UnresolvedClarifications {
+		line := fmt.Sprintf("- [ ] Resolve spec clarification in `%s`: %s", rep.SpecPath, clar)
+		if !strings.Contains(existingText, clar) {
+			additions = append(additions, line)
+		}
+	}
+	for _, fr := range rep.UncoveredRequirements {
+		line := fmt.Sprintf("- [ ] Map and implement spec requirement `%s` from `%s`", fr, rep.SpecPath)
+		if !strings.Contains(existingText, fr) {
+			additions = append(additions, line)
+		}
+	}
 	if len(additions) == 0 {
 		return false, nil
 	}
@@ -200,6 +240,9 @@ func FormatConvergenceMarkdown(rep ConvergenceReport) string {
 	var b strings.Builder
 	b.WriteString("# Convergence Report\n\n")
 	fmt.Fprintf(&b, "- **Repository:** `%s`\n", filepath.Base(rep.Root))
+	if rep.SpecPath != "" {
+		fmt.Fprintf(&b, "- **Spec:** `%s`\n", rep.SpecPath)
+	}
 	if rep.PlanPath != "" {
 		fmt.Fprintf(&b, "- **Plan:** `%s`\n", rep.PlanPath)
 	}
@@ -208,11 +251,29 @@ func FormatConvergenceMarkdown(rep ConvergenceReport) string {
 	}
 	fmt.Fprintf(&b, "- **Status:** `%s`\n", rep.Status)
 	fmt.Fprintf(&b, "- **Checklist:** %d/%d completed\n", rep.CompletedItems, rep.TotalItems)
+	if len(rep.SpecRequirements) > 0 {
+		fmt.Fprintf(&b, "- **Spec Requirements (`FR-`):** %d/%d covered\n", len(rep.SpecRequirements)-len(rep.UncoveredRequirements), len(rep.SpecRequirements))
+	}
 	fmt.Fprintf(&b, "- **Test Receipt Verified:** %v", rep.ReceiptVerified)
 	if rep.ReceiptReason != "" {
 		fmt.Fprintf(&b, " (%s)", rep.ReceiptReason)
 	}
 	b.WriteString("\n\n")
+
+	if len(rep.UnresolvedClarifications) > 0 {
+		b.WriteString("## Unresolved Spec Clarifications\n\n")
+		for _, c := range rep.UnresolvedClarifications {
+			fmt.Fprintf(&b, "- %s\n", c)
+		}
+		b.WriteString("\n")
+	}
+	if len(rep.UncoveredRequirements) > 0 {
+		b.WriteString("## Uncovered Spec Requirements\n\n")
+		for _, fr := range rep.UncoveredRequirements {
+			fmt.Fprintf(&b, "- `%s`\n", fr)
+		}
+		b.WriteString("\n")
+	}
 
 	if len(rep.MissingFiles) > 0 {
 		b.WriteString("## Missing Referenced Files\n\n")
@@ -319,4 +380,37 @@ func extractReferencedFiles(md string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func findUncoveredRequirements(root, planText string, existingFiles, specReqs []string) []string {
+	if len(specReqs) == 0 {
+		return nil
+	}
+	const maxInspectBytes = 256 * 1024
+	var corpus strings.Builder
+	corpus.WriteString(planText)
+	for _, rel := range existingFiles {
+		abs, err := paths.ResolveTarget(root, rel)
+		if err != nil {
+			continue
+		}
+		info, err := os.Lstat(abs)
+		if err != nil || paths.IsReparseOrSymlink(info) || !info.Mode().IsRegular() || info.Size() > maxInspectBytes {
+			continue
+		}
+		raw, err := os.ReadFile(abs)
+		if err != nil {
+			continue
+		}
+		corpus.WriteByte('\n')
+		corpus.Write(raw)
+	}
+	haystack := corpus.String()
+	var uncovered []string
+	for _, fr := range specReqs {
+		if !strings.Contains(haystack, fr) {
+			uncovered = append(uncovered, fr)
+		}
+	}
+	return uncovered
 }

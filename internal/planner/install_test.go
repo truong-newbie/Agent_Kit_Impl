@@ -26,7 +26,7 @@ func TestInstallPreviewDoesNotWriteAndDetectsConflicts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Actions) != 22 || plan.Conflicts != 0 {
+	if len(plan.Actions) != 23 || plan.Conflicts != 0 {
 		t.Fatalf("unexpected plan: %+v", plan)
 	}
 	entries, err := os.ReadDir(root)

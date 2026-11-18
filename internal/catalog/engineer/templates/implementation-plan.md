@@ -1,7 +1,7 @@
 # Implementation Plan Template
 
 ## 1. Goal & Clarified Assumptions
-- Requirement summary:
+- Requirement / spec reference (`docs/specs/<slug>.md` if present, listing mapped `FR-xxx` / `P1` stories):
 - Explicit assumptions / confirmed decisions:
 
 ## 2. Scope & Guard Boundaries

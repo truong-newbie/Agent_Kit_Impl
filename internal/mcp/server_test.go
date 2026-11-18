@@ -27,6 +27,13 @@ func TestMCPServeInitializeListAndToolsCall(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, "backend", "Auth.java"), []byte("public class Auth {}\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(repo, "docs", "specs"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	specBody := "# Feature Specification: Auth\n\n### User Story 1 — Login (Priority: P1)\n- **Given** valid credentials, **When** logging in, **Then** return token.\n\n- **FR-001:** System MUST issue token.\n- **SC-001:** Under 100ms.\n"
+	if err := os.WriteFile(filepath.Join(repo, "docs", "specs", "auth.md"), []byte(specBody), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := guard.RecordCheckPass(repo, []string{"backend-maven-test"}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +50,8 @@ func TestMCPServeInitializeListAndToolsCall(t *testing.T) {
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"dtkit_scout","arguments":{"query":"Auth"}}}`,
 		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"dtkit_project_inspect","arguments":{}}}`,
 		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"dtkit_guard_verify","arguments":{}}}`,
-		`{"jsonrpc":"2.0","id":6,"method":"unknown/method"}`,
+		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"dtkit_spec_check","arguments":{"spec":"docs/specs/auth.md"}}}`,
+		`{"jsonrpc":"2.0","id":7,"method":"unknown/method"}`,
 	}, "\n") + "\n"
 
 	var out bytes.Buffer
@@ -52,8 +60,8 @@ func TestMCPServeInitializeListAndToolsCall(t *testing.T) {
 	}
 
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if len(lines) != 6 {
-		t.Fatalf("expected 6 JSON-RPC responses (notification ignored), got %d:\n%s", len(lines), out.String())
+	if len(lines) != 7 {
+		t.Fatalf("expected 7 JSON-RPC responses (notification ignored), got %d:\n%s", len(lines), out.String())
 	}
 
 	var initResp map[string]any
@@ -70,8 +78,8 @@ func TestMCPServeInitializeListAndToolsCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	tools := listResp["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 6 {
-		t.Fatalf("expected 6 tools, got %d", len(tools))
+	if len(tools) != 7 {
+		t.Fatalf("expected 7 tools, got %d", len(tools))
 	}
 	for _, rawTool := range tools {
 		tm := rawTool.(map[string]any)
@@ -90,7 +98,10 @@ func TestMCPServeInitializeListAndToolsCall(t *testing.T) {
 	if !strings.Contains(lines[4], `"verified": true`) && !strings.Contains(lines[4], `\"verified\": true`) {
 		t.Fatalf("expected dtkit_guard_verify response to be verified: %s", lines[4])
 	}
-	if !strings.Contains(lines[5], "-32601") {
-		t.Fatalf("expected -32601 for unknown method: %s", lines[5])
+	if !strings.Contains(lines[5], "FR-001") || !strings.Contains(lines[5], "valid") {
+		t.Fatalf("expected dtkit_spec_check response to report valid + FR-001: %s", lines[5])
+	}
+	if !strings.Contains(lines[6], "-32601") {
+		t.Fatalf("expected -32601 for unknown method: %s", lines[6])
 	}
 }

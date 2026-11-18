@@ -20,9 +20,9 @@ Read the request, repository rules (`{{index .ResourcePaths "rule/engineering"}}
 - Existing repository manifests (`.dtkit/project.json`), tests, and architecture docs.
 
 ## Steps
-1. Inspect workspace zones, entrypoints, callers, cross-zone contracts, and test conventions directly involved in the task.
-2. Separate observed facts from assumptions; surface unresolved edge cases and scope boundaries.
-3. Decompose implementation into small, independently verifiable phases (for multi-service tasks: Contract/Schema -> Backend/Worker -> Frontend -> Integration).
+1. Inspect workspace zones, entrypoints, callers, cross-zone contracts, and test conventions directly involved in the task. If `docs/specs/<slug>.md` exists, read it first and verify zero unresolved `[NEEDS CLARIFICATION]` markers remain (`dtkit spec check`).
+2. Separate observed facts from assumptions; surface unresolved edge cases and Non-Goals / scope boundaries.
+3. Decompose implementation into small, independently verifiable phases (for multi-service tasks: Contract/Schema -> Backend/Worker -> Frontend -> Integration), mapping each spec `FR-xxx` and prioritized user story (`P1/P2`) to concrete phases and tests.
 4. Cross-check against `.dtkit/constitution.md` or `docs/code-standards.md` (any conflict is **CRITICAL**). Specify exact files, tests to write (Red/Green), verification commands, and recommended `dtkit guard` lock mode per phase following `{{index .ResourcePaths "template/implementation-plan"}}` (require explicit user approval before switching from `read-only` to `tdd-red`/`implement`).
 
 ## Constraints

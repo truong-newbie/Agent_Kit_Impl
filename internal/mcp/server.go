@@ -220,13 +220,26 @@ func ToolDefinitions() []toolDefinition {
 		},
 		{
 			Name:        "dtkit_converge",
-			Description: "Assess plan/spec checklist completion, referenced files on disk, and test receipt readiness strictly read-only.",
+			Description: "Assess spec/plan checklist completion, requirement coverage, referenced files on disk, and test receipt readiness strictly read-only.",
 			Annotations: ro,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"path": map[string]any{"type": "string", "description": "Optional repository path override."},
-					"plan": map[string]any{"type": "string", "description": "Optional workspace-relative plan/spec markdown path."},
+					"spec": map[string]any{"type": "string", "description": "Optional workspace-relative feature spec markdown path."},
+					"plan": map[string]any{"type": "string", "description": "Optional workspace-relative plan markdown path."},
+				},
+			},
+		},
+		{
+			Name:        "dtkit_spec_check",
+			Description: "Validate a feature spec markdown file for P1/P2 user stories, Given/When/Then scenarios, FR-xxx/SC-xxx IDs, and unresolved clarifications strictly read-only.",
+			Annotations: ro,
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{"type": "string", "description": "Optional repository path override."},
+					"spec": map[string]any{"type": "string", "description": "Optional workspace-relative feature spec markdown path."},
 				},
 			},
 		},
@@ -316,7 +329,19 @@ func executeTool(ctx context.Context, env paths.Environment, defaultRoot string,
 		if p, ok := params.Arguments["plan"].(string); ok {
 			planPath = strings.TrimSpace(p)
 		}
-		rep, err := scout.AnalyzeConvergence(ctx, env, targetPath, planPath)
+		specPath := ""
+		if s, ok := params.Arguments["spec"].(string); ok {
+			specPath = strings.TrimSpace(s)
+		}
+		rep, err := scout.AnalyzeConvergenceWithSpec(ctx, env, targetPath, planPath, specPath)
+		return encodeToolJSON(rep, err)
+
+	case "dtkit_spec_check":
+		specPath := ""
+		if s, ok := params.Arguments["spec"].(string); ok {
+			specPath = strings.TrimSpace(s)
+		}
+		rep, err := scout.InspectSpec(ctx, env, targetPath, specPath)
 		return encodeToolJSON(rep, err)
 
 	default:
