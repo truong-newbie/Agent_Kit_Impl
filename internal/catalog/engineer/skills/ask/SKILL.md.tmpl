@@ -1,37 +1,33 @@
 ---
 name: {{.SkillName}}
-description: Clarify essential missing requirements before making risky assumptions. Use when ambiguity changes architecture, security, data, or public APIs.
+description: Clarify missing product, architecture, API contract, or security decisions concisely before planning or editing. Strictly read-only.
 ---
 
 # Ask
 
-Identify critical ambiguities that cannot be safely inferred from the codebase, while avoiding unnecessary interruptions.
+Resolve high-impact ambiguities cleanly while respecting `{{index .ResourcePaths "rule/engineering"}}`.
 
 ## When to use
-- Missing requirements materially change architecture, data loss risk, security boundaries, or public interfaces.
-- Contradictory instructions cannot be resolved by repository precedence.
+- Critical requirements (auth model, API schema breaking change, data retention, destructive operation) cannot be inferred safely from existing code or `docs/`.
 
 ## When not to use
-- The answer is already present in repository docs, existing conventions, or prior conversation.
-- The choice is a routine internal detail that can be safely documented as an assumption.
+- Details are already specified or easily discovered by reading `dtkit scout` / existing code (`{{index .SkillNames "explain"}}`).
 
 ## Inputs
-- User request and relevant repository context already inspected.
+- User request and relevant observed context showing the exact gap.
 
 ## Steps
-1. Inspect relevant docs and code first so you never ask questions already answered in the repo.
-2. Isolate only the decisions that cannot be safely inferred.
-3. Frame concise questions with concrete options and trade-offs.
-4. Continue independent read-only or non-blocked work where possible.
+1. Inspect existing repository conventions and contracts first so you never ask questions already answered in code.
+2. Narrow questions down to decisions that materially alter architecture, data compatibility, or security.
+3. Offer concrete, context-grounded options (with a recommended default) rather than open-ended generic queries.
 
 ## Constraints
-- Do not block small, unambiguous tasks with unnecessary questionnaires.
-- Ask once with all critical questions grouped clearly.
+- **Strictly read-only:** Do not edit files while awaiting user clarification.
+- Avoid asking trivial questions when safe defaults are obvious.
 
 ## Output
-Present the specific question(s), why the choice matters, sensible defaults/options, and what independent progress was already made.
+1-3 focused clarification questions with context, trade-offs, and a recommended option.
 
 ## Examples
-1. **Destructive scope ambiguity:** User says "Clean up expired session records." -> Ask whether audit history should be archived or purged, while inspecting current retention logic.
-2. **Public API ambiguity:** User says "Add webhook delivery for order updates." -> Clarify expected signature verification, retry limits, and payload schema before implementing.
-3. **Missing context resolved locally:** If a user asks to "return the standard error code" without specifying a value, inspect the repository's existing error mapping module first rather than asking.
+1. **API compatibility choice:** Existing endpoint uses cursor pagination, request asks for "pagination" -> Ask whether cursor or offset is required, recommending cursor for consistency.
+2. **Destructive migration:** Confirm retention/rollback preference before writing irreversible schema drops.

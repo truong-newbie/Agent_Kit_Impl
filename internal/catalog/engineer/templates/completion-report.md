@@ -1,10 +1,16 @@
-# Completion report
+# Completion Report Template
 
-## Changes and files
-- Summarize behavioral changes and list modified/created files.
+## 1. Summary of Changes
+- Concise summary of behavior implemented or fixed:
 
-## Verification commands and actual results
-- Exact commands run, exit codes, and observed pass/fail/skipped counts.
+## 2. Modified / Created Files by Zone
+- `<zone-or-module>`: `<file paths>`
 
-## Limitations and remaining risks
-- Any unrun platform checks, runtime gates, or follow-up items.
+## 3. Verification Evidence (Real Executed Commands Only)
+- Command(s) executed after final edit:
+- Exit code(s) and test counts (passed / failed / skipped):
+- `dtkit guard verify` / receipt status:
+
+## 4. Documentation Sync & Remaining Limitations
+- Updated `docs/` files (or reason none needed):
+- Remaining blockers, unverified environments, or follow-ups:

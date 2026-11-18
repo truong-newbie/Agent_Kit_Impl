@@ -1,0 +1,36 @@
+---
+name: {{.SkillName}}
+description: Rapidly map relevant files, workspace zones, contracts, and test targets across single-language or polyglot repositories without bloating context. Strictly read-only.
+---
+
+# Scout
+
+Locate exact target modules, cross-zone boundaries, and verification commands before planning or editing, following `{{index .ResourcePaths "rule/engineering"}}` and `{{index .ResourcePaths "rule/documentation-management"}}`.
+
+## When to use
+- Starting a feature, bugfix, or audit in an unfamiliar or multi-zone repository (e.g., frontend + backend + worker/AI).
+- Need fast file discovery without exhausting context on unrelated directories or vendored artifacts.
+
+## When not to use
+- The exact 1-2 target files are already known and read.
+
+## Inputs
+- Task goal, keywords, or suspected zones/modules.
+
+## Steps
+1. Read `docs/codebase-summary.md`, `docs/system-architecture.md`, and `.dtkit/project.json` first when present.
+2. Run targeted reconnaissance (`dtkit scout --query <keyword>` or MCP `dtkit_scout`, optionally scoped with `--zone <subpath>`) instead of broad file dumps.
+3. Identify every workspace zone touched by the task, API/schema contracts between zones, and corresponding test files.
+4. Read only bounded slices of the highest-signal entrypoints and callers.
+
+## Constraints
+- **Strictly read-only:** Do not modify files while scouting.
+- Never inspect or emit secret values from `.env`, private keys, or credential stores.
+- Separate observed file paths/symbols from assumptions.
+
+## Output
+Concise map of affected workspace zones, relevant files (`path:line`), cross-service contracts, and zone test commands.
+
+## Examples
+1. **Polyglot repo onboarding:** User says "Find where checkout touches backend and UI." -> Run `dtkit scout --query checkout`, locate API handlers, frontend hooks, and test suites read-only.
+2. **Zone-focused check:** User asks "Locate Python worker entrypoints in ai/." -> Run `dtkit scout --zone ai` and return bounded entrypoints plus check commands.

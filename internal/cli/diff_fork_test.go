@@ -122,8 +122,8 @@ func TestCLIDiffForkUpdateWorkflowUserEditsAndRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fork --same-id failed: %v (%s)", err, forkRaw)
 	}
-	if forkEnv.Fork == nil || forkEnv.Fork.Version != "0.4.1" {
-		t.Fatalf("expected forked version 0.4.1, got %+v", forkEnv.Fork)
+	if forkEnv.Fork == nil || forkEnv.Fork.Version != "0.5.1" {
+		t.Fatalf("expected forked version 0.5.1, got %+v", forkEnv.Fork)
 	}
 	if strings.Contains(forkEnv.Fork.Dir, "alice-home") || !strings.HasPrefix(forkEnv.Fork.Dir, "<HOME>") {
 		t.Fatalf("expected redacted Fork.Dir, got %q", forkEnv.Fork.Dir)
@@ -144,7 +144,7 @@ func TestCLIDiffForkUpdateWorkflowUserEditsAndRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("diff against fork failed: %v (%s)", err, updDiffRaw)
 	}
-	if updDiffEnv.Explain == nil || updDiffEnv.Explain.InstalledVersion != "0.4.0" || updDiffEnv.Explain.TargetVersion != "0.4.1" {
+	if updDiffEnv.Explain == nil || updDiffEnv.Explain.InstalledVersion != "0.5.0" || updDiffEnv.Explain.TargetVersion != "0.5.1" {
 		t.Fatalf("unexpected Explain metadata: %+v", updDiffEnv.Explain)
 	}
 	if strings.Contains(updDiffEnv.Explain.SourceLocation, "alice-home") {
@@ -158,8 +158,8 @@ func TestCLIDiffForkUpdateWorkflowUserEditsAndRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update from fork failed: %v (%s)", err, updRaw)
 	}
-	if updEnv.Kit == nil || updEnv.Kit.Version != "0.4.1" {
-		t.Fatalf("expected updated version 0.4.1, got %+v", updEnv.Kit)
+	if updEnv.Kit == nil || updEnv.Kit.Version != "0.5.1" {
+		t.Fatalf("expected updated version 0.5.1, got %+v", updEnv.Kit)
 	}
 
 	// Confirm personal CLAUDE.md text stayed untouched while fork rule landed in DTKit's managed content root.

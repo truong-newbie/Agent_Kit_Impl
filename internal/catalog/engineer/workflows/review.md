@@ -1,6 +1,6 @@
-# Review workflow
+# Review Workflow
 
-1. Establish the exact diff, commit base, or target files (`review`).
-2. Inspect changed code alongside callers, tests, and security/compatibility invariants.
-3. Prioritize findings by severity (bugs, security/path risks, regressions, missing tests).
-4. Report evidence-backed findings and testing gaps (`review-report.md`) without editing code on review-only requests.
+1. Confirm target diff, commit base, or file scope (`read-only`).
+2. Inspect modified code alongside callers, cross-zone contracts, and test files.
+3. Prioritize verified defects: correctness, regressions, security boundaries (injection, traversal, auth, secrets), and missing tests.
+4. Report evidence-backed findings using `review-report.md` without modifying repository files.

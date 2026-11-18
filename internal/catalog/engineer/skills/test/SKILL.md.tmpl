@@ -1,35 +1,36 @@
 ---
 name: {{.SkillName}}
-description: Design, write, or execute software tests for a change. Use for test engineering and verification; report only real executed results.
+description: Design, write, and execute software tests across any stack with Red/Green discipline and cryptographic verification. Report only real executed results.
 ---
 
 # Test
 
-Verify software behavior using the repository's existing test tools and conventions, following `{{index .ResourcePaths "rule/engineering"}}`.
+Verify software behavior using `.dtkit/project.json` and each workspace zone's native test runner, following `{{index .ResourcePaths "rule/engineering"}}`.
 
 ## When to use
-- The user asks to write unit/integration tests, add regression tests, or run verification suites.
+- Writing unit, integration, or regression tests, or running verification suites before completing a task.
 
 ## When not to use
 - The user asks only for a plan (`{{index .SkillNames "plan"}}`) or read-only review (`{{index .SkillNames "review"}}`).
 
 ## Inputs
-- Target behavior/module and available project test scripts or runners.
+- Target behavior, module/zone, and configured `.dtkit/project.json` or zone test manifests.
 
 ## Steps
-1. Inspect `.dtkit/project.json` (when present) plus existing test files, manifests, and CI/verification scripts to match project conventions.
-2. Design tests covering normal behavior, boundary conditions, and failure/security paths; avoid brittle implementation-detail assertions or relaxing existing checks.
-3. Run only relevant, authorized test/lint/typecheck commands after final edits.
-4. Capture exact commands, exit codes, and pass/fail/skipped counts (never reporting missing tools as passed).
+1. Inspect `.dtkit/project.json` (when present) and existing test conventions in the target zone (Go, TypeScript/JS, Python, Java/Kotlin, C/C++, Rust, C#).
+2. Follow Red/Green discipline:
+   - Reproduce bugs or specify new behavior with failing tests covering normal, boundary, and error/security paths.
+   - During bugfixes or green phases, do not weaken assertions or insert skip directives (`t.Skip`, `.skip`, `pytest.skip`, `@Disabled`, `GTEST_SKIP`) to bypass failures.
+3. Run relevant authorized checks (`dtkit check --all`, `dtkit check --changed`, or zone runners) after the final edit and confirm receipt status (`dtkit guard verify`).
+4. Capture exact commands, exit codes, and passed/failed/skipped counts.
 
 ## Constraints
 - Never claim tests passed without running them after the final edit.
-- Do not bypass failing checks, mock out the behavior under test improperly, or mutate real user configuration in tests.
+- Do not skip, delete, or relax failing tests, or mutate real user configuration during tests.
 
 ## Output
-Report exact commands executed, exit codes, test outcomes (passed/failed/skipped), and any untested environment gaps.
+Executed commands, exit codes, exact test outcomes (passed/failed/skipped), `dtkit guard verify` status, and untested environment gaps.
 
 ## Examples
-1. **Regression test:** User asks "Add tests for invalid input and edge cases in slug formatting." -> Add table-driven tests in the existing test suite and run the repository test runner.
-2. **Targeted suite run:** User says "Verify the API service module." -> Run the module's configured unit/lint checks (`go test`, `npm test`, `pytest`, or `.dtkit/project.json` checks) and report exact exit status and counts.
-3. **Missing information:** If a linter or native OS test runner is unavailable, report the exact missing executable (`missing_tool`) and what could still be verified.
+1. **Regression suite:** User asks "Add edge-case tests for slug parsing." -> Add table-driven tests matching repo conventions and run the configured test runner.
+2. **Zone verification:** Run `dtkit check --all` (using `.dtkit/project.json`) after edits and report exact exit code and pass/fail counts.

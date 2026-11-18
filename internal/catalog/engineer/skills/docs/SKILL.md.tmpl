@@ -1,0 +1,36 @@
+---
+name: {{.SkillName}}
+description: Bootstrap or synchronize living repository architecture documentation (codebase summary, system architecture, and code standards) for single or polyglot projects.
+---
+
+# Documentation & Living Context
+
+Create or update `docs/codebase-summary.md`, `docs/system-architecture.md`, and `docs/code-standards.md`, following `{{index .ResourcePaths "rule/engineering"}}` and `{{index .ResourcePaths "rule/documentation-management"}}`.
+
+## When to use
+- Onboarding an existing repository (`bootstrap-docs`) or synchronizing documentation after a feature or architectural change.
+
+## When not to use
+- The user asked a read-only question (`{{index .SkillNames "ask"}}`) or explanation (`{{index .SkillNames "explain"}}`).
+
+## Inputs
+- Reconnaissance data (`dtkit scout --write-summary`), manifests (`.dtkit/project.json`), cross-service contracts, and recent diffs.
+
+## Steps
+1. Run `dtkit scout` (or `dtkit scout --write-summary`) to gather accurate workspace zones, languages, file counts, and contract files.
+2. Create or update ONLY facts directly verified in the codebase:
+   - `docs/codebase-summary.md`: Workspace zones (FE, BE, AI, workers, DB), languages, manifests, and key directories.
+   - `docs/system-architecture.md`: Component boundaries, request/data flows, shared contracts, storage, and security boundaries.
+   - `docs/code-standards.md`: Observed conventions, error handling, testing, and linting commands per zone.
+3. Verify that every referenced path, symbol, and command exists cleanly and contains no secrets or host-local paths.
+
+## Constraints
+- **Evidence-only docs:** Do not invent unverified endpoints, unimplemented features, or aspirational architecture as current behavior.
+- Never write credentials, API keys, or local home paths into repository docs.
+
+## Output
+Summary of updated `docs/` files, verified sections refreshed, and any uninspected modules noted explicitly.
+
+## Examples
+1. **Bootstrap multi-stack docs:** Run `dtkit scout --write-summary`, then document BE/FE/AI boundaries in `docs/system-architecture.md` and per-zone test commands in `docs/code-standards.md`.
+2. **Post-feature sync:** Update `docs/system-architecture.md` after adding a background webhook worker verified in code.

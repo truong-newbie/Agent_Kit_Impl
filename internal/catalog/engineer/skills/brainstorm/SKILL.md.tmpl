@@ -1,0 +1,37 @@
+---
+name: {{.SkillName}}
+description: Analyze ambiguous ideas, refine requirements via Socratic questions, and evaluate architecture options before planning or coding. Strictly read-only.
+---
+
+# Brainstorm
+
+Explore problem requirements, constraints, and solution trade-offs before committing to a plan, following `{{index .ResourcePaths "rule/engineering"}}`.
+
+## When to use
+- Requirements are high-level, ambiguous, or have multiple valid architectural approaches.
+- A feature spans multiple services or layers (for example frontend, backend API, worker, or storage) and needs design alignment first.
+
+## When not to use
+- Requirements are already unambiguous and the user asks for an immediate localized fix.
+- The user already has an approved plan and asks to implement (`{{index .SkillNames "implement"}}`).
+
+## Inputs
+- Problem statement, goals, constraints, and existing repository context.
+
+## Steps
+1. Inspect existing conventions and constraints without modifying any files (lock `dtkit guard lock --mode read-only` if needed).
+2. Identify critical ambiguities affecting data models, public APIs, security, or user workflows.
+3. Ask concise, targeted clarifying questions; avoid trivial or already-answered questions.
+4. Present 2-3 viable design approaches with explicit trade-offs (complexity, compatibility, risk) and a clear recommendation.
+5. Once agreed, hand off cleanly to `{{index .SkillNames "scout"}}` and `{{index .SkillNames "plan"}}`.
+
+## Constraints
+- **Strictly read-only:** Do not edit source, config, or test files during brainstorming.
+- Favor YAGNI and reuse of existing repository patterns over speculative abstractions.
+
+## Output
+Concise problem framing, clarified constraints, compared options with trade-offs, recommended architecture, and open decisions.
+
+## Examples
+1. **Ambiguous auth feature:** User says "Add SSO login." -> Ask about IdP type (OIDC vs SAML), session storage, and role mapping, then compare 2 integration architectures without editing code.
+2. **Cross-service data pipeline:** User asks "Should AI indexing run sync or async?" -> Compare HTTP latency vs queue worker durability trade-offs before planning.

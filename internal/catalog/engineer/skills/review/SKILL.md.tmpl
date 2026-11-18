@@ -1,36 +1,38 @@
 ---
 name: {{.SkillName}}
-description: Review code or diffs for bugs, security risks, compatibility issues, and missing tests. Use for code reviews; do not modify code on review-only requests.
+description: Review code or diffs for correctness, cross-zone contract parity, security vulnerabilities, and test integrity. Strictly read-only on review-only requests.
 ---
 
-# Review
+# Review & Security Audit
 
-Evaluate code changes with priority on correctness, security, compatibility, and test coverage, following `{{index .ResourcePaths "rule/engineering"}}`.
+Evaluate code changes with priority on correctness, security boundaries, cross-service compatibility, and test integrity, following `{{index .ResourcePaths "rule/engineering"}}`.
 
 ## When to use
-- The user asks for a review of a diff, branch, PR, or specific files.
+- The user asks for a code review, security audit, PR diff check, or pre-release inspection.
 
 ## When not to use
-- The user asks to implement changes directly (`{{index .SkillNames "implement"}}`) or only explain behavior (`{{index .SkillNames "explain"}}`).
+- The user asks to implement fixes directly (`{{index .SkillNames "implement"}}`) or only explain code (`{{index .SkillNames "explain"}}`).
 
 ## Inputs
-- Target diff, commit range, or file set to inspect.
+- Target diff, commit range, branch, or specific files across workspace zones.
 
 ## Steps
-1. Establish the exact review scope and base revision.
-2. Inspect changed files alongside surrounding callers, invariants, and tests.
-3. Prioritize findings: correctness/regressions, security/path/input safety, compatibility, and missing tests.
-4. Verify each finding directly against code; separate confirmed defects from open questions.
-5. Present findings using `{{index .ResourcePaths "template/review-report"}}`.
+1. Establish exact review scope and base revision (`dtkit scout` can locate surrounding callers and contracts).
+2. Inspect changed files alongside callers, shared schemas/APIs (FE <-> BE <-> AI/Worker), and tests.
+3. Audit systematically:
+   - **Correctness & Concurrency:** edge cases, race conditions, timeouts, cancellation, resource/FD leaks.
+   - **Security:** SQL/Command/Template injection, path traversal/symlink escape, SSRF, broken AuthN/AuthZ, unsafe deserialization, secret leaks.
+   - **Test Integrity:** verify tests were not skipped, weakened, or deleted to mask failures (`dtkit guard verify`).
+4. Verify each finding directly in code (`path:line`) and separate confirmed defects from open questions.
+5. Present prioritized findings using `{{index .ResourcePaths "template/review-report"}}`.
 
 ## Constraints
-- **Read-only by default:** Do not edit source files when only a review is requested.
-- Avoid nitpicks over formatting when real behavioral or safety risks exist.
+- **Read-only by default:** Do not edit source or config files when only a review is requested.
+- Prioritize behavioral and security defects over minor style preferences.
 
 ## Output
-Format findings per `{{index .ResourcePaths "template/review-report"}}` with severity, file/line location, evidence, impact, remediation, and testing gaps.
+Format findings per `{{index .ResourcePaths "template/review-report"}}` with severity, category, location, evidence, impact, remediation, and testing gaps.
 
 ## Examples
-1. **PR diff review:** User says "Review my staged changes for security and edge cases." -> Inspect staged changes and callers against `{{index .ResourcePaths "template/review-report"}}`, reporting prioritized findings with evidence without editing files.
-2. **Targeted module audit:** User asks "Review the auth module for token validation bugs." -> Trace token parsing, expiry checks, and path/input handling, reporting verified vulnerabilities and missing tests.
-3. **Missing information:** If the user says "Review recent changes" and the base branch is ambiguous, state the chosen diff base (e.g., `HEAD~1` or working tree) and list any uninspected areas.
+1. **Security & diff audit:** User says "Review my payment diff for bugs and security risks." -> Inspect changes and callers against `{{index .ResourcePaths "template/review-report"}}` without modifying code.
+2. **Test integrity audit:** Detect skipped or weakened assertions in changed test files and flag exact missing edge-case coverage.

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kitId": "engineer",
-  "kitVersion": "0.4.0",
-  "kitDigest": "578e94eec977f31b7ecb390e9fddab3d8bdca7c4a25d87a6610dbc15d5bd17f1",
+  "kitVersion": "0.5.0",
+  "kitDigest": "49dcf0fe60c1df7d114e3bbbc83f58bb7ebfe1a958ae9ada64e46cfff7c28517",
   "entries": [
     {
       "runtime": "codex",
@@ -35,8 +35,8 @@
         "status": "partial",
         "note": "project skill discovery verified on codex-cli 0.169.0; live sandboxed tool execution and hook trust blocked/pending in host policy"
       },
-      "renderedDigest": "4c851db9eed390c624b98d3068602125ff21b2cf989ff112b8a034587a00f2b1",
-      "artifactCount": 15
+      "renderedDigest": "e14d163316269603ee6bc7588dfa206a47fcbd6d73d3cfa83f7eaccb3430a78e",
+      "artifactCount": 20
     },
     {
       "runtime": "codex",
@@ -69,8 +69,8 @@
         "status": "partial",
         "note": "isolated CODEX_HOME AGENTS.md verified on codex-cli 0.169.0; Windows user-profile ~/.agents/skills and live task execution pending"
       },
-      "renderedDigest": "9a17953e73f84328cdacffcb244480b456296112665992a9e7c6a2d4483a0f17",
-      "artifactCount": 15
+      "renderedDigest": "d7c02b1a794876d585566fec2bc27a9846dd0cef2470d1075b15583ebe96e464",
+      "artifactCount": 20
     },
     {
       "runtime": "gemini",
@@ -103,8 +103,8 @@
         "status": "unverified",
         "note": "rendered and schema-checked only; live Gemini CLI verification pending"
       },
-      "renderedDigest": "51233deec564db57ebceaf6fabc800dfc6f819dc9e882866978f97737156b959",
-      "artifactCount": 15
+      "renderedDigest": "3f49dca50bc9a9346171a34987fc3246d0600e75838bb6e31a7ecfea4ed34c38",
+      "artifactCount": 20
     },
     {
       "runtime": "gemini",
@@ -137,8 +137,8 @@
         "status": "unverified",
         "note": "rendered and schema-checked only; live Gemini CLI verification pending"
       },
-      "renderedDigest": "ff3f784c7043bd751d2712af79619150888f692d585012300179aab293f8d83c",
-      "artifactCount": 15
+      "renderedDigest": "903f70546f52c0a7ce8f8bd2307d5350212e4ed666a90ee59e0c5904b70147be",
+      "artifactCount": 20
     },
     {
       "runtime": "opencode",
@@ -171,8 +171,8 @@
         "status": "partial",
         "note": "project, coexistence, and removal verified on opencode 1.19.5; live LLM turn blocked (no isolated provider credentials)"
       },
-      "renderedDigest": "b68795e2838bb903a6691f5730bda6b2e0c65ddf15f4acc598260d1615a79314",
-      "artifactCount": 15
+      "renderedDigest": "12d852a4a922dc0230afa4860fc1826bbf9f431299d75274a484fb89eea18ac6",
+      "artifactCount": 20
     },
     {
       "runtime": "opencode",
@@ -205,8 +205,8 @@
         "status": "partial",
         "note": "global and combined 14-skill discovery verified on opencode 1.19.5; live LLM turn blocked (no isolated provider credentials)"
       },
-      "renderedDigest": "22baf15a1d4af024edd0a140605050ec0abf41a784fcaf7ab49ea6fce6b6d39d",
-      "artifactCount": 15
+      "renderedDigest": "8a6a92695ef1a53dcebd0c748de8b0d3081028e2bfc222efe5f431bf05e7a5c5",
+      "artifactCount": 20
     },
     {
       "runtime": "cursor",
@@ -239,8 +239,8 @@
         "status": "unverified",
         "note": "rendered and schema-checked only; live Cursor verification pending"
       },
-      "renderedDigest": "a50cda40d6dcd7e62b13cf74611531eb84018d35e38431ed4d2330e2b0739fb4",
-      "artifactCount": 15
+      "renderedDigest": "7824721eafb9b3861861ec895a114c919a14856c37f3e449eab03b5ab5d95ba2",
+      "artifactCount": 20
     },
     {
       "runtime": "cursor",
@@ -271,8 +271,8 @@
         "status": "unverified",
         "note": "rendered and schema-checked only (skills-only fallback; global User Rules managed in Cursor Settings UI); live Cursor verification pending"
       },
-      "renderedDigest": "13f737d4decae117d053fdf5769aa20f73523c33f9300da7977378562629e481",
-      "artifactCount": 14
+      "renderedDigest": "98e1ebafae57f804a8b75007e724f7493e27209023d3623a6785bb10223b6118",
+      "artifactCount": 19
     },
     {
       "runtime": "claude",
@@ -305,8 +305,8 @@
         "status": "unverified",
         "note": "rendered and schema-checked only; live Claude Code verification pending"
       },
-      "renderedDigest": "b43efcbab25f0bae8c2083005e203fbfa500ac160eff9332c3cbac941eb02c3c",
-      "artifactCount": 15
+      "renderedDigest": "d221f55574573b6997cd6d69270b18aeaf16af9a05ab87802a6025379efc22e2",
+      "artifactCount": 20
     },
     {
       "runtime": "claude",
@@ -339,8 +339,8 @@
         "status": "unverified",
         "note": "rendered and schema-checked only; live Claude Code verification pending"
       },
-      "renderedDigest": "9543561af7cb83cc28d0397da83abb03df17a67509adea2336ef062b2b62e384",
-      "artifactCount": 15
+      "renderedDigest": "dd68837f038018f65588c99964344327fceb11d46ac1e06c74dbcbce69b8f31d",
+      "artifactCount": 20
     }
   ]
 }

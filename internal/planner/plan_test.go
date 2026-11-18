@@ -37,7 +37,7 @@ func TestPlanDesiredDecisionMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Conflicts != 0 || len(plan.Actions) != 15 {
+	if plan.Conflicts != 0 || len(plan.Actions) != 20 {
 		t.Fatalf("unexpected fresh plan: %+v", plan)
 	}
 

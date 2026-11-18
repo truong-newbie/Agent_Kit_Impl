@@ -15,6 +15,7 @@ import (
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/check"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/guard"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
@@ -136,13 +137,26 @@ func runCheckChangedForRuntimeWithNow(ctx context.Context, stdin io.Reader, stdo
 			failedIDs = append(failedIDs, fmt.Sprintf("%s(%s)", r.ID, r.Status))
 		}
 	}
-	if rep.Summary.Total == 0 || (rep.Summary.Pass == 0 && len(failedIDs) == 0) {
+	tamperFindings, _ := guard.DetectTestTampering(stateRoot)
+	streak, _ := guard.LoadStreak(stateRoot)
+
+	if (rep.Summary.Total == 0 || (rep.Summary.Pass == 0 && len(failedIDs) == 0)) && len(tamperFindings) == 0 {
 		return writeEmptyRuntimeHookOutput(stdout, runtimeID)
 	}
 	msg := fmt.Sprintf("DTKit changed checks: pass=%d fail=%d missing_tool=%d timeout=%d skipped=%d",
 		rep.Summary.Pass, rep.Summary.Fail, rep.Summary.MissingTool, rep.Summary.Timeout, rep.Summary.Skipped)
 	if len(failedIDs) > 0 {
 		msg += " issues=[" + strings.Join(failedIDs, ", ") + "]"
+	}
+	if len(tamperFindings) > 0 {
+		details := make([]string, 0, len(tamperFindings))
+		for _, f := range tamperFindings {
+			details = append(details, f.Rule+":"+f.Path)
+		}
+		msg += " [TEST TAMPERING WARNING: " + strings.Join(details, ", ") + "]"
+	}
+	if streak.ConsecutiveFailures >= 3 {
+		msg += fmt.Sprintf(" [RETRY LOOP DETECTED: %d consecutive failing checks; pause and inspect root cause before editing again]", streak.ConsecutiveFailures)
 	}
 	return encodeCheckChangedOutput(stdout, runtimeID, msg)
 }
@@ -290,6 +304,9 @@ func evaluateGuardEditTarget(stateRoot, targetFile string) string {
 		if appErr := apperr.AsError(err); appErr != nil && (appErr.Code == "symlink_escape" || appErr.Code == "unsafe_path") {
 			return fmt.Sprintf("blocked unsafe target path %q: %s", rel, appErr.Message)
 		}
+	}
+	if allowed, reason := guard.EvaluateEdit(cleanRoot, rel); !allowed {
+		return reason
 	}
 	return ""
 }

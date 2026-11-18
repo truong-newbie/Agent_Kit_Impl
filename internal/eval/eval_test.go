@@ -112,8 +112,8 @@ func ApplyDiscount(totalCents int64, percent int) (int64, error) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rec.Outcome != OutcomePassed || !rec.EvaluatorPassed || rec.ScopeViolation || rec.TestTampering || rec.KitVersion != "0.4.0" {
-			t.Fatalf("expected passed with_kit run on current engineer kit 0.4.0, got %+v", rec)
+		if rec.Outcome != OutcomePassed || !rec.EvaluatorPassed || rec.ScopeViolation || rec.TestTampering || rec.KitVersion != "0.5.0" {
+			t.Fatalf("expected passed with_kit run on current engineer kit 0.5.0, got %+v", rec)
 		}
 	})
 

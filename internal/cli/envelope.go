@@ -10,9 +10,11 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/check"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/guard"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/project"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/scout"
 )
 
 type KitSummary struct {
@@ -129,6 +131,8 @@ type Envelope struct {
 	CheckReport    *check.Report                `json:"checkReport,omitempty"`
 	CompatReport   *adapter.CompatibilityReport `json:"compatReport,omitempty"`
 	CompatDiff     *adapter.CompatibilityDiff   `json:"compatDiff,omitempty"`
+	Scout          *scout.Report                `json:"scout,omitempty"`
+	GuardStatus    *guard.StatusReport          `json:"guardStatus,omitempty"`
 	Warnings       []string                     `json:"warnings"`
 	Errors         []apperr.Error               `json:"errors"`
 }

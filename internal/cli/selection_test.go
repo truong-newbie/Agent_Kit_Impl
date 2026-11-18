@@ -197,7 +197,7 @@ func TestCLISelectionInstallStatusUpdatePreserveAndSwitch(t *testing.T) {
 			return rErr
 		}
 		if rel == "package.json" {
-			data = []byte(strings.Replace(string(data), `"version": "0.4.0"`, `"version": "0.5.0"`, 1))
+			data = []byte(strings.Replace(string(data), `"version": "0.5.0"`, `"version": "0.6.0"`, 1))
 		}
 		return os.WriteFile(target, data, 0644)
 	}); err != nil {
@@ -208,8 +208,8 @@ func TestCLISelectionInstallStatusUpdatePreserveAndSwitch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update preserving minimal preset failed: %v", err)
 	}
-	if updPreserveEnv.Selection == nil || updPreserveEnv.Selection.Preset != "minimal" || updPreserveEnv.Kit.Version != "0.5.0" {
-		t.Fatalf("expected 0.5.0 upgrade to preserve minimal preset, got kit=%+v selection=%+v", updPreserveEnv.Kit, updPreserveEnv.Selection)
+	if updPreserveEnv.Selection == nil || updPreserveEnv.Selection.Preset != "minimal" || updPreserveEnv.Kit.Version != "0.6.0" {
+		t.Fatalf("expected 0.6.0 upgrade to preserve minimal preset, got kit=%+v selection=%+v", updPreserveEnv.Kit, updPreserveEnv.Selection)
 	}
 	if _, err := os.Stat(filepath.Join(proj, ".claude", "skills", "dtkit-claude-project-review", "SKILL.md")); !os.IsNotExist(err) {
 		t.Fatalf("expected minimal preset preservation to omit dtkit-claude-project-review")

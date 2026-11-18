@@ -181,3 +181,62 @@ func TestInspectMonorepoReadOnlyAndInitSafety(t *testing.T) {
 		}
 	}
 }
+
+func TestInspectPolyglotMonorepoStacks(t *testing.T) {
+	base := t.TempDir()
+	home := filepath.Join(base, "home")
+	repo := filepath.Join(base, "polyglot")
+	files := map[string]string{
+		"frontend/package.json":  `{"name":"web","scripts":{"test":"vitest"}}`,
+		"frontend/tsconfig.json": `{"compilerOptions":{"strict":true}}`,
+		"backend/pom.xml":        `<project><modelVersion>4.0.0</modelVersion></project>`,
+		"ai/pyproject.toml":      "[project]\nname = \"ai\"\ndependencies = [\"pytest\"]\n",
+		"core/CMakeLists.txt":    "cmake_minimum_required(VERSION 3.20)\nproject(core)\n",
+		"worker/Cargo.toml":      "[package]\nname = \"worker\"\nversion = \"0.1.0\"\n",
+		"net/Service.csproj":     "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>",
+	}
+	for rel, body := range files {
+		full := filepath.Join(repo, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	env := paths.Environment{
+		Getwd:       func() (string, error) { return repo, nil },
+		UserHomeDir: func() (string, error) { return home, nil },
+	}
+	res, err := Inspect(context.Background(), env, repo)
+	if err != nil {
+		t.Fatalf("Inspect polyglot failed: %v", err)
+	}
+	gotStacks := map[string]string{}
+	for _, r := range res.Profile.Roots {
+		gotStacks[r.Path] = r.Stack
+	}
+	wantStacks := map[string]string{
+		"frontend": "ts",
+		"backend":  "java",
+		"ai":       "python",
+		"core":     "cpp",
+		"worker":   "rust",
+		"net":      "dotnet",
+	}
+	for dir, want := range wantStacks {
+		if gotStacks[dir] != want {
+			t.Fatalf("stack[%s] = %q, want %q (all=%+v)", dir, gotStacks[dir], want, gotStacks)
+		}
+	}
+	gotChecks := map[string]bool{}
+	for _, c := range res.Profile.Checks {
+		gotChecks[c.ID] = true
+	}
+	for _, wantID := range []string{"frontend-npm-test", "backend-maven-test", "ai-pytest", "core-ctest", "worker-cargo-test", "net-dotnet-test"} {
+		if !gotChecks[wantID] {
+			t.Fatalf("missing expected check %q (got %+v)", wantID, gotChecks)
+		}
+	}
+}

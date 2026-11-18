@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "engineer",
   "name": "DTKit Engineer Kit",
-  "version": "0.4.0",
-  "description": "Engineering skills and workflows for coding agents.",
+  "version": "0.5.0",
+  "description": "Unified engineering skill mesh and workflows for polyglot coding agents.",
   "runtimeTargets": ["codex", "gemini", "opencode", "cursor", "claude"],
   "scopes": ["project", "global"],
   "requiresCapabilities": ["skills"],
@@ -11,23 +11,28 @@
   "packageDependencies": [],
   "components": [
     {"id":"rule/engineering","kind":"rule","source":"rules/engineering.md","requires":[]},
+    {"id":"rule/documentation-management","kind":"rule","source":"rules/documentation-management.md","requires":[]},
     {"id":"template/implementation-plan","kind":"template","source":"templates/implementation-plan.md","requires":[]},
     {"id":"template/review-report","kind":"template","source":"templates/review-report.md","requires":[]},
     {"id":"template/completion-report","kind":"template","source":"templates/completion-report.md","requires":[]},
+    {"id":"skill/brainstorm","kind":"skill","source":"skills/brainstorm","requires":["rule/engineering"]},
+    {"id":"skill/scout","kind":"skill","source":"skills/scout","requires":["rule/engineering","rule/documentation-management"]},
     {"id":"skill/plan","kind":"skill","source":"skills/plan","requires":["rule/engineering","template/implementation-plan"]},
     {"id":"skill/implement","kind":"skill","source":"skills/implement","requires":["rule/engineering","template/completion-report"]},
     {"id":"skill/debug","kind":"skill","source":"skills/debug","requires":["rule/engineering"]},
     {"id":"skill/review","kind":"skill","source":"skills/review","requires":["rule/engineering","template/review-report"]},
     {"id":"skill/test","kind":"skill","source":"skills/test","requires":["rule/engineering"]},
+    {"id":"skill/docs","kind":"skill","source":"skills/docs","requires":["rule/engineering","rule/documentation-management"]},
     {"id":"skill/explain","kind":"skill","source":"skills/explain","requires":["rule/engineering"]},
     {"id":"skill/ask","kind":"skill","source":"skills/ask","requires":["rule/engineering"]},
-    {"id":"workflow/feature","kind":"workflow","source":"workflows/feature.md","requires":["skill/plan","skill/implement","skill/test","skill/review"]},
-    {"id":"workflow/bugfix","kind":"workflow","source":"workflows/bugfix.md","requires":["skill/debug","skill/test","skill/review"]},
-    {"id":"workflow/review","kind":"workflow","source":"workflows/review.md","requires":["skill/review"]}
+    {"id":"workflow/feature","kind":"workflow","source":"workflows/feature.md","requires":["skill/brainstorm","skill/scout","skill/plan","skill/implement","skill/test","skill/review","skill/docs"]},
+    {"id":"workflow/bugfix","kind":"workflow","source":"workflows/bugfix.md","requires":["skill/scout","skill/debug","skill/test","skill/implement","skill/review"]},
+    {"id":"workflow/review","kind":"workflow","source":"workflows/review.md","requires":["skill/review"]},
+    {"id":"workflow/bootstrap-docs","kind":"workflow","source":"workflows/bootstrap-docs.md","requires":["skill/scout","skill/docs"]}
   ],
   "presets": {
     "minimal": ["skill/ask", "skill/explain", "skill/plan"],
     "review-only": ["workflow/review"],
-    "engineering": ["workflow/feature", "workflow/bugfix", "workflow/review", "skill/ask", "skill/explain"]
+    "engineering": ["workflow/feature", "workflow/bugfix", "workflow/review", "workflow/bootstrap-docs", "skill/ask", "skill/explain"]
   }
 }

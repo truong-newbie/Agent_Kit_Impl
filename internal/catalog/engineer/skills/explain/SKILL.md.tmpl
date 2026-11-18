@@ -1,35 +1,32 @@
 ---
 name: {{.SkillName}}
-description: Explain existing code, data flow, or architecture with repository evidence. Use for understanding and documentation questions; read-only by default.
+description: Explain code, architecture, and cross-service behavior clearly from verified files without editing the repository. Strictly read-only.
 ---
 
 # Explain
 
-Trace actual source code and documentation to explain how a system works, following `{{index .ResourcePaths "rule/engineering"}}`.
+Analyze and explain existing software behavior accurately using `{{index .ResourcePaths "rule/engineering"}}`.
 
 ## When to use
-- The user asks how a module, feature, CLI command, or architecture works.
+- The user asks how a module, cross-service flow, schema, or error path works without requesting edits.
 
 ## When not to use
-- The user asks to modify code (`{{index .SkillNames "implement"}}`) or audit a diff for defects (`{{index .SkillNames "review"}}`).
+- The user asks to implement changes (`{{index .SkillNames "implement"}}`) or run a PR review (`{{index .SkillNames "review"}}`).
 
 ## Inputs
-- Target file, symbol, feature, or architectural question.
+- Target files, symbols, endpoints, or architecture questions (`dtkit scout` or `docs/system-architecture.md` when available).
 
 ## Steps
-1. Locate relevant entry points and read the actual implementation and callers.
-2. Trace control flow, data structures, and invariants end to end.
-3. Explain at the requested depth, citing exact file paths and symbol names.
-4. Clearly separate directly observed facts from any inference.
+1. Locate definitions, callers, and cross-zone contracts via targeted search before reading bounded code slices.
+2. Trace real control flow, inputs, outputs, invariants, and error paths directly from inspected files.
+3. Cite exact file paths and symbol names observed; explicitly label any inferred behavior.
 
 ## Constraints
-- **Read-only by default:** Do not edit files when asked to explain.
-- Never describe symbols, paths, or behavior from memory without reading them first.
+- **Strictly read-only:** Do not modify files, run mutating commands, or fabricate unobserved symbols/behaviors.
 
 ## Output
-Provide a clear walkthrough citing exact file paths/symbols, key invariants/limits, and a brief example if helpful.
+Clear structured explanation anchored by `path:line` citations, data flow summary, and explicit boundaries.
 
 ## Examples
-1. **Flow explanation:** User asks "How does order checkout compute discounts and tax?" -> Trace request validation, pricing rules, and persistence across the actual source files with exact symbol references.
-2. **Architecture summary:** User asks "Summarize the packages in this repository." -> Check `.dtkit/project.json` (if present) or workspace manifests (`go.mod`, `package.json`, `pyproject.toml`) and describe responsibilities and boundaries.
-3. **Missing information:** If the referenced module does not exist in the repository yet, state what was checked and what is absent rather than inventing APIs.
+1. **Cross-service flow:** User asks "Explain how login requests flow from UI to Java auth service." -> Trace routes, DTOs, and validation from observed files without editing anything.
+2. **Error behavior:** Explain exact retry/timeout boundaries observed in worker code, separating facts from inference.

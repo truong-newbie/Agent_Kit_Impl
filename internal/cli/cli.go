@@ -37,6 +37,9 @@ Usage:
   dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]
+  dtkit scout [--path <dir>] [--query <keyword>] [--zone <subpath>] [--pack] [--max-bytes <n>] [--write-summary] [--json]
+  dtkit guard <status|lock|unlock|verify> [--path <dir>] [--mode <read-only|tdd-red|tdd-green|scoped>] [--allow <glob>...] [--deny <glob>...] [--protect-tests] [--json]
+  dtkit mcp serve [--path <dir>]
   dtkit lock <generate|verify|diff|sign|keygen> [options]
   dtkit sync [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--lock <file>] [--trust <file>] [--require-signature] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit team <export|import|template> [options]
@@ -108,6 +111,12 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runProject(ctx, args[1:], deps)
 	case "check":
 		return runCheck(ctx, args[1:], deps)
+	case "scout":
+		return runScout(ctx, args[1:], deps)
+	case "guard":
+		return runGuard(ctx, args[1:], deps)
+	case "mcp":
+		return runMCP(ctx, args[1:], deps)
 	case "lock":
 		return runLock(ctx, args[1:], deps)
 	case "sync":
@@ -181,6 +190,15 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		return err
 	case "check":
 		_, err := io.WriteString(out, "Usage: dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]\n")
+		return err
+	case "scout":
+		_, err := io.WriteString(out, "Usage: dtkit scout [--path <dir>] [--query <keyword>] [--zone <subpath>] [--pack] [--max-bytes <n>] [--write-summary] [--json]\n")
+		return err
+	case "guard":
+		_, err := io.WriteString(out, "Usage: dtkit guard <status|lock|unlock|verify> [--path <dir>] [--mode <read-only|tdd-red|tdd-green|scoped>] [--allow <glob>...] [--deny <glob>...] [--protect-tests] [--json]\n")
+		return err
+	case "mcp":
+		_, err := io.WriteString(out, "Usage: dtkit mcp serve [--path <dir>]\n")
 		return err
 	case "lock":
 		_, err := io.WriteString(out, "Usage: dtkit lock <generate|verify|diff|sign|keygen> [--path <dir>] [--runtime <...>] [--lock <file>] [--trust <file>] [--source-ref <kit=ref>] [--key-file <file>] [--key-id <id>] [--offline] [--require-signature] [--dry-run] [--yes] [--json]\n")

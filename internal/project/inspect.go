@@ -242,6 +242,92 @@ func Inspect(ctx context.Context, env paths.Environment, rawPath string) (Inspec
 				})
 			}
 		}
+
+		// Rust discovery
+		if _, exists, err := readOptionalRegular(root, prefix+"Cargo.toml"); err != nil {
+			return InspectResult{}, err
+		} else if exists {
+			evPath := prefix + "Cargo.toml"
+			addRoot(relDir, "rust", "cargo", evPath)
+			profile.Evidence = append(profile.Evidence, EvidenceItem{Source: evPath, Summary: "Detected Rust workspace (cargo)"})
+			addCheck(CheckSpec{
+				ID:         makeCheckID(relDir, "cargo-test"),
+				Kind:       "test",
+				Executable: "cargo",
+				Argv:       []string{"test"},
+				Cwd:        relDir,
+				TimeoutSec: DefaultTimeoutSec,
+			})
+		}
+
+		// Java / Kotlin discovery (Maven / Gradle)
+		if _, exists, err := readOptionalRegular(root, prefix+"pom.xml"); err != nil {
+			return InspectResult{}, err
+		} else if exists {
+			evPath := prefix + "pom.xml"
+			addRoot(relDir, "java", "maven", evPath)
+			profile.Evidence = append(profile.Evidence, EvidenceItem{Source: evPath, Summary: "Detected Java/Kotlin workspace (maven)"})
+			addCheck(CheckSpec{
+				ID:         makeCheckID(relDir, "maven-test"),
+				Kind:       "test",
+				Executable: "mvn",
+				Argv:       []string{"test", "-B"},
+				Cwd:        relDir,
+				TimeoutSec: DefaultTimeoutSec,
+			})
+		} else {
+			for _, gName := range []string{"build.gradle.kts", "build.gradle"} {
+				if _, gExists, gErr := readOptionalRegular(root, prefix+gName); gErr != nil {
+					return InspectResult{}, gErr
+				} else if gExists {
+					evPath := prefix + gName
+					addRoot(relDir, "java", "gradle", evPath)
+					profile.Evidence = append(profile.Evidence, EvidenceItem{Source: evPath, Summary: "Detected Java/Kotlin workspace (gradle)"})
+					addCheck(CheckSpec{
+						ID:         makeCheckID(relDir, "gradle-test"),
+						Kind:       "test",
+						Executable: "gradle",
+						Argv:       []string{"test"},
+						Cwd:        relDir,
+						TimeoutSec: DefaultTimeoutSec,
+					})
+					break
+				}
+			}
+		}
+
+		// C / C++ discovery (CMake)
+		if _, exists, err := readOptionalRegular(root, prefix+"CMakeLists.txt"); err != nil {
+			return InspectResult{}, err
+		} else if exists {
+			evPath := prefix + "CMakeLists.txt"
+			addRoot(relDir, "cpp", "cmake", evPath)
+			profile.Evidence = append(profile.Evidence, EvidenceItem{Source: evPath, Summary: "Detected C/C++ workspace (cmake)"})
+			addCheck(CheckSpec{
+				ID:         makeCheckID(relDir, "ctest"),
+				Kind:       "test",
+				Executable: "ctest",
+				Argv:       []string{"--output-on-failure"},
+				Cwd:        relDir,
+				TimeoutSec: DefaultTimeoutSec,
+			})
+		}
+
+		// C# / .NET discovery (*.sln / *.csproj)
+		if dotnetEv, exists, err := findRegularManifestBySuffix(root, prefix, []string{".sln", ".csproj"}); err != nil {
+			return InspectResult{}, err
+		} else if exists {
+			addRoot(relDir, "dotnet", "dotnet", dotnetEv)
+			profile.Evidence = append(profile.Evidence, EvidenceItem{Source: dotnetEv, Summary: "Detected .NET workspace"})
+			addCheck(CheckSpec{
+				ID:         makeCheckID(relDir, "dotnet-test"),
+				Kind:       "test",
+				Executable: "dotnet",
+				Argv:       []string{"test"},
+				Cwd:        relDir,
+				TimeoutSec: DefaultTimeoutSec,
+			})
+		}
 	}
 
 	// Read-only Makefile & GitHub workflow hints at repo root
@@ -401,10 +487,17 @@ func discoverCandidateDirs(root string) ([]string, error) {
 			return nil
 		}
 		switch d.Name() {
-		case "go.mod", "package.json", "pyproject.toml":
+		case "go.mod", "package.json", "pyproject.toml", "requirements.txt", "Cargo.toml", "pom.xml", "build.gradle", "build.gradle.kts", "CMakeLists.txt":
 			dir := path.Dir(slash)
 			if dir != "." {
 				seen[dir] = true
+			}
+		default:
+			if strings.HasSuffix(d.Name(), ".sln") || strings.HasSuffix(d.Name(), ".csproj") {
+				dir := path.Dir(slash)
+				if dir != "." {
+					seen[dir] = true
+				}
 			}
 		}
 		return nil
@@ -503,6 +596,47 @@ func readOptionalRegular(root, rel string) ([]byte, bool, error) {
 	}
 	b, err := os.ReadFile(target)
 	return b, true, err
+}
+
+func findRegularManifestBySuffix(root, prefix string, suffixes []string) (string, bool, error) {
+	relDir := strings.TrimSuffix(prefix, "/")
+	if relDir == "" {
+		relDir = "."
+	}
+	dirPath := root
+	if relDir != "." {
+		var err error
+		dirPath, err = paths.ResolveTarget(root, relDir)
+		if err != nil {
+			return "", false, err
+		}
+	}
+	ents, err := os.ReadDir(dirPath)
+	if err != nil {
+		return "", false, nil
+	}
+	names := make([]string, 0, len(ents))
+	for _, ent := range ents {
+		if ent.IsDir() {
+			continue
+		}
+		for _, suf := range suffixes {
+			if strings.HasSuffix(strings.ToLower(ent.Name()), suf) {
+				names = append(names, ent.Name())
+				break
+			}
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		rel := prefix + name
+		if _, exists, rErr := readOptionalRegular(root, rel); rErr != nil {
+			return "", false, rErr
+		} else if exists {
+			return rel, true, nil
+		}
+	}
+	return "", false, nil
 }
 
 func dirExistsRegular(root, rel string) (string, bool, error) {

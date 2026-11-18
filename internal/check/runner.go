@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/guard"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/project"
 )
@@ -279,6 +280,21 @@ func Run(ctx context.Context, env paths.Environment, opts Options) (Report, erro
 		default:
 			rep.Summary.Skipped++
 		}
+	}
+
+	var passedIDs, failedIDs []string
+	for _, r := range rep.Results {
+		switch r.Status {
+		case StatusPass:
+			passedIDs = append(passedIDs, r.ID)
+		case StatusFail, StatusMissingTool, StatusTimeout:
+			failedIDs = append(failedIDs, r.ID)
+		}
+	}
+	if rep.Ok && len(passedIDs) > 0 {
+		_ = guard.RecordCheckPass(root, passedIDs, nowFn())
+	} else if !rep.Ok && len(failedIDs) > 0 {
+		_, _ = guard.RecordCheckFailure(root, failedIDs, nowFn())
 	}
 
 	return rep, nil

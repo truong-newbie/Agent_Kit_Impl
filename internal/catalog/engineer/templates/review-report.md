@@ -1,18 +1,24 @@
-# Review report
+# Code & Security Review Report Template
 
-## Targeted Checklist
-- **Correctness & boundaries:** Off-by-one, nil/empty, error propagation, concurrency, state transitions.
-- **Scope & read-only integrity:** Unrequested edits avoided; no test weakening or suppressed errors.
-- **Security & path safety:** Input validation, path traversal/symlink boundaries, secret protection, no shell interpolation.
-- **Verification gaps:** Missing boundary/failure tests or unexecuted runtime checks noted explicitly.
+## 1. Review Scope
+- Target branch / diff / files inspected:
+- Base assumption or areas not inspected:
 
-## Findings
-For each finding include:
-- **Severity:** critical | high | medium | low
-- **Location:** file path and line range
-- **Evidence:** observed code/diff behavior
-- **Impact:** what breaks or is exposed
-- **Remediation:** concrete fix recommendation
+## 2. Prioritized Findings
+For each confirmed defect or vulnerability, include:
+- **Severity:** Critical | High | Medium | Low
+- **Category:** Correctness | Concurrency | Cross-Service Contract | Security | Test Integrity
+- **Location:** `<path>:<line>`
+- **Evidence:** Observed behavior vs expected invariant
+- **Impact & Remediation:** Concrete fix direction
 
-## Testing gaps and residual risks
-- Unverified edge cases, skipped checks, or assumptions.
+## 3. Cross-Zone & Security Checklist
+- [ ] Input validation, path traversal, injection (SQL/Cmd/XSS/SSRF), and secret redaction checked
+- [ ] AuthN/AuthZ boundaries enforced at entrypoints and server actions/handlers
+- [ ] Cross-service schemas/types (FE <-> BE <-> AI/Worker) remain compatible
+- [ ] Concurrency, timeouts, error propagation, and resource cleanup verified
+- [ ] Tests cover normal + failure/edge cases without skipped/weakened assertions
+
+## 4. Testing Gaps & Verdict
+- Remaining missing checks or environment limitations:
+- Verdict: Approve | Request Changes

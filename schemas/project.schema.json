@@ -15,7 +15,7 @@
         "required": ["path", "stack"],
         "properties": {
           "path": { "type": "string", "minLength": 1 },
-          "stack": { "enum": ["go", "node", "ts", "python", "rust", "generic"] },
+          "stack": { "enum": ["go", "node", "ts", "python", "rust", "java", "cpp", "dotnet", "generic"] },
           "packageManager": { "type": "string", "minLength": 1 },
           "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
         }

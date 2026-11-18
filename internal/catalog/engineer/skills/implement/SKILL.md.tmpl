@@ -1,38 +1,38 @@
 ---
 name: {{.SkillName}}
-description: Implement an authorized software change within the repository. Use for coding features or approved fixes; respect scope and verify changes with real checks.
+description: Execute an approved feature plan or fix phase-by-phase ("cook") across any tech stack with strict TDD, scope discipline, and real verification.
 ---
 
-# Implement
+# Implement (Cook)
 
-Execute an authorized change cleanly while adhering to `{{index .ResourcePaths "rule/engineering"}}` and existing codebase conventions.
+Execute an authorized change cleanly phase-by-phase while adhering to `{{index .ResourcePaths "rule/engineering"}}` and each workspace zone's local conventions.
 
 ## When to use
-- The user asks to write, modify, or wire code for an approved feature or change.
-- An implementation plan or clear requirement already exists.
+- The user asks to build a planned feature, execute approved phases, or apply an authorized fix.
 
 ## When not to use
-- The user asked only for a plan (`{{index .SkillNames "plan"}}`), review (`{{index .SkillNames "review"}}`), or explanation (`{{index .SkillNames "explain"}}`).
+- The user asked only to brainstorm (`{{index .SkillNames "brainstorm"}}`), scout (`{{index .SkillNames "scout"}}`), plan (`{{index .SkillNames "plan"}}`), review (`{{index .SkillNames "review"}}`), or explain (`{{index .SkillNames "explain"}}`).
 
 ## Inputs
-- Approved requirement or plan, plus target files and test framework.
+- Approved plan/phases or explicit scoped change request, target zones, and `.dtkit/project.json` checks.
 
 ## Steps
-1. Read the target implementation files, callers, and related tests before editing.
-2. Verify scope boundaries; do not alter unrelated files, public APIs, or major dependencies without approval.
-3. Implement focused, modular changes matching local idioms and error-handling patterns.
-4. Add or update behavior-focused tests covering normal and failure paths.
-5. Run relevant test, vet, lint, or build checks; inspect the diff and report using `{{index .ResourcePaths "template/completion-report"}}`.
+1. Read target implementation files, callers, cross-service contracts, and existing tests in the active phase before editing.
+2. Execute **one phase at a time**:
+   - Write or update failing regression/acceptance tests first when behavior changes (`tdd-red`).
+   - Implement minimal, modular changes matching local zone idioms and error-handling patterns without modifying tests to force a pass (`tdd-green`).
+3. Keep strict blast-radius discipline: do not modify unrelated zones, public APIs, or major dependencies without approval.
+4. After the final edit, run real project checks (`dtkit check --all` or zone-native test/lint/build commands) and verify receipt integrity (`dtkit guard verify`).
+5. Review diff cleanliness and summarize results using `{{index .ResourcePaths "template/completion-report"}}`.
 
 ## Constraints
-- Never fabricate APIs, file paths, or passing check results.
-- Keep small tasks direct without forcing unnecessary design documents.
-- Protect secrets and validate untrusted inputs.
+- Never fabricate APIs, file paths, command outputs, or passing check results.
+- Never delete assertions or insert test skips to hide failures.
+- Protect secrets and validate untrusted inputs/paths at all service boundaries.
 
 ## Output
-Summarize changes, modified files, exact verification commands/results, and remaining limitations per `{{index .ResourcePaths "template/completion-report"}}`.
+Deliver a concise summary matching `{{index .ResourcePaths "template/completion-report"}}` with modified files by zone, exact executed verification commands/outcomes, and documentation sync notes.
 
 ## Examples
-1. **Authorized endpoint:** User says "Implement validation for email length in POST /signup." -> Update validator and unit tests, run test suite, report diff and exit status.
-2. **Small fix:** User asks "Fix the typo in the CLI help message." -> Edit only the help string and verify tests pass without creating extra docs.
-3. **Missing information:** If implementing a billing webhook lacks the signature header scheme in the repo, pause that part, complete independent work, and ask the user.
+1. **Phased execution:** Approved plan has API + UI phases -> Add failing tests first, implement API module, pass API checks, then implement UI phase and run full `dtkit check`.
+2. **Minimal localized fix:** User says "Fix typo in CLI validation message." -> Update only the affected string/test cleanly without adding speculative abstractions.

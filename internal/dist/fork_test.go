@@ -95,12 +95,12 @@ func TestForkKitLifecycleDuplicateIDsLocalReferencesAndPrivacy(t *testing.T) {
 		t.Fatalf("expected target_exists conflict, got %v", existsErr)
 	}
 
-	// 6. --same-id without explicit version auto-bumps patch (0.4.0 -> 0.4.1).
+	// 6. --same-id without explicit version auto-bumps patch (0.5.0 -> 0.5.1).
 	sameRes, err := ForkKit(forkRoot, engPkg, engFS, ForkOptions{
 		TargetID:    "engineer",
 		AllowSameID: true,
 	})
-	if err != nil || sameRes.Version != "0.4.1" {
-		t.Fatalf("expected auto-bumped patch 0.4.1, got res=%+v err=%v", sameRes, err)
+	if err != nil || sameRes.Version != "0.5.1" {
+		t.Fatalf("expected auto-bumped patch 0.5.1, got res=%+v err=%v", sameRes, err)
 	}
 }

@@ -1,20 +1,29 @@
-# Implementation plan
+# Implementation Plan Template
 
-## Requirement and assumptions
-- Restate the user requirement, constraints, and explicit assumptions.
+## 1. Goal & Clarified Assumptions
+- Requirement summary:
+- Explicit assumptions / confirmed decisions:
 
-## In and out of scope
-- In scope:
-- Out of scope:
+## 2. Scope & Guard Boundaries
+- **In scope:** (target zones, modules, contracts)
+- **Out of scope:** (explicitly untouched modules)
+- **Recommended `dtkit guard` mode:** (`tdd-red` -> `tdd-green` or `scoped`)
 
-## Affected files and approach
-- List files to inspect/modify and key design choices.
+## 3. Phased Execution Breakdown
+Break work into small, independently verifiable phases (for multi-service tasks, order Contract/Schema -> Backend/Worker -> Frontend -> Integration):
 
-## Steps
-1. ...
+### Phase 1: <Title>
+- Files to modify/create:
+- Key invariants & edge cases:
+- Verification command(s):
 
-## Tests and acceptance criteria
-- Commands and behaviors that must pass before completion.
+### Phase 2: <Title>
+- Files to modify/create:
+- Key invariants & edge cases:
+- Verification command(s):
 
-## Risks and open questions
-- Edge cases, compatibility constraints, or decisions requiring confirmation.
+## 4. Acceptance Criteria & Verification Plan
+- Automated tests to add/update:
+- Commands to run after final edit (`dtkit check`, `dtkit guard verify`, or zone-native test runners):
+- Documentation sync needed (`docs/codebase-summary.md`, `docs/system-architecture.md`, `docs/code-standards.md`):
+- Risks / rollback notes:

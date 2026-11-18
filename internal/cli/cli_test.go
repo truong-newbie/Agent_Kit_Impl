@@ -96,7 +96,7 @@ func TestInstallDryRunIsReadOnly(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
 		t.Fatal(err)
 	}
-	if !env.DryRun || !env.Ok || env.Summary == nil || env.Summary.Create != 15 {
+	if !env.DryRun || !env.Ok || env.Summary == nil || env.Summary.Create != 20 {
 		t.Fatalf("unexpected preview envelope: %+v", env)
 	}
 	entries, err := os.ReadDir(root)

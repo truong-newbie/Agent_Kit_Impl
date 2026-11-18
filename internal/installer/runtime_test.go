@@ -74,7 +74,7 @@ func TestGeminiInstallCoexistenceRollbackUpdateAndRemove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gemini install failed: %v", err)
 	}
-	if gemState.Runtime != "gemini" || len(gemState.Artifacts) != 15 {
+	if gemState.Runtime != "gemini" || len(gemState.Artifacts) != 20 {
 		t.Fatalf("unexpected gemini state: %+v", gemState)
 	}
 

@@ -1,40 +1,38 @@
 ---
 name: {{.SkillName}}
-description: Analyze a software task and produce an evidence-based implementation plan. Use for planning or design requests; do not edit implementation files when asked only to plan.
+description: Analyze a software task and produce a phased, evidence-based implementation plan. Strictly read-only; do not edit implementation files when asked only to plan.
 ---
 
 # Plan
 
-Read the request, repository rules (`{{index .ResourcePaths "rule/engineering"}}`), and relevant source before proposing changes.
+Read the request, repository rules (`{{index .ResourcePaths "rule/engineering"}}`), living architecture docs when present, and relevant source before proposing changes.
 
 ## When to use
-- The user asks for an implementation plan, architecture proposal, impact analysis, or step-by-step breakdown.
-- A task spans multiple modules, schemas, or risky invariants.
+- The user asks for an implementation plan, phased breakdown, architecture proposal, or impact analysis.
+- A change touches multiple layers, schemas, services, or risky invariants.
 
 ## When not to use
-- The user explicitly asks to implement a trivial one-line change immediately.
+- Requirements are still undefined and need trade-off exploration (`{{index .SkillNames "brainstorm"}}`).
 - The user only wants code explained (`{{index .SkillNames "explain"}}`) or reviewed (`{{index .SkillNames "review"}}`).
 
 ## Inputs
-- User request and acceptance expectations.
-- Existing repository files, tests, and constraints.
+- Clarified requirements and scouted file/zone map (`{{index .SkillNames "scout"}}`).
+- Existing repository manifests (`.dtkit/project.json`), tests, and architecture docs.
 
 ## Steps
-1. Inspect the directory layout and read the files directly involved in the change.
-2. Identify current behavior, entry points, callers, and existing test patterns.
-3. Separate observed facts from assumptions; list unknowns and edge cases.
-4. Define explicit in-scope and out-of-scope boundaries.
-5. Propose concrete steps, affected files, verification commands, and risks following `{{index .ResourcePaths "template/implementation-plan"}}`.
+1. Inspect workspace zones, entrypoints, callers, cross-zone contracts, and test conventions directly involved in the task.
+2. Separate observed facts from assumptions; surface unresolved edge cases and scope boundaries.
+3. Decompose implementation into small, independently verifiable phases (for multi-service tasks: Contract/Schema -> Backend/Worker -> Frontend -> Integration).
+4. Specify exact files, tests to write (Red/Green), verification commands, and recommended `dtkit guard` lock mode per phase following `{{index .ResourcePaths "template/implementation-plan"}}`.
 
 ## Constraints
-- **Read-only planning:** Do not modify implementation or configuration files when asked only to plan.
-- Only ask questions (`{{index .SkillNames "ask"}}`) when a missing decision materially affects architecture, data, or security.
-- Scale plan detail to task size.
+- **Read-only planning:** Do not modify source, configuration, or test files when asked only to plan.
+- Ask (`{{index .SkillNames "ask"}}`) only when a missing decision materially alters architecture, data, or security.
+- Keep plan granularity proportional to risk (YAGNI/KISS).
 
 ## Output
-Use the structure in `{{index .ResourcePaths "template/implementation-plan"}}`: requirements/assumptions, scope, affected files, ordered steps, tests/acceptance criteria, and risks.
+Deliver a phased plan matching `{{index .ResourcePaths "template/implementation-plan"}}` with scope, phases, tests, verification commands, and risks.
 
 ## Examples
-1. **Feature plan:** User asks "Plan adding pagination to GET /users." -> Inspect handler, service, repository, and tests; deliver file-level steps and pagination edge cases without editing code.
-2. **Migration plan:** User asks "Design a zero-downtime column rename." -> Propose expand/contract phases, rollback steps, and validation checks without touching migrations.
-3. **Missing information:** If the request omits whether cursor or offset pagination is required and existing endpoints use cursor, state the assumption or ask before locking in an incompatible API.
+1. **Multi-zone feature:** User asks "Plan pagination for users across API and web." -> Deliver Phase 1 (contract/BE query) and Phase 2 (UI state/tests) using `{{index .ResourcePaths "template/implementation-plan"}}` without editing files.
+2. **Schema migration:** User asks "Plan renaming an order column safely." -> Design expand/contract phases, rollback notes, and checks read-only.

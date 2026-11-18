@@ -30,7 +30,7 @@ const (
 var (
 	checkIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 	envNamePattern  = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
-	validStacks     = map[string]bool{"go": true, "node": true, "ts": true, "python": true, "rust": true, "generic": true}
+	validStacks     = map[string]bool{"go": true, "node": true, "ts": true, "python": true, "rust": true, "java": true, "cpp": true, "dotnet": true, "generic": true}
 	validCheckKinds = map[string]bool{"test": true, "lint": true, "typecheck": true, "format": true, "build": true, "custom": true}
 	blockedEnvNames = map[string]bool{
 		"PATH": true, "LD_PRELOAD": true, "LD_LIBRARY_PATH": true, "DYLD_INSERT_LIBRARIES": true,

@@ -63,10 +63,13 @@ dtkit install engineer --project --runtime claude --preset minimal --yes
 # 4. Inspect active installations across all 5 runtimes
 dtkit status --all-runtimes
 
-# 5. Set up repo-specific quality checks & opt-in hooks
+# 5. Scout polyglot repos, run trusted quality checks & enforce phase firewalls
+dtkit scout --write-summary
 dtkit project inspect
 dtkit project init --yes
 dtkit check --all --yes
+dtkit guard lock --mode read-only
+dtkit guard verify
 dtkit hooks enable check-changed --runtime claude --project --dry-run
 
 # 6. Pin & share across your team
@@ -105,7 +108,7 @@ Add `.dtkit/local/` to your `.gitignore` so machine-local locks, transaction jou
 | **Install & Manage** | `list`, `info`, `install`, `update`, `remove`, `status`, `diff`, `recover` | Preview, install, co-exist multiple kits, update, inspect all runtimes, or recover interrupted writes |
 | **Author & Customize** | `create kit\|skill`, `validate`, `pack`, `fork` | Scaffold kits/skills, validate manifests, build deterministic `.tar.gz` + `.sha256`, or fork verified kits |
 | **Lockfile & Teams** | `lock <generate\|verify\|diff\|sign\|keygen>`, `sync`, `team <export\|import\|template>` | Reproducible installs, Ed25519 provenance verification, and secret-free team onboarding |
-| **Quality & Hooks** | `project inspect\|init`, `check`, `hooks <list\|status\|enable\|disable>` | Stack-agnostic checks (`.dtkit/project.json`) and opt-in runtime hook wiring |
+| **Quality, Guard & Hooks** | `scout`, `project inspect\|init`, `check`, `guard <status\|lock\|unlock\|verify>`, `hooks <list\|status\|enable\|disable>`, `mcp serve` | Polyglot repo scout, `.dtkit/project.json` checks, phase/TDD edit firewall, SHA-256 verification receipts, opt-in runtime hooks, built-in STDIO MCP server |
 | **Diagnostics & Maintainers** | `doctor [--redact]`, `compat <snapshot\|diff>`, `completion`, `version` | Environment diagnostics, cross-runtime compatibility snapshots, shell completion |
 
 Most commands support `--dry-run`, `--diff`, `--yes`, and `--json`. See [docs/cli.md](docs/cli.md) for every flag, schema rule, and exit code (`0` success, `1` error, `2` usage/validation, `3` conflict/trust block, `4` target not found, `130` cancelled).

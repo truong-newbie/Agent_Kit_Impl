@@ -1,6 +1,6 @@
 ---
 name: {{.SkillName}}
-description: Investigate software failures, isolate root causes with evidence, and apply fixes when authorized. Use for debugging, failing tests, and regressions.
+description: Investigate software failures across stack boundaries, isolate root causes with verified evidence, and apply minimal safe fixes when authorized.
 ---
 
 # Debug
@@ -8,30 +8,29 @@ description: Investigate software failures, isolate root causes with evidence, a
 Systematically isolate the root cause of a failure before proposing or applying a fix, following `{{index .ResourcePaths "rule/engineering"}}`.
 
 ## When to use
-- A build, test, or runtime command fails or behaves unexpectedly.
-- A bug report or stack trace needs root-cause investigation.
+- Tests, builds, runtime hooks, or cross-service requests fail or behave unexpectedly.
+- A stack trace or bug report needs root-cause isolation across frontend, backend, worker, or config layers.
 
 ## When not to use
-- The user asks for a general code walkthrough (`{{index .SkillNames "explain"}}`) or PR review (`{{index .SkillNames "review"}}`).
+- The user wants a general walkthrough (`{{index .SkillNames "explain"}}`) or diff review (`{{index .SkillNames "review"}}`).
 
 ## Inputs
-- Error message, logs, reproduction steps, or failing test command.
+- Error message, failing command, logs, or reproduction scenario.
 
 ## Steps
-1. Collect the exact symptom, environment constraints, and reproduction command.
-2. Read the failing code path and form falsifiable hypotheses.
-3. Distinguish observed evidence (logs, state, code lines) from inference.
-4. Identify the root cause and minimal safe remediation.
-5. If fixing is authorized, apply the fix and add a regression test; otherwise report diagnosis only.
+1. Capture the exact failure symptom, command, and failing boundary/zone.
+2. Trace data flow and read the relevant implementation and test callers; form falsifiable hypotheses instead of blind edits.
+3. If multiple fix attempts fail repeatedly, pause and inspect underlying assumptions rather than guessing (`retry-loop` discipline).
+4. Distinguish observed evidence from inference; reproduce the bug with a minimal failing test first when authorized to fix.
+5. Apply the minimal root-cause fix and confirm all relevant checks pass after the final edit.
 
 ## Constraints
 - **Diagnose-only respect:** Do not edit files when asked only to investigate or diagnose.
-- Never suppress errors or relax assertions just to make a test pass.
+- Never suppress errors or relax/skip assertions just to make a test pass.
 
 ## Output
-Report symptom, reproduction status, verified root cause with file locations, and (if fixed) diff plus regression test results.
+Symptom, reproduction status, verified root cause (`path:line`), fix summary (if authorized), and exact test verification output.
 
 ## Examples
-1. **Diagnose-only:** User says "Find why TestSync fails on Windows; don't edit anything." -> Reproduce or trace path handling, report root cause and fix options without editing.
-2. **Reproduce and fix:** User says "Debug and fix the nil pointer panic in ParseConfig." -> Add failing regression test, fix nil check, confirm test passes.
-3. **Missing information:** If the failure only occurs in an unavailable external service or missing log file, state exact reproduction limits and request targeted logs.
+1. **Diagnose-only:** User says "Why does checkout return 500 on empty cart? Don't edit files." -> Trace handler/service logs and report the exact root cause without writing files.
+2. **Reproduce and fix:** User says "Debug and fix nil tax calculation panic." -> Write failing regression test first, patch root cause, verify checks pass.
