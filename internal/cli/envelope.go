@@ -9,9 +9,11 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/check"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/companion"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/dist"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/guard"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/installer"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/mcp"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/planner"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/project"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/scout"
@@ -133,6 +135,11 @@ type Envelope struct {
 	CompatDiff     *adapter.CompatibilityDiff   `json:"compatDiff,omitempty"`
 	Scout          *scout.Report                `json:"scout,omitempty"`
 	GuardStatus    *guard.StatusReport          `json:"guardStatus,omitempty"`
+	Import         *dist.ImportResult           `json:"import,omitempty"`
+	Companions     []companion.CompanionStatus  `json:"companions,omitempty"`
+	CompanionRun   *companion.RunResult         `json:"companionRun,omitempty"`
+	MCPConfigs     []mcp.MCPConfigStatus        `json:"mcpConfigs,omitempty"`
+	InitSummary    *InitSummary                 `json:"initSummary,omitempty"`
 	Warnings       []string                     `json:"warnings"`
 	Errors         []apperr.Error               `json:"errors"`
 }

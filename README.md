@@ -48,6 +48,10 @@ go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.6.0
 ## Quick Start
 
 ```bash
+# One-command project bootstrap (codebase summary + profile + engineer@0.5.0 + MCP + hooks + lockfile)
+dtkit init --runtime claude --with-mcp --with-hooks --lock --yes
+
+# Or step-by-step:
 # 1. Check runtime readiness on your machine
 dtkit doctor
 dtkit doctor --runtime claude
@@ -60,10 +64,14 @@ dtkit info engineer
 dtkit install engineer --project --runtime claude --diff
 dtkit install engineer --project --runtime claude --preset minimal --yes
 
-# 4. Inspect active installations across all 5 runtimes
+# 4. Import external community skill/rule repos (Superpowers, Cursor .mdc, Claude commands) & companions
+dtkit integrate import ./superpowers --as superpowers --install --runtime claude --yes
+dtkit integrate list
+
+# 5. Inspect active installations across all 5 runtimes
 dtkit status --all-runtimes
 
-# 5. Scout polyglot repos, run trusted quality checks & enforce phase firewalls
+# 6. Scout polyglot repos, run trusted quality checks & enforce phase firewalls
 dtkit scout --write-summary
 dtkit project inspect
 dtkit project init --yes
@@ -72,7 +80,7 @@ dtkit guard lock --mode read-only
 dtkit guard verify
 dtkit hooks enable check-changed --runtime claude --project --dry-run
 
-# 6. Pin & share across your team
+# 7. Pin & share across your team
 dtkit lock generate
 dtkit team export --out team-bundle.json
 ```
@@ -105,10 +113,10 @@ Add `.dtkit/local/` to your `.gitignore` so machine-local locks, transaction jou
 
 | Area | Commands | Purpose |
 |---|---|---|
-| **Install & Manage** | `list`, `info`, `install`, `update`, `remove`, `status`, `diff`, `recover` | Preview, install, co-exist multiple kits, update, inspect all runtimes, or recover interrupted writes |
-| **Author & Customize** | `create kit\|skill`, `validate`, `pack`, `fork` | Scaffold kits/skills, validate manifests, build deterministic `.tar.gz` + `.sha256`, or fork verified kits |
+| **Install & Manage** | `init`, `list`, `info`, `install`, `update`, `remove`, `status`, `diff`, `recover` | One-command project bootstrap, preview, co-exist multiple kits, update, inspect all runtimes, or recover interrupted writes |
+| **Author, Import & Customize** | `create kit\|skill`, `validate`, `pack`, `fork`, `integrate <list\|import\|tool\|run>` | Scaffold kits, import community skill/rule repos (Superpowers, `.mdc`), wire companions (`repomix`, `graphify`, `ast-grep`, `semgrep`), or fork kits |
 | **Lockfile & Teams** | `lock <generate\|verify\|diff\|sign\|keygen>`, `sync`, `team <export\|import\|template>` | Reproducible installs, Ed25519 provenance verification, and secret-free team onboarding |
-| **Quality, Guard & Hooks** | `scout`, `project inspect\|init`, `check`, `guard <status\|lock\|unlock\|verify>`, `hooks <list\|status\|enable\|disable>`, `mcp serve` | Polyglot repo scout, `.dtkit/project.json` checks, phase/TDD edit firewall, SHA-256 verification receipts, opt-in runtime hooks, built-in STDIO MCP server |
+| **Quality, Guard & Hooks** | `scout`, `project inspect\|init`, `check`, `guard <status\|lock\|unlock\|verify>`, `hooks <list\|status\|enable\|disable>`, `mcp <serve\|status\|enable\|disable>` | Polyglot repo scout, `.dtkit/project.json` checks, phase/TDD edit firewall, SHA-256 verification receipts, opt-in runtime hooks, built-in STDIO MCP server & auto-config |
 | **Diagnostics & Maintainers** | `doctor [--redact]`, `compat <snapshot\|diff>`, `completion`, `version` | Environment diagnostics, cross-runtime compatibility snapshots, shell completion |
 
 Most commands support `--dry-run`, `--diff`, `--yes`, and `--json`. See [docs/cli.md](docs/cli.md) for every flag, schema rule, and exit code (`0` success, `1` error, `2` usage/validation, `3` conflict/trust block, `4` target not found, `130` cancelled).

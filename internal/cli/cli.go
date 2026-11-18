@@ -39,7 +39,9 @@ Usage:
   dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]
   dtkit scout [--path <dir>] [--query <keyword>] [--zone <subpath>] [--pack] [--max-bytes <n>] [--write-summary] [--json]
   dtkit guard <status|lock|unlock|verify> [--path <dir>] [--mode <read-only|tdd-red|tdd-green|scoped>] [--allow <glob>...] [--deny <glob>...] [--protect-tests] [--json]
-  dtkit mcp serve [--path <dir>]
+  dtkit mcp <serve|status|enable|disable> [--runtime <codex|gemini|opencode|cursor|claude>|--all-runtimes] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]
+  dtkit integrate <list|import|tool|run> [options]
+  dtkit init [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>|--all-runtimes] [--preset <name>] [--with-mcp] [--with-hooks] [--lock] [--dry-run] [--yes] [--json]
   dtkit lock <generate|verify|diff|sign|keygen> [options]
   dtkit sync [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>] [--lock <file>] [--trust <file>] [--require-signature] [--offline] [--dry-run] [--diff] [--redact] [--yes] [--json]
   dtkit team <export|import|template> [options]
@@ -117,6 +119,10 @@ func RunWithDeps(ctx context.Context, args []string, deps Deps) error {
 		return runGuard(ctx, args[1:], deps)
 	case "mcp":
 		return runMCP(ctx, args[1:], deps)
+	case "integrate":
+		return runIntegrate(ctx, args[1:], deps)
+	case "init":
+		return runInit(ctx, args[1:], deps)
 	case "lock":
 		return runLock(ctx, args[1:], deps)
 	case "sync":
@@ -198,7 +204,13 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit guard <status|lock|unlock|verify> [--path <dir>] [--mode <read-only|tdd-red|tdd-green|scoped>] [--allow <glob>...] [--deny <glob>...] [--protect-tests] [--json]\n")
 		return err
 	case "mcp":
-		_, err := io.WriteString(out, "Usage: dtkit mcp serve [--path <dir>]\n")
+		_, err := io.WriteString(out, "Usage: dtkit mcp <serve|status|enable|disable> [--runtime <codex|gemini|opencode|cursor|claude>|--all-runtimes] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]\n")
+		return err
+	case "integrate":
+		_, err := io.WriteString(out, "Usage: dtkit integrate <list|import|tool|run> [options]\n")
+		return err
+	case "init":
+		_, err := io.WriteString(out, "Usage: dtkit init [--path <dir>] [--runtime <codex|gemini|opencode|cursor|claude>|--all-runtimes] [--preset <name>] [--with-mcp] [--with-hooks] [--lock] [--dry-run] [--yes] [--json]\n")
 		return err
 	case "lock":
 		_, err := io.WriteString(out, "Usage: dtkit lock <generate|verify|diff|sign|keygen> [--path <dir>] [--runtime <...>] [--lock <file>] [--trust <file>] [--source-ref <kit=ref>] [--key-file <file>] [--key-id <id>] [--offline] [--require-signature] [--dry-run] [--yes] [--json]\n")

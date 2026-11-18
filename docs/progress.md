@@ -4,7 +4,7 @@
 
 - **Active Branches:** `main` (`C01`–`C06` merged, stale `feat/*` branches deleted locally and on `origin`, release tag **`v0.6.0`**).
 - **CI Status:** `C01`–`C04`, `C06` (`e3b4005`, [Run 44123231423](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44123231423)), `main` (`e3b4005`, [Run 44125604359](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44125604359)), `v0.6.0-rc.1` (`415ac21`, `Go checks` [Run 44128408897](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44128408897) & `release.yml` [Run 44128408884](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44128408884)), and `v0.5.0-rc.1` (`44020171382` + `release.yml` `44020171501`) passed **5/5 GitHub Actions jobs** (`main` `415ac21` [Run 44128401063](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44128401063) passed 4/5 with `macos-latest` cancelled in queue). Maintainer approved promoting `v0.6.0` (Draft non-prerelease in `release.yml`) while preserving truthful `partial`/`experimental` live-runtime & A/B benchmark boundaries.
-- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), Milestone C (`C01`–`C06`), and v0.7 Core (`D01`–`D04`: `dtkit scout`, `dtkit guard`, `engineer@0.5.0` Skill Mesh, `dtkit mcp serve`) are implemented; live model A/B & live Claude/Gemini/Cursor/OpenCode session hooks remain `blocked`/`unverified` without isolated credentials & host CLIs (`claude 2.1.319` returned `401 Invalid or expired API key`, `total_cost_usd: 0`).
+- **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), Milestone C (`C01`–`C06`), v0.7 Core (`D01`–`D04`), and v0.7 Extensions (`E01`–`E03`: `dtkit integrate`, `internal/companion`, `dtkit mcp status|enable|disable`, `dtkit init`) are implemented; live model A/B & live Claude/Gemini/Cursor/OpenCode session hooks remain `blocked`/`unverified` without isolated credentials & host CLIs (`claude 2.1.319` returned `401 Invalid or expired API key`, `total_cost_usd: 0`).
 
 ### Hardening & Release Backlog Tracker (`N00`–`N12`)
 
@@ -381,6 +381,17 @@ Files changed: `docs/{CORE-V07-PLAN,cli,progress}.md`, `docs/verification/last-k
 Tests completed: `gofmt` + `dtkit compat snapshot` + `.\scripts\verify-docker.ps1` (`go test -race ./...`, `go vet ./...`, `gofmt -l`, `go build ./cmd/dtkit`).
 Acceptance still missing / external blocker: Live interactive MCP & hook firing inside live `claude`/`gemini`/`cursor`/`opencode` sessions remains gated on runtime CLIs/API credentials.
 Next independent work: Proceed to Extension Milestone (`dtkit integrate` for community repos/tools like Superpowers, Repomix, Graphify) or run multi-OS GitHub Actions CI upon push.
+
+---
+
+ID: E01–E03 (Extensions v0.7: Universal Community Importer, External Companion Bridge & Cache, Auto-MCP Wiring & `dtkit init`)
+Status: verified offline/automated (`.\scripts\verify-docker.ps1` passing with `-race` across all 23 test packages)
+Baseline SHA / branch: `8baa09c` -> `main` (`EXTENSIONS-V07-PLAN.md`)
+User-visible behavior and schema decisions: Added `dist.ImportKit` (`internal/dist/importer.go`) transpiling community skill/rule repositories (`skills/*/SKILL.md` such as Superpowers, `.claude/commands/*.md`, `.cursor/rules/*.mdc`, `.cursorrules`, `CLAUDE.md`/`AGENTS.md`, `workflows/*.md`, `templates/*.md`) into validated 5-runtime DTKit packages with bridge skill synthesis for rule-only packs. Added `internal/companion` (`repomix`, `graphify`, `ast-grep`, `semgrep`) with argv-only execution, `.dtkit/local/companion-cache/` SHA-256 workspace-digest caching, secret redaction, and automatic `dtkit scout` fallback when missing on `PATH`. Added `internal/mcp/config.go` (`dtkit mcp <status|enable|disable>`) merging/unmerging `dtkit mcp serve` entries across `.mcp.json` (`claude`), `.cursor/mcp.json` (`cursor`), `.gemini/settings.json` (`gemini`), `opencode.json` (`opencode`), and `.codex/mcp.json` (`codex`) while preserving peer MCP servers. Added `dtkit integrate <list|import|tool|run>` and one-command `dtkit init [--runtime|--all-runtimes] [--preset] [--with-mcp] [--with-hooks] [--lock]`.
+Files changed: `docs/{EXTENSIONS-V07-PLAN,cli,progress}.md`, `README.md`, `internal/dist/{importer,importer_test}.go`, `internal/companion/{companion,companion_test}.go`, `internal/mcp/{config,config_test}.go`, `internal/cli/{cli,completion,envelope,init,integrate,mcp,extensions_v07_test}.go`
+Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`go test -race ./...`, `go vet ./...`, `gofmt -l`, `go build ./cmd/dtkit`).
+Acceptance still missing / external blocker: Live interactive execution with external `repomix`/`graphify`/`ast-grep`/`semgrep` binaries when installed on user workstations, and live runtime sessions.
+Next independent work: Push to `main`, verify 5/5 GitHub Actions CI, and tag `v0.7.0` release when owner approves.
 
 ---
 
