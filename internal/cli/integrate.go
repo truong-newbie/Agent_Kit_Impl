@@ -79,7 +79,7 @@ func runIntegrateImport(ctx context.Context, args []string, deps Deps, env Envel
 	srcDir := args[0]
 
 	var kitID, outParent, version, title, runtimeArg, scope, projectPath string
-	var doInstall, dryRun, redact, yes bool
+	var doInstall, doUpdate, dryRun, redact, yes bool
 
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
@@ -125,6 +125,8 @@ func runIntegrateImport(ctx context.Context, args []string, deps Deps, env Envel
 			scope = "global"
 		case "--install":
 			doInstall = true
+		case "--update":
+			doUpdate = true
 		case "--dry-run":
 			dryRun = true
 		case "--redact":
@@ -150,20 +152,18 @@ func runIntegrateImport(ctx context.Context, args []string, deps Deps, env Envel
 	}
 
 	impRes, err := dist.ImportKit(dist.ImportOptions{
+		Context:         ctx,
 		SourceDir:       srcDir,
 		TargetParentDir: outParent,
 		KitID:           kitID,
 		Name:            title,
 		Version:         version,
 		DryRun:          dryRun,
+		Update:          doUpdate,
 	})
 	if err != nil {
 		return fail(err)
 	}
-	if redact {
-		impRes.OutputDir = redactDiagnosticText(impRes.OutputDir, collectHomeCandidates(deps))
-	}
-
 	if doInstall && !dryRun {
 		if scope == "" {
 			scope = "project"
@@ -180,9 +180,18 @@ func runIntegrateImport(ctx context.Context, args []string, deps Deps, env Envel
 		}
 		subDeps := deps
 		subDeps.Stdout = ioDiscard{}
-		if iErr := runInstall(ctx, instArgs, subDeps); iErr != nil {
-			return fail(iErr)
+		var instErr error
+		if doUpdate && impRes.Updated {
+			instErr = runUpdate(ctx, instArgs, subDeps)
+		} else {
+			instErr = runInstall(ctx, instArgs, subDeps)
 		}
+		if instErr != nil {
+			return fail(instErr)
+		}
+	}
+	if redact {
+		impRes.OutputDir = redactDiagnosticText(impRes.OutputDir, collectHomeCandidates(deps))
 	}
 
 	env.DryRun = dryRun

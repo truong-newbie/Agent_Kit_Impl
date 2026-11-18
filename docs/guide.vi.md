@@ -99,6 +99,9 @@ dtkit scout --zone backend --query checkout --pack --max-bytes 24576
 
 # Cập nhật lại docs/codebase-summary.md
 dtkit scout --write-summary
+
+# Tính trước bán kính ảnh hưởng & danh sách file test liên quan trước khi sửa một file lõi
+dtkit scout --impact backend/src/main/java/com/acme/Token.java
 ```
 
 `dtkit scout` luôn bỏ qua `.git`, `node_modules`, `dist`, `build`, `target`, `.venv`, file binary, symlink thoát thư mục, `.env*`, private key (`*.pem`, `*.key`) và tự che token/API key trong kết quả.
@@ -142,14 +145,17 @@ Nếu AI sửa thêm dù chỉ 1 dòng code mà chưa chạy lại test, hoặc 
 ## 5. Nhập Repo Cộng Đồng & Dùng Kèm Công Cụ Ngoài (`dtkit integrate`)
 
 ### 5.1. Đưa Repo Skills/Rules Ngoài (Superpowers, Cursor `.mdc`, Claude Commands) Lên Cả 5 Runtime
-Bạn thấy một repo hay trên GitHub (ví dụ `obra/superpowers`, kho skill Anthropic, hoặc bộ `.cursor/rules/*.mdc`)? Clone về và dùng 1 lệnh chuyển đổi:
+Bạn thấy một repo hay trên GitHub (ví dụ `obra/superpowers`, kho skill Anthropic, hoặc bộ `.cursor/rules/*.mdc`)? Truyền trực tiếp thư mục local, shorthand `owner/repo` của GitHub, hoặc HTTPS Git URL để chuyển đổi bằng 1 lệnh:
 
 ```bash
 # Xem trước kết quả chuyển đổi (không ghi đĩa)
-dtkit integrate import ./superpowers --as superpowers --dry-run
+dtkit integrate import obra/superpowers --as superpowers --dry-run
 
 # Chuyển đổi thành gói DTKit chuẩn VÀ cài luôn song song với engineer (Multi-Kit v3)
-dtkit integrate import ./superpowers --as superpowers --install --runtime claude --yes
+dtkit integrate import obra/superpowers --as superpowers --install --runtime claude --yes
+
+# Cập nhật lại kit đã import khi repo nguồn có phiên bản mới
+dtkit integrate import obra/superpowers --as superpowers --update --install --runtime claude --yes
 
 # Kiểm tra cả 2 kit cùng hoạt động bình thường
 dtkit status --project --runtime claude

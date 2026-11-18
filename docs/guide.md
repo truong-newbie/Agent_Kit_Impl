@@ -105,6 +105,9 @@ dtkit scout --zone backend --query checkout --pack --max-bytes 24576
 
 # Refresh docs/codebase-summary.md after structural changes
 dtkit scout --write-summary
+
+# Check reverse-dependency blast radius & related tests before editing a core file
+dtkit scout --impact backend/src/main/java/com/acme/Token.java
 ```
 
 DTKit automatically skips `.git`, `node_modules`, `dist`, `build`, `target`, `.venv`, binary files, symlinks outside root, `.env*`, and private key files (`*.pem`, `*.key`), and masks API tokens in snippets.
@@ -149,14 +152,17 @@ If an AI modifies even 1 byte of code after tests passed—or inserts `t.Skip`, 
 ## 5. Importing Community Repos & External Tools (`dtkit integrate`)
 
 ### 5.1. Import Community Skill/Rule Repos (Superpowers, Cursor `.mdc`, Claude Commands)
-Found a great skill/rule repository on GitHub (like `obra/superpowers`, Anthropic skills, or `.cursor/rules/*.mdc` packs)? Clone it locally and let DTKit convert it into a validated 5-runtime kit:
+Found a great skill/rule repository on GitHub (like `obra/superpowers`, Anthropic skills, or `.cursor/rules/*.mdc` packs)? Pass a local folder, GitHub `owner/repo` shorthand, or HTTPS Git URL and let DTKit convert it into a validated 5-runtime kit:
 
 ```bash
 # Preview what will be imported (reads only)
-dtkit integrate import ./superpowers --as superpowers --dry-run
+dtkit integrate import obra/superpowers --as superpowers --dry-run
 
 # Convert AND install side-by-side with engineer (Multi-Kit v3)
-dtkit integrate import ./superpowers --as superpowers --install --runtime claude --yes
+dtkit integrate import obra/superpowers --as superpowers --install --runtime claude --yes
+
+# Refresh an already-imported kit atomically when upstream updates
+dtkit integrate import obra/superpowers --as superpowers --update --install --runtime claude --yes
 
 # Check both kits running together cleanly
 dtkit status --project --runtime claude

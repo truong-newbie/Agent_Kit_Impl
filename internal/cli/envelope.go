@@ -134,6 +134,7 @@ type Envelope struct {
 	CompatReport   *adapter.CompatibilityReport `json:"compatReport,omitempty"`
 	CompatDiff     *adapter.CompatibilityDiff   `json:"compatDiff,omitempty"`
 	Scout          *scout.Report                `json:"scout,omitempty"`
+	ScoutImpact    *scout.ImpactReport          `json:"scoutImpact,omitempty"`
 	GuardStatus    *guard.StatusReport          `json:"guardStatus,omitempty"`
 	Import         *dist.ImportResult           `json:"import,omitempty"`
 	Companions     []companion.CompanionStatus  `json:"companions,omitempty"`

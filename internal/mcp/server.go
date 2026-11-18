@@ -187,6 +187,17 @@ func ToolDefinitions() []toolDefinition {
 				},
 			},
 		},
+		{
+			Name:        "dtkit_context_impact",
+			Description: "Compute intra-repo reverse dependencies (direct/transitive dependents) and related tests across Go, TS/JS, Python, Java, and C/C++.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path":  map[string]any{"type": "string", "description": "Optional repository path override."},
+					"paths": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Changed file path(s) relative to repository root."},
+				},
+			},
+		},
 	}
 }
 
@@ -253,6 +264,20 @@ func executeTool(ctx context.Context, env paths.Environment, defaultRoot string,
 			res.IsError = true
 		}
 		return res
+
+	case "dtkit_context_impact":
+		var changed []string
+		if rawList, ok := params.Arguments["paths"].([]any); ok {
+			for _, item := range rawList {
+				if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+					changed = append(changed, strings.TrimSpace(s))
+				}
+			}
+		} else if single, ok := params.Arguments["file"].(string); ok && strings.TrimSpace(single) != "" {
+			changed = append(changed, strings.TrimSpace(single))
+		}
+		rep, err := scout.AnalyzeImpact(ctx, env, targetPath, changed)
+		return encodeToolJSON(rep, err)
 
 	default:
 		return toolCallResult{

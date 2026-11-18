@@ -2,15 +2,19 @@ package dist
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing/fstest"
+	"time"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
@@ -18,14 +22,17 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
 )
 
-// ImportOptions configures conversion of an external community repository/directory into a DTKit package.
+// ImportOptions configures conversion of a local directory or HTTPS/GitHub repository into a DTKit package.
 type ImportOptions struct {
+	Context         context.Context
 	SourceDir       string
 	TargetParentDir string
 	KitID           string
 	Name            string
 	Version         string
 	DryRun          bool
+	Update          bool
+	FetchGitRepo    func(ctx context.Context, cloneURL, destDir string) error
 }
 
 // ImportedItem describes one discovered and converted component.
@@ -41,13 +48,17 @@ type ImportResult struct {
 	KitID          string          `json:"kitId"`
 	Name           string          `json:"name"`
 	Version        string          `json:"version"`
+	SourceURL      string          `json:"sourceUrl,omitempty"`
 	OutputDir      string          `json:"outputDir"`
 	PackageDigest  string          `json:"packageDigest"`
 	DetectedFormat string          `json:"detectedFormat"` // "skills-repo" | "cursor-rules" | "claude-config" | "mixed"
+	Updated        bool            `json:"updated,omitempty"`
 	Items          []ImportedItem  `json:"items"`
 	Package        catalog.Package `json:"package"`
 	Warnings       []string        `json:"warnings,omitempty"`
 }
+
+var githubShorthandRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 var skipImportDirs = map[string]bool{
 	".git": true, ".dtkit": true, "node_modules": true, "dist": true, "build": true,
@@ -75,10 +86,16 @@ func ImportKit(opts ImportOptions) (ImportResult, error) {
 		name = "Imported " + kitID + " Kit"
 	}
 
-	srcRoot, err := filepath.Abs(strings.TrimSpace(opts.SourceDir))
+	ctx := opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	srcRoot, resolvedURL, cleanup, err := resolveImportSource(ctx, strings.TrimSpace(opts.SourceDir), opts.FetchGitRepo)
 	if err != nil {
 		return res, err
 	}
+	defer cleanup()
+
 	srcInfo, err := os.Lstat(srcRoot)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -341,6 +358,7 @@ func ImportKit(opts ImportOptions) (ImportResult, error) {
 		KitID:          kitID,
 		Name:           name,
 		Version:        version,
+		SourceURL:      resolvedURL,
 		OutputDir:      outDir,
 		PackageDigest:  digest,
 		DetectedFormat: detectedFormat,
@@ -357,10 +375,13 @@ func ImportKit(opts ImportOptions) (ImportResult, error) {
 			return res, apperr.WithPath(apperr.Usage("symlink_not_allowed", "output parent directory cannot be a symlink"), absParent)
 		}
 	}
-	if _, lErr := os.Lstat(outDir); lErr == nil {
+	_, outStatErr := os.Lstat(outDir)
+	alreadyExists := outStatErr == nil
+	if alreadyExists && !opts.Update {
 		return res, apperr.WithPath(apperr.Conflict("target_exists", fmt.Sprintf("import target directory %s already exists", outDir)), outDir)
-	} else if !os.IsNotExist(lErr) {
-		return res, lErr
+	}
+	if outStatErr != nil && !os.IsNotExist(outStatErr) {
+		return res, outStatErr
 	}
 
 	var keys []string
@@ -368,19 +389,103 @@ func ImportKit(opts ImportOptions) (ImportResult, error) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+
+	stageDir := outDir
+	if alreadyExists && opts.Update {
+		stageDir = filepath.Join(absParent, "."+kitID+".dtkit-stage")
+		_ = os.RemoveAll(stageDir)
+	}
 	for _, rel := range keys {
-		full := filepath.Join(outDir, filepath.FromSlash(rel))
+		full := filepath.Join(stageDir, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
-			_ = os.RemoveAll(outDir)
+			_ = os.RemoveAll(stageDir)
 			return res, err
 		}
 		if err := writeRegularFile(full, memFS[rel].Data, 0644); err != nil {
-			_ = os.RemoveAll(outDir)
+			_ = os.RemoveAll(stageDir)
 			return res, err
 		}
 	}
+	if alreadyExists && opts.Update {
+		oldDir := filepath.Join(absParent, "."+kitID+".dtkit-old")
+		_ = os.RemoveAll(oldDir)
+		if err := os.Rename(outDir, oldDir); err != nil {
+			_ = os.RemoveAll(stageDir)
+			return res, err
+		}
+		if err := os.Rename(stageDir, outDir); err != nil {
+			_ = os.Rename(oldDir, outDir)
+			_ = os.RemoveAll(stageDir)
+			return res, err
+		}
+		_ = os.RemoveAll(oldDir)
+		res.Updated = true
+	}
 
 	return res, nil
+}
+
+func resolveImportSource(ctx context.Context, raw string, fetchFn func(ctx context.Context, cloneURL, destDir string) error) (srcDir string, remoteURL string, cleanup func(), err error) {
+	noop := func() {}
+	if raw == "" {
+		return "", "", noop, apperr.Usage("missing_source", "import source cannot be empty")
+	}
+
+	var cloneURL string
+	switch {
+	case strings.Contains(raw, "://"):
+		if vErr := ValidateRemoteURL(raw); vErr != nil {
+			return "", "", noop, vErr
+		}
+		cloneURL = raw
+	case githubShorthandRe.MatchString(raw) && !strings.Contains(raw, ".."):
+		if _, statErr := os.Lstat(raw); os.IsNotExist(statErr) {
+			cloneURL = "https://github.com/" + strings.TrimSuffix(raw, ".git") + ".git"
+			if vErr := ValidateRemoteURL(cloneURL); vErr != nil {
+				return "", "", noop, vErr
+			}
+		}
+	}
+
+	if cloneURL != "" {
+		tmpParent, mErr := os.MkdirTemp("", "dtkit-import-*")
+		if mErr != nil {
+			return "", "", noop, mErr
+		}
+		cleanFn := func() { _ = os.RemoveAll(tmpParent) }
+		dest := filepath.Join(tmpParent, "repo")
+		if fetchFn == nil {
+			fetchFn = defaultGitClone
+		}
+		if fErr := fetchFn(ctx, cloneURL, dest); fErr != nil {
+			cleanFn()
+			return "", "", noop, fErr
+		}
+		return dest, cloneURL, cleanFn, nil
+	}
+
+	abs, err := filepath.Abs(raw)
+	if err != nil {
+		return "", "", noop, err
+	}
+	return abs, "", noop, nil
+}
+
+func defaultGitClone(ctx context.Context, cloneURL, destDir string) error {
+	if _, err := exec.LookPath("git"); err != nil {
+		return apperr.WithHint(
+			apperr.Runtime("missing_git", "git executable not found on PATH for remote repository import"),
+			"install git or clone the repository locally and pass the directory path",
+		)
+	}
+	cloneCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(cloneCtx, "git", "clone", "--depth", "1", "--single-branch", "--", cloneURL, destDir)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return apperr.Wrap(apperr.ExitRuntime, "git_clone_failed", fmt.Sprintf("git clone failed: %v (%s)", err, strings.TrimSpace(string(out))), err)
+	}
+	return nil
 }
 
 func isSensitiveImportFile(rel string) bool {

@@ -2,8 +2,8 @@
 
 ## Current Status
 
-- **Active Branches:** `main` (`C01`–`C06`, `D01`–`D04`, `E01`–`E03` merged, release tag **`v0.7.0`**).
-- **CI Status:** `C01`–`C04`, `C06` (`e3b4005`, [Run 44123231423](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44123231423)), `main` (`e3b4005`, [Run 44125604359](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44125604359)), `v0.6.0-rc.1` (`415ac21`, `Go checks` [Run 44128408897](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44128408897) & `release.yml` [Run 44128408884](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44128408884)), and `v0.5.0-rc.1` (`44020171382` + `release.yml` `44020171501`) passed **5/5 GitHub Actions jobs** (`main` `415ac21` [Run 44128401063](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44128401063) passed 4/5 with `macos-latest` cancelled in queue). Maintainer approved promoting `v0.6.0` (Draft non-prerelease in `release.yml`) while preserving truthful `partial`/`experimental` live-runtime & A/B benchmark boundaries.
+- **Active Branches:** `main` (`C01`–`C06`, `D01`–`D04`, `E01`–`E03`, and v0.8 refinements merged).
+- **CI Status:** `C01`–`C04`, `C06` (`e3b4005`, [Run 44123231423](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44123231423)), `main` (`e3b4005`, `93098c3`, `8baa09c`, `fc2c6ca`, `9cac5fa`, `6c79bef`), and `v0.7.0` (`9cac5fa`, `Go checks` [Run 44245698390](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44245698390) & `Release` [Run 44245698399](https://github.com/truong-newbie/Agent_Kit_Impl/actions/runs/44245698399)) passed **5/5 GitHub Actions jobs**. Maintainer approved shipping `v0.6.0` / `v0.7.0` while preserving truthful `partial`/`experimental` live-runtime & A/B benchmark boundaries.
 - **Milestone Context:** P0–P6 (v0.1 Codex), H1 (v0.2 Codex Hooks), D1 (v0.3 Authoring/Archives/Cache/Remote), R1–R3 (v0.4 Gemini CLI, OpenCode, Cursor), Mốc A RC hardening (`N00`–`N12`, `A01`–`A04`), Mốc B v0.5 (`B01`–`B08`), Milestone C (`C01`–`C06`), v0.7 Core (`D01`–`D04`), and v0.7 Extensions (`E01`–`E03`: `dtkit integrate`, `internal/companion`, `dtkit mcp status|enable|disable`, `dtkit init`) are implemented; live model A/B & live Claude/Gemini/Cursor/OpenCode session hooks remain `blocked`/`unverified` without isolated credentials & host CLIs (`claude 2.1.319` returned `401 Invalid or expired API key`, `total_cost_usd: 0`).
 
 ### Hardening & Release Backlog Tracker (`N00`–`N12`)
@@ -392,6 +392,17 @@ Files changed: `docs/{EXTENSIONS-V07-PLAN,cli,progress}.md`, `README.md`, `inter
 Tests completed: `gofmt` + `.\scripts\verify-docker.ps1` (`go test -race ./...`, `go vet ./...`, `gofmt -l`, `go build ./cmd/dtkit`).
 Acceptance still missing / external blocker: Live interactive execution with external `repomix`/`graphify`/`ast-grep`/`semgrep` binaries when installed on user workstations, and live runtime sessions.
 Next independent work: Push to `main`, verify 5/5 GitHub Actions CI, and tag `v0.7.0` release when owner approves.
+
+---
+
+ID: F01–F04 (v0.8 Refinements: Codex `.codex/config.toml` MCP, Remote Git Import + `--update`, Import/Include Impact Graph, Homebrew/Scoop Packaging)
+Status: verified offline/automated (`.\scripts\verify-docker.ps1` passing with `-race` across all 23 test packages)
+Baseline SHA / branch: `87fe69f` -> `main`
+User-visible behavior and schema decisions: Switched Codex MCP wiring from `.codex/mcp.json` to `.codex/config.toml` (`# dtkit:begin mcp` ... `# dtkit:end mcp` managed block preserving user TOML lines & peer `[mcp_servers.*]` tables, rejecting unmanaged `[mcp_servers.dtkit]` conflicts). Extended `dist.ImportKit` and `dtkit integrate import` to accept HTTPS Git URLs and GitHub `owner/repo` shorthands (enforcing `ValidateRemoteURL` and shallow `git clone --depth 1` into temp dir) plus atomic `--update` replacement. Added `scout.AnalyzeImpact` (`internal/scout/impact.go`), `dtkit scout --impact <file>`, 5th MCP tool `dtkit_context_impact`, and hook `check-changed` `[impact dependents=[...] tests=[...]]` injection across Go (`go/parser`), TS/JS, Python, Java/Kotlin, and C/C++. Added `scripts/render-pkg-manifests.sh`, `packaging/homebrew/dtkit.rb`, `packaging/scoop/dtkit.json`, and automated release attachment generation in `.github/workflows/release.yml`.
+Files changed: `.github/workflows/release.yml`, `README.md`, `docs/{cli,guide,guide.vi,progress}.md`, `packaging/{homebrew/dtkit.rb,scoop/dtkit.json}`, `scripts/render-pkg-manifests.sh`, `internal/mcp/{config,config_test,server,server_test}.go`, `internal/dist/{importer,importer_test}.go`, `internal/scout/{impact,impact_test}.go`, `internal/hooks/claude_runner.go`, `internal/cli/{cli,completion,envelope,integrate,scout,extensions_v07_test}.go`
+Tests completed: `gofmt`, bash syntax & manifest generation dry check in Docker, and `.\scripts\verify-docker.ps1` (`go test -race ./...`, `go vet ./...`, `gofmt -l`, `go build ./cmd/dtkit`).
+Acceptance still missing / external blocker: Live `codex` CLI execution of `.codex/config.toml` `[mcp_servers.dtkit]` and live GitHub tarball Homebrew/Scoop tap install.
+Next independent work: Push to `main`, verify 5/5 GitHub Actions CI, and tag `v0.8.0` when owner approves.
 
 ---
 

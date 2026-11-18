@@ -37,7 +37,7 @@ Usage:
   dtkit recover --project|--global [--runtime <codex|gemini|opencode|cursor|claude>] [--path <dir>] [--transaction <id>] [--dry-run] [--yes] [--json]
   dtkit project <inspect|init> [--path <dir>] [--dry-run] [--yes] [--json]
   dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]
-  dtkit scout [--path <dir>] [--query <keyword>] [--zone <subpath>] [--pack] [--max-bytes <n>] [--write-summary] [--json]
+  dtkit scout [--path <dir>] [--query <keyword>] [--zone <subpath>] [--impact <file>...] [--pack] [--max-bytes <n>] [--write-summary] [--json]
   dtkit guard <status|lock|unlock|verify> [--path <dir>] [--mode <read-only|tdd-red|tdd-green|scoped>] [--allow <glob>...] [--deny <glob>...] [--protect-tests] [--json]
   dtkit mcp <serve|status|enable|disable> [--runtime <codex|gemini|opencode|cursor|claude>|--all-runtimes] [--path <dir>] [--executable <abs>] [--dry-run] [--yes] [--json]
   dtkit integrate <list|import|tool|run> [options]
@@ -198,7 +198,7 @@ func printCommandHelp(cmd string, out io.Writer) error {
 		_, err := io.WriteString(out, "Usage: dtkit check [--path <dir>] [--changed|--all] [--dry-run] [--yes] [--allow-autofix] [--json]\n")
 		return err
 	case "scout":
-		_, err := io.WriteString(out, "Usage: dtkit scout [--path <dir>] [--query <keyword>] [--zone <subpath>] [--pack] [--max-bytes <n>] [--write-summary] [--json]\n")
+		_, err := io.WriteString(out, "Usage: dtkit scout [--path <dir>] [--query <keyword>] [--zone <subpath>] [--impact <file>...] [--pack] [--max-bytes <n>] [--write-summary] [--json]\n")
 		return err
 	case "guard":
 		_, err := io.WriteString(out, "Usage: dtkit guard <status|lock|unlock|verify> [--path <dir>] [--mode <read-only|tdd-red|tdd-green|scoped>] [--allow <glob>...] [--deny <glob>...] [--protect-tests] [--json]\n")

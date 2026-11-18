@@ -86,6 +86,7 @@ jobs:
           tar -czf "dist/dtkit_${VERSION}_darwin_arm64.tar.gz" -C dist/stage dtkit README.md LICENSE VERSION
           rm -rf dist/stage
           (cd dist && sha256sum dtkit_*.zip dtkit_*.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
+          bash scripts/render-pkg-manifests.sh "$VERSION" dist/SHA256SUMS dist/dtkit.rb dist/dtkit.json
       - uses: actions/upload-artifact@v4
         with:
           name: dtkit-release-artifacts
@@ -195,7 +196,7 @@ jobs:
             cat dist/SHA256SUMS
             printf '```\n'
           } > "$NOTES_FILE"
-          gh release create "$TAG" dist/dtkit_*.zip dist/dtkit_*.tar.gz dist/SHA256SUMS \
+          gh release create "$TAG" dist/dtkit_*.zip dist/dtkit_*.tar.gz dist/SHA256SUMS dist/dtkit.rb dist/dtkit.json \
             --draft \
             "${PRERELEASE_FLAG[@]}" \
             --title "DTKit ${VERSION}" \

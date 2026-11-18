@@ -1,12 +1,14 @@
 package dist
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/adapter"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/apperr"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/catalog"
 )
 
@@ -104,5 +106,87 @@ func TestImportCursorRulesOnlySynthesizesBridgeSkill(t *testing.T) {
 	}
 	if strings.Contains(string(ruleBytes), "alwaysApply:") || !strings.Contains(string(ruleBytes), "Prefer Server Components") {
 		t.Fatalf("expected frontmatter stripped from .mdc rule, got:\n%s", string(ruleBytes))
+	}
+}
+
+func TestImportGitHubShorthandHTTPSValidationAndUpdate(t *testing.T) {
+	base := t.TempDir()
+	outParent := filepath.Join(base, "out")
+
+	// Reject insecure non-loopback HTTP git URL
+	if _, err := ImportKit(ImportOptions{
+		SourceDir:       "http://example.com/obra/superpowers.git",
+		TargetParentDir: outParent,
+		KitID:           "superpowers",
+	}); apperr.ExitCodeOf(err) != apperr.ExitUsage {
+		t.Fatalf("expected insecure HTTP git URL rejection, got %v", err)
+	}
+
+	// Reject embedded credentials in git URL
+	if _, err := ImportKit(ImportOptions{
+		SourceDir:       "https://user:token@github.com/obra/superpowers.git",
+		TargetParentDir: outParent,
+		KitID:           "superpowers",
+	}); apperr.ExitCodeOf(err) != apperr.ExitUsage {
+		t.Fatalf("expected credentialed git URL rejection, got %v", err)
+	}
+
+	// Mock remote git fetch for GitHub shorthand owner/repo + verify --update atomic replace
+	versionNum := "0.1.0"
+	skillBody := "# Remote Superpowers\nInitial skill body.\n"
+	fakeFetch := func(_ context.Context, cloneURL, destDir string) error {
+		if cloneURL != "https://github.com/obra/superpowers.git" {
+			t.Fatalf("unexpected expanded cloneURL %q", cloneURL)
+		}
+		target := filepath.Join(destDir, "skills", "tdd", "SKILL.md")
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return err
+		}
+		return os.WriteFile(target, []byte(skillBody), 0644)
+	}
+
+	res1, err := ImportKit(ImportOptions{
+		SourceDir:       "obra/superpowers",
+		TargetParentDir: outParent,
+		KitID:           "superpowers",
+		Version:         versionNum,
+		FetchGitRepo:    fakeFetch,
+	})
+	if err != nil {
+		t.Fatalf("GitHub shorthand import failed: %v", err)
+	}
+	if res1.SourceURL != "https://github.com/obra/superpowers.git" || res1.Updated {
+		t.Fatalf("unexpected res1: %+v", res1)
+	}
+
+	// Without --update, second import fails target_exists
+	if _, dupErr := ImportKit(ImportOptions{
+		SourceDir:       "obra/superpowers",
+		TargetParentDir: outParent,
+		KitID:           "superpowers",
+		FetchGitRepo:    fakeFetch,
+	}); apperr.ExitCodeOf(dupErr) != apperr.ExitConflict {
+		t.Fatalf("expected ExitConflict without --update, got %v", dupErr)
+	}
+
+	// With Update: true, replaces atomically with bumped version and new digest
+	skillBody = "# Remote Superpowers\nUpdated skill body v2.\n"
+	res2, err := ImportKit(ImportOptions{
+		SourceDir:       "obra/superpowers",
+		TargetParentDir: outParent,
+		KitID:           "superpowers",
+		Version:         "0.2.0",
+		Update:          true,
+		FetchGitRepo:    fakeFetch,
+	})
+	if err != nil {
+		t.Fatalf("GitHub shorthand --update failed: %v", err)
+	}
+	if !res2.Updated || res2.PackageDigest == res1.PackageDigest || res2.Version != "0.2.0" {
+		t.Fatalf("expected updated digest & version, got %+v", res2)
+	}
+	rawSkill, err := os.ReadFile(filepath.Join(res2.OutputDir, "skills", "tdd", "SKILL.md.tmpl"))
+	if err != nil || !strings.Contains(string(rawSkill), "Updated skill body v2") {
+		t.Fatalf("expected updated skill body on disk, got err=%v body=%s", err, string(rawSkill))
 	}
 }

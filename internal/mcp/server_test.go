@@ -70,8 +70,8 @@ func TestMCPServeInitializeListAndToolsCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	tools := listResp["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 4 {
-		t.Fatalf("expected 4 tools, got %d", len(tools))
+	if len(tools) != 5 {
+		t.Fatalf("expected 5 tools, got %d", len(tools))
 	}
 
 	if !strings.Contains(lines[2], "backend/Auth.java") {

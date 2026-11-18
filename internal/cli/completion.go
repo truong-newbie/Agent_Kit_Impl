@@ -74,7 +74,7 @@ _dtkit_complete() {
             ;;
     esac
 
-    local flags="--project --global --runtime --all-runtimes --preset --components --path --from --source --sha256 --offline --dry-run --diff --yes --json --redact --changed --all --allow-autofix --as --dir --version --same-id --lock --trust --require-signature --source-ref --key-file --key-id --baseline --query --zone --pack --max-bytes --write-summary --mode --allow --deny --protect-tests --install --no-cache --with-mcp --with-hooks"
+    local flags="--project --global --runtime --all-runtimes --preset --components --path --from --source --sha256 --offline --dry-run --diff --yes --json --redact --changed --all --allow-autofix --as --dir --version --same-id --lock --trust --require-signature --source-ref --key-file --key-id --baseline --query --zone --impact --pack --max-bytes --write-summary --mode --allow --deny --protect-tests --install --update --no-cache --with-mcp --with-hooks"
     COMPREPLY=( $(compgen -W "$flags" -- "$cur") )
 }
 complete -F _dtkit_complete dtkit
@@ -144,7 +144,7 @@ Register-ArgumentCompleter -Native -CommandName dtkit -ScriptBlock {
     $cmds = @('version','help','list','info','validate','create','fork','pack','doctor','diff','install','status','update','remove','recover','project','check','scout','guard','mcp','integrate','init','lock','sync','team','compat','hooks','hook','completion')
     $runtimes = @('codex','gemini','opencode','cursor','claude')
     $presets = @('minimal','review-only','engineering')
-    $flags = @('--project','--global','--runtime','--all-runtimes','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--diff','--yes','--json','--redact','--changed','--all','--allow-autofix','--as','--dir','--version','--same-id','--lock','--trust','--require-signature','--source-ref','--key-file','--key-id','--baseline','--query','--zone','--pack','--max-bytes','--write-summary','--mode','--allow','--deny','--protect-tests','--install','--no-cache','--with-mcp','--with-hooks')
+    $flags = @('--project','--global','--runtime','--all-runtimes','--preset','--components','--path','--from','--source','--sha256','--offline','--dry-run','--diff','--yes','--json','--redact','--changed','--all','--allow-autofix','--as','--dir','--version','--same-id','--lock','--trust','--require-signature','--source-ref','--key-file','--key-id','--baseline','--query','--zone','--impact','--pack','--max-bytes','--write-summary','--mode','--allow','--deny','--protect-tests','--install','--update','--no-cache','--with-mcp','--with-hooks')
 
     if ($tokens.Count -le 2 -and ($wordToComplete -eq $tokens[-1] -or $tokens.Count -eq 1)) {
         return $cmds | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }

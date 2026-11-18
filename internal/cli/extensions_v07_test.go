@@ -28,9 +28,11 @@ func TestCLIInitIntegrateImportCompanionAndMCPConfig(t *testing.T) {
 	}
 
 	repoFiles := map[string]string{
-		"backend/pom.xml":       "<project></project>\n",
-		"backend/User.java":     "public class User {}\n",
-		"frontend/package.json": `{"name":"fe","scripts":{"test":"echo ok"}}`,
+		"backend/pom.xml": "<project></project>\n",
+		"backend/src/main/java/com/acme/Token.java":     "package com.acme;\npublic class Token {}\n",
+		"backend/src/main/java/com/acme/User.java":      "package com.acme;\nimport com.acme.Token;\npublic class User {}\n",
+		"backend/src/test/java/com/acme/TokenTest.java": "package com.acme;\npublic class TokenTest {}\n",
+		"frontend/package.json":                         `{"name":"fe","scripts":{"test":"echo ok"}}`,
 	}
 	for rel, body := range repoFiles {
 		full := filepath.Join(repo, filepath.FromSlash(rel))
@@ -121,17 +123,32 @@ func TestCLIInitIntegrateImportCompanionAndMCPConfig(t *testing.T) {
 		t.Fatalf("integrate tool ast-grep failed: %v (%s)", tErr, toolRaw)
 	}
 	runEnv, runRaw, err := run("integrate", "run", "repomix", "--path", repo, "--zone", "backend", "--json")
-	if err != nil || runEnv.CompanionRun == nil || !strings.Contains(runEnv.CompanionRun.Output, "backend/User.java") {
+	if err != nil || runEnv.CompanionRun == nil || !strings.Contains(runEnv.CompanionRun.Output, "backend/src/main/java/com/acme/User.java") {
 		t.Fatalf("integrate run repomix failed: %v (%s)", err, runRaw)
 	}
 
-	// 5. dtkit mcp status --all-runtimes and disable
+	// 5. dtkit mcp status --all-runtimes, codex .codex/config.toml enable/disable, and scout --impact
 	mcpStEnv, mcpStRaw, err := run("mcp", "status", "--all-runtimes", "--path", repo, "--json")
 	if err != nil || len(mcpStEnv.MCPConfigs) != 5 {
 		t.Fatalf("mcp status --all-runtimes failed: %v (%s)", err, mcpStRaw)
 	}
+	codexEnEnv, codexEnRaw, err := run("mcp", "enable", "--runtime", "codex", "--path", repo, "--yes", "--json")
+	if err != nil || len(codexEnEnv.MCPConfigs) != 1 || codexEnEnv.MCPConfigs[0].ConfigPath != ".codex/config.toml" || !codexEnEnv.MCPConfigs[0].Enabled {
+		t.Fatalf("mcp enable codex config.toml failed: %v (%s)", err, codexEnRaw)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, ".codex", "config.toml")); statErr != nil {
+		t.Fatalf("expected .codex/config.toml created: %v", statErr)
+	}
+	if _, codexDisRaw, err := run("mcp", "disable", "--runtime", "codex", "--path", repo, "--yes", "--json"); err != nil {
+		t.Fatalf("mcp disable codex failed: %v (%s)", err, codexDisRaw)
+	}
 	disEnv, disRaw, err := run("mcp", "disable", "--runtime", "claude", "--path", repo, "--yes", "--json")
 	if err != nil || len(disEnv.MCPConfigs) != 1 || disEnv.MCPConfigs[0].Enabled {
 		t.Fatalf("mcp disable failed: %v (%s)", err, disRaw)
+	}
+
+	impGraphEnv, impGraphRaw, err := run("scout", "--path", repo, "--impact", "backend/src/main/java/com/acme/Token.java", "--json")
+	if err != nil || impGraphEnv.ScoutImpact == nil || len(impGraphEnv.ScoutImpact.DirectDependents) == 0 || len(impGraphEnv.ScoutImpact.RelatedTests) == 0 {
+		t.Fatalf("dtkit scout --impact failed: %v (%s)", err, impGraphRaw)
 	}
 }

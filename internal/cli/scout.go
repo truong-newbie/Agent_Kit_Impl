@@ -20,7 +20,7 @@ func runScout(ctx context.Context, args []string, deps Deps) error {
 	}
 
 	var targetPath, query string
-	var zones []string
+	var zones, impactPaths []string
 	var maxBytes int
 	pack := false
 	writeSummary := false
@@ -45,6 +45,12 @@ func runScout(ctx context.Context, args []string, deps Deps) error {
 			}
 			i++
 			zones = append(zones, args[i])
+		case "--impact":
+			if i+1 >= len(args) {
+				return fail(apperr.Usage("missing_flag_value", "--impact requires a file path"))
+			}
+			i++
+			impactPaths = append(impactPaths, args[i])
 		case "--max-bytes":
 			if i+1 >= len(args) {
 				return fail(apperr.Usage("missing_flag_value", "--max-bytes requires an integer"))
@@ -64,6 +70,19 @@ func runScout(ctx context.Context, args []string, deps Deps) error {
 		default:
 			return fail(apperr.Usage("invalid_flag", fmt.Sprintf("unexpected argument %q in scout", args[i])))
 		}
+	}
+
+	if len(impactPaths) > 0 {
+		impRep, iErr := scout.AnalyzeImpact(ctx, deps.Env, targetPath, impactPaths)
+		if iErr != nil {
+			return fail(iErr)
+		}
+		if jsonOutput {
+			env.ScoutImpact = &impRep
+			return writeEnvelope(deps.Stdout, env)
+		}
+		fmt.Fprint(deps.Stdout, scout.FormatImpactMarkdown(impRep))
+		return nil
 	}
 
 	rep, err := scout.Run(ctx, deps.Env, scout.Options{

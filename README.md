@@ -69,7 +69,7 @@ Or build from source with Go `1.27.4+`:
 go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.7.0
 ```
 
-> Install scripts verify `SHA256SUMS` before extracting and roll back cleanly on failure. See [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) for manual checksum steps.
+> Install scripts verify `SHA256SUMS` before extracting and roll back cleanly on failure. Each GitHub Release also attaches generated **Homebrew (`dtkit.rb`)** and **Scoop (`dtkit.json`)** manifests populated from `SHA256SUMS` (templates in `packaging/`). See [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) for manual checksum steps.
 
 ### 2. Initialize Your Project in One Command
 
@@ -125,21 +125,24 @@ dtkit guard verify                                     # Fails (exit 3) if works
 
 `dtkit guard verify` and `check-changed` hooks detect **test tampering** across Go, Python, JS/TS, Java/Kotlin, C/C++, Rust, and C# (`t.Skip`, `pytest.skip`, `.skip(`, `@Disabled`, `GTEST_SKIP`, `#[ignore]`, removed assertions), verify SHA-256 `verify-receipt.json` check receipts, and raise `[RETRY LOOP DETECTED]` after 3+ consecutive failures.
 
-### 3. Polyglot Reconnaissance & Built-In MCP (`dtkit scout`, `dtkit mcp`)
-Scan any multi-language codebase in milliseconds without leaking `.env` files, private keys, or secrets:
+### 3. Polyglot Reconnaissance, Impact Graph & Built-In MCP (`dtkit scout`, `dtkit mcp`)
+Scan any multi-language codebase in milliseconds without leaking `.env` files, private keys, or secrets, or compute reverse-dependency impact across Go, TS/JS, Python, Java, and C/C++:
 
 ```bash
 dtkit scout --zone backend --query checkout --pack --max-bytes 24576
+dtkit scout --impact backend/src/main/java/com/acme/Token.java
 ```
 
-Agents can also call `dtkit_scout`, `dtkit_project_inspect`, `dtkit_guard_status`, and `dtkit_guard_verify` natively over JSON-RPC 2.0 via `dtkit mcp serve` (`dtkit mcp enable --runtime claude --yes`).
+Agents can also call `dtkit_scout`, `dtkit_context_impact`, `dtkit_project_inspect`, `dtkit_guard_status`, and `dtkit_guard_verify` natively over JSON-RPC 2.0 via `dtkit mcp serve` (`dtkit mcp enable --runtime claude --yes`).
 
 ### 4. Import Community Repos & External Companions (`dtkit integrate`)
 Bring in your favorite community workflows and CLI tools without giving up cross-runtime compatibility or safety:
 
 ```bash
-# Convert community repos (Superpowers, Claude commands/skills, Cursor .mdc rules) into 5-runtime DTKit packages
-dtkit integrate import ./superpowers --as superpowers --install --runtime claude --yes
+# Convert local dirs, GitHub shorthands (owner/repo), or HTTPS Git repos into 5-runtime DTKit packages
+dtkit integrate import obra/superpowers --as superpowers --install --runtime claude --yes
+# Refresh an imported kit atomically when upstream updates:
+dtkit integrate import obra/superpowers --as superpowers --update --install --runtime claude --yes
 
 # Check & run external tools (repomix, graphify, ast-grep, semgrep) with SHA-256 caching and dtkit scout fallback
 dtkit integrate list
@@ -158,7 +161,7 @@ DTKit supports all five runtimes below. Labels strictly distinguish automated Go
 
 | Runtime | Managed Files (Project Scope) | Quality Hooks / Plugin | MCP Config | Verification Status |
 |---|---|---|---|---|
-| **Codex CLI** (`codex`) | `AGENTS.md`, `.agents/skills/` | `.codex/hooks.json` (`SessionStart`) | `.codex/mcp.json` | **Partial** (discovery verified on `0.169.0`; live hook firing unverified) |
+| **Codex CLI** (`codex`) | `AGENTS.md`, `.agents/skills/` | `.codex/hooks.json` (`SessionStart`) | `.codex/config.toml` | **Partial** (discovery verified on `0.169.0`; live hook firing unverified) |
 | **OpenCode** (`opencode`) | `AGENTS.md` (namespaced), `.opencode/skills/` | `.opencode/plugins/dtkit-quality.js` | `opencode.json` | **Partial** (14-skill discovery verified on `1.19.5`; live session unverified without creds) |
 | **Claude Code** (`claude`) | `CLAUDE.md`, `.claude/skills/` | `.claude/settings.json` (`PostToolUse`, `PreToolUse`) | `.mcp.json` | **Partial** (automated hook & lifecycle verified; live session/A-B eval blocked on creds) |
 | **Gemini CLI** (`gemini`) | `GEMINI.md`, `.gemini/skills/` | `.gemini/settings.json` (`AfterTool`, `BeforeTool`) | `.gemini/settings.json` | **Experimental** (`gemini` CLI absent on verification host; offline tests pass) |

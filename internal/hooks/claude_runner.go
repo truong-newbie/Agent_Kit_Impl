@@ -17,6 +17,7 @@ import (
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/check"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/guard"
 	"github.com/truong-newbie/Agent_Kit_Impl/internal/paths"
+	"github.com/truong-newbie/Agent_Kit_Impl/internal/scout"
 )
 
 const (
@@ -78,6 +79,7 @@ func runCheckChangedForRuntimeWithNow(ctx context.Context, stdin io.Reader, stdo
 	ctx, cancel := context.WithTimeout(ctx, hookCheckTimeout)
 	defer cancel()
 
+	var editedTarget string
 	if stdin != nil {
 		raw, err := readLimitedWithCtx(ctx, stdin, MaxHookStdinBytes+1)
 		if err != nil {
@@ -95,6 +97,10 @@ func runCheckChangedForRuntimeWithNow(ctx context.Context, stdin io.Reader, stdo
 			wantEv := expectedCheckChangedEvent(runtimeID)
 			if p.HookEventName != "" && wantEv != "" && p.HookEventName != wantEv {
 				return apperr.Usage("unexpected_hook_event", fmt.Sprintf("expected %s event, got %q", wantEv, p.HookEventName))
+			}
+			editedTarget = strings.TrimSpace(p.ToolInput.FilePath)
+			if editedTarget == "" {
+				editedTarget = strings.TrimSpace(p.ToolInput.Path)
 			}
 		}
 	}
@@ -158,7 +164,23 @@ func runCheckChangedForRuntimeWithNow(ctx context.Context, stdin io.Reader, stdo
 	if streak.ConsecutiveFailures >= 3 {
 		msg += fmt.Sprintf(" [RETRY LOOP DETECTED: %d consecutive failing checks; pause and inspect root cause before editing again]", streak.ConsecutiveFailures)
 	}
+	if editedTarget != "" {
+		if impRep, iErr := scout.AnalyzeImpact(ctx, env, stateRoot, []string{editedTarget}); iErr == nil {
+			if len(impRep.DirectDependents) > 0 || len(impRep.RelatedTests) > 0 {
+				depsPreview := strings.Join(limitStrings(impRep.DirectDependents, 4), ", ")
+				testsPreview := strings.Join(limitStrings(impRep.RelatedTests, 4), ", ")
+				msg += fmt.Sprintf(" [impact dependents=[%s] tests=[%s]]", depsPreview, testsPreview)
+			}
+		}
+	}
 	return encodeCheckChangedOutput(stdout, runtimeID, msg)
+}
+
+func limitStrings(items []string, max int) []string {
+	if len(items) <= max {
+		return items
+	}
+	return append(append([]string(nil), items[:max]...), fmt.Sprintf("+%d more", len(items)-max))
 }
 
 func expectedCheckChangedEvent(runtimeID string) string {
