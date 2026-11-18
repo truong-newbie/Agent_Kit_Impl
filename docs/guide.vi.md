@@ -41,12 +41,12 @@ flowchart LR
 ## 2. Cài Đặt `dtkit` & Khởi Tạo Dự Án Trong 30 Giây
 
 ### 2.1. Chọn 1 trong 4 cách cài `dtkit`
-- **Package Manager (không cần clone repo):**
+- **Script 1 dòng tự kiểm tra `SHA256SUMS` (khuyên dùng cho macOS/Linux):**
+  - **macOS / Linux:** `curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash -s -- --version 0.8.0 --bin-dir "$HOME/.local/bin"`
+  - **Windows PowerShell (trong repo):** `.\scripts\install.ps1 -Version "0.8.0"`
+- **Package Manager (`v0.8.0`):**
   - **Windows (Scoop):** `scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json`
-  - **macOS / Linux (Homebrew):** `curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb && brew install --formula ./dtkit.rb`
-- **Script tự động (từ repo, tự kiểm tra `SHA256SUMS`):**
-  - **Windows PowerShell:** `.\scripts\install.ps1 -Version "0.8.0"`
-  - **Linux / macOS:** `bash scripts/install.sh --version 0.8.0 --bin-dir "$HOME/.local/bin"`
+  - **macOS / Linux (Homebrew 4+ cần `HOMEBREW_NO_INSTALL_FROM_API=1` và đường dẫn đầy đủ):** `curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb && HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"`
 - **Go Toolchain (`Go 1.27.4+`):** `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0` (hoặc `@main` để lấy bản mới nhất trên `main`)
 - **Docker Desktop (nếu máy Windows bật Application Control / Smart App Control chặn file `.exe` chưa ký số):**
   Build 1 image `dtkit:0.8.0` từ repo (xem lệnh copy-paste trong [README.md](../README.md#1-install-dtkit-v080)) rồi thêm vào PowerShell (`notepad $PROFILE`):

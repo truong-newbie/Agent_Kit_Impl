@@ -44,12 +44,12 @@ flowchart LR
 
 Choose any of the four ways below (verified against `SHA256SUMS` or built cleanly from source):
 
+- **Verified one-line installer (macOS/Linux) or PowerShell script:**
+  - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash -s -- --version 0.8.0 --bin-dir "$HOME/.local/bin"`
+  - Windows PowerShell (from repo clone): `.\scripts\install.ps1 -Version "0.8.0"`
 - **Package managers (`v0.8.0`):**
   - Windows (Scoop): `scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json`
-  - macOS / Linux (Homebrew): `curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb && brew install --formula ./dtkit.rb`
-- **Verified installer scripts (from a cloned repo):**
-  - Linux / macOS: `bash scripts/install.sh --version 0.8.0 --bin-dir "$HOME/.local/bin"`
-  - Windows PowerShell: `.\scripts\install.ps1 -Version "0.8.0"`
+  - macOS / Linux (Homebrew 4+ requires `HOMEBREW_NO_INSTALL_FROM_API=1` + absolute path for local `.rb` formulas): `curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb && HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"`
 - **Go toolchain (`1.27.4+`):** `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0` (or `@main` for unreleased commits)
 - **Docker Desktop (if Windows Application Control blocks unsigned `.exe` binaries):** build a local `dtkit:0.8.0` image from the repo (see [README.md](../README.md#1-install-dtkit-v080)) and add `function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }` to PowerShell `$PROFILE`. Note that when running inside a Linux container on Windows, skip `--with-hooks` (which registers container paths) and point your runtime's MCP config to `docker run --rm -i -v "<repo>:/work" -w /work dtkit:0.8.0 mcp serve --path /work`.
 

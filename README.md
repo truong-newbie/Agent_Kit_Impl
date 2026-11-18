@@ -72,22 +72,22 @@ dtkit version --json
 ```
 
 ```bash
-# macOS / Linux (Homebrew)
+# macOS / Linux (Homebrew — HOMEBREW_NO_INSTALL_FROM_API=1 + full path is required by Homebrew 4+)
 curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb
-brew install --formula ./dtkit.rb
+HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"
 dtkit version --json
 ```
 
-**Option B — Verified Installer Scripts (downloads Release zip/tarball & checks `SHA256SUMS`):**
+**Option B — Verified One-Line Installer (recommended for macOS/Linux; checks `SHA256SUMS`):**
 
 ```bash
-# Linux / macOS (~/.local/bin)
-bash scripts/install.sh --version 0.8.0 --bin-dir "$HOME/.local/bin"
+# macOS (Apple Silicon /opt/homebrew/bin) or Linux (~/.local/bin)
+curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash -s -- --version 0.8.0 --bin-dir "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ```powershell
-# Windows PowerShell (%LOCALAPPDATA%\Programs\dtkit\bin)
+# Windows PowerShell (from repo clone -> %LOCALAPPDATA%\Programs\dtkit\bin)
 .\scripts\install.ps1 -Version "0.8.0"
 ```
 
