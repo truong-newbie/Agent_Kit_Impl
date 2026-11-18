@@ -61,45 +61,66 @@ flowchart LR
 
 ### 1. Install `dtkit` (`v0.8.0`)
 
-**Linux / macOS (`~/.local/bin`):**
+Pick whichever method fits your machine best:
 
-```bash
-bash scripts/install.sh --version 0.8.0 --bin-dir "$HOME/.local/bin"
-export PATH="$HOME/.local/bin:$PATH"
-dtkit version --json
-```
-
-**Windows PowerShell (`%LOCALAPPDATA%\Programs\dtkit\bin`):**
+**Option A — Package Managers (Scoop on Windows / Homebrew on macOS & Linux):**
 
 ```powershell
-.\scripts\install.ps1 -Version "0.8.0"
+# Windows (Scoop)
+scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json
 dtkit version --json
 ```
 
-Or install from Go `1.27.4+`, Homebrew (`dtkit.rb`), or Scoop (`dtkit.json`) attached to each GitHub Release (templates in `packaging/`):
+```bash
+# macOS / Linux (Homebrew)
+curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb
+brew install --formula ./dtkit.rb
+dtkit version --json
+```
+
+**Option B — Verified Installer Scripts (downloads Release zip/tarball & checks `SHA256SUMS`):**
 
 ```bash
+# Linux / macOS (~/.local/bin)
+bash scripts/install.sh --version 0.8.0 --bin-dir "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+```powershell
+# Windows PowerShell (%LOCALAPPDATA%\Programs\dtkit\bin)
+.\scripts\install.ps1 -Version "0.8.0"
+```
+
+**Option C — Go Toolchain (`Go 1.27.4+`):**
+
+```bash
+# Latest released tag (v0.8.0) or latest main branch (@main)
 go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0
 ```
 
-> **Windows Smart App Control / Application Control note:** If Windows blocks unsigned `.exe` downloads, you can run `dtkit` instantaneously via **Docker Desktop** with zero Windows policy changes:
-> ```powershell
-> docker build -t dtkit:0.8.0 -f - . <<'EOF'
-> FROM golang:1.27.4 AS b
-> WORKDIR /s
-> COPY go.mod ./
-> COPY cmd ./cmd
-> COPY internal ./internal
-> COPY schemas ./schemas
-> RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o /dtkit ./cmd/dtkit
-> FROM alpine:3.21
-> RUN apk add --no-cache git ca-certificates
-> COPY --from=b /dtkit /usr/local/bin/dtkit
-> ENTRYPOINT ["/usr/local/bin/dtkit"]
-> EOF
-> # PowerShell helper in $PROFILE:
-> function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }
-> ```
+**Option D — Docker Desktop (recommended on Windows if Smart App Control / Application Control blocks unsigned `.exe` files):**
+
+```powershell
+# Build local dtkit:0.8.0 image once from a clone of this repo (PowerShell syntax)
+@'
+FROM golang:1.27.4 AS b
+WORKDIR /s
+COPY go.mod ./
+COPY cmd ./cmd
+COPY internal ./internal
+COPY schemas ./schemas
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w -X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Version=0.8.0" -o /dtkit ./cmd/dtkit
+FROM alpine:3.21
+RUN apk add --no-cache git ca-certificates
+COPY --from=b /dtkit /usr/local/bin/dtkit
+ENTRYPOINT ["/usr/local/bin/dtkit"]
+'@ | docker build -t dtkit:0.8.0 -f - .
+
+# Add to PowerShell $PROFILE so `dtkit` works inside any project directory:
+function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }
+```
+
+> Release archives and `SHA256SUMS` are published on [GitHub Releases](https://github.com/truong-newbie/Agent_Kit_Impl/releases). See [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) for manual checksum verification.
 
 ### 2. Initialize Your Project
 

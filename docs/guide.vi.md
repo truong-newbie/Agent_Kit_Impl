@@ -38,8 +38,24 @@ flowchart LR
 
 ---
 
-## 2. Bắt Đầu Trong 30 Giây (`dtkit init`)
+## 2. Cài Đặt `dtkit` & Khởi Tạo Dự Án Trong 30 Giây
 
+### 2.1. Chọn 1 trong 4 cách cài `dtkit`
+- **Package Manager (không cần clone repo):**
+  - **Windows (Scoop):** `scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json`
+  - **macOS / Linux (Homebrew):** `curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb && brew install --formula ./dtkit.rb`
+- **Script tự động (từ repo, tự kiểm tra `SHA256SUMS`):**
+  - **Windows PowerShell:** `.\scripts\install.ps1 -Version "0.8.0"`
+  - **Linux / macOS:** `bash scripts/install.sh --version 0.8.0 --bin-dir "$HOME/.local/bin"`
+- **Go Toolchain (`Go 1.27.4+`):** `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0` (hoặc `@main` để lấy bản mới nhất trên `main`)
+- **Docker Desktop (nếu máy Windows bật Application Control / Smart App Control chặn file `.exe` chưa ký số):**
+  Build 1 image `dtkit:0.8.0` từ repo (xem lệnh copy-paste trong [README.md](../README.md#1-install-dtkit-v080)) rồi thêm vào PowerShell (`notepad $PROFILE`):
+  ```powershell
+  function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }
+  ```
+  Khi chạy từ container Linux trên Windows, khởi tạo dự án bằng `dtkit init --runtime codex --with-mcp --lock --yes` (bỏ `--with-hooks`), và nếu muốn nối MCP cho app Windows hãy trỏ `command` tới `docker` với `args: ["run", "--rm", "-i", "-v", "<Đường-dẫn-dự-án>:/work", "-w", "/work", "dtkit:0.8.0", "mcp", "serve", "--path", "/work"]`.
+
+### 2.2. Khởi tạo cho dự án (`dtkit init`)
 Đứng trong thư mục gốc của bất kỳ dự án nào, chỉ cần chạy **1 lệnh**:
 
 ```bash
@@ -55,13 +71,6 @@ Nếu bạn dùng nhiều công cụ AI cùng lúc (hoặc làm việc team nhi�
 ```bash
 dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 ```
-
-> **Mẹo dùng qua Docker Desktop (nếu Windows Application Control chặn file `.exe` chưa ký):**
-> Bạn có thể build 1 image `dtkit:0.8.0` chạy nội bộ trên Docker Desktop và thêm hàm sau vào PowerShell (`notepad $PROFILE`):
-> ```powershell
-> function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }
-> ```
-> Khi chạy từ container Linux trên Windows, khởi tạo dự án bằng `dtkit init --runtime codex --with-mcp --lock --yes` (bỏ `--with-hooks`), và nếu muốn nối MCP cho app Windows hãy trỏ `command` tới `docker` với `args: ["run", "--rm", "-i", "-v", "<Đường-dẫn-dự-án>:/work", "-w", "/work", "dtkit:0.8.0", "mcp", "serve", "--path", "/work"]`.
 
 ### Sau khi chạy `dtkit init`, dự án có thêm những gì?
 

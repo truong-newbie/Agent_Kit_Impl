@@ -38,7 +38,22 @@ flowchart LR
 
 ---
 
-## 2. Two-Minute Setup (`dtkit init`)
+## 2. Install `dtkit` & Two-Minute Project Setup
+
+### 2.1. Install `dtkit`
+
+Choose any of the four ways below (verified against `SHA256SUMS` or built cleanly from source):
+
+- **Package managers (`v0.8.0`):**
+  - Windows (Scoop): `scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json`
+  - macOS / Linux (Homebrew): `curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb && brew install --formula ./dtkit.rb`
+- **Verified installer scripts (from a cloned repo):**
+  - Linux / macOS: `bash scripts/install.sh --version 0.8.0 --bin-dir "$HOME/.local/bin"`
+  - Windows PowerShell: `.\scripts\install.ps1 -Version "0.8.0"`
+- **Go toolchain (`1.27.4+`):** `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0` (or `@main` for unreleased commits)
+- **Docker Desktop (if Windows Application Control blocks unsigned `.exe` binaries):** build a local `dtkit:0.8.0` image from the repo (see [README.md](../README.md#1-install-dtkit-v080)) and add `function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }` to PowerShell `$PROFILE`. Note that when running inside a Linux container on Windows, skip `--with-hooks` (which registers container paths) and point your runtime's MCP config to `docker run --rm -i -v "<repo>:/work" -w /work dtkit:0.8.0 mcp serve --path /work`.
+
+### 2.2. Initialize Any Project (`dtkit init`)
 
 Inside any repository (single language or monorepo):
 
@@ -55,8 +70,6 @@ Using more than one coding agent on the same project? Replace `--runtime claude`
 ```bash
 dtkit init --all-runtimes --with-mcp --with-hooks --lock --yes
 ```
-
-> **Windows Docker Desktop option:** If Windows Application Control blocks running unsigned `dtkit.exe` directly on your machine, you can build a local `dtkit:0.8.0` Docker image from the repo and define a PowerShell helper `function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }`. Note that when running inside a Linux container on Windows, skip `--with-hooks` (which registers container paths) and point your runtime's MCP config to `docker run --rm -i -v "<repo>:/work" -w /work dtkit:0.8.0 mcp serve --path /work`.
 
 ### What Files Does `dtkit init` Create (and What Should I Commit)?
 
