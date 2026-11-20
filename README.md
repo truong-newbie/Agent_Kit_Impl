@@ -59,45 +59,45 @@ flowchart LR
 
 ## 30-Second Quick Start
 
-### 1. Install `dtkit` (`v0.9.0`)
+### 1. Install `dtkit` (`v0.8.0` / `main`)
 
-One command per OS (automatically verifies `SHA256SUMS`):
+One command per OS (`install.sh` and `install.ps1` fetch the latest published release `v0.8.0` and verify `SHA256SUMS`; use Docker `#main` or `go install ...@main` for unreleased `engineer@0.7.0`, `dtkit spec`, and `dtkit converge`):
 
-**macOS / Linux:**
+**macOS / Linux (`v0.8.0`):**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash
 ```
 
-**Windows (PowerShell):**
+**Windows PowerShell (`v0.8.0`):**
 
 ```powershell
 irm https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.ps1 | iex
 ```
 
-**Docker Desktop (no clone needed — recommended on Windows if Smart App Control blocks unsigned `.exe` files):**
+**Docker Desktop (`main` — no clone needed; recommended on Windows if Smart App Control blocks unsigned `.exe` files):**
 
 ```powershell
-docker build -t dtkit:0.9.0 https://github.com/truong-newbie/Agent_Kit_Impl.git#v0.9.0
+docker build -t dtkit:main https://github.com/truong-newbie/Agent_Kit_Impl.git#main
 # Add to PowerShell $PROFILE so `dtkit` works inside any project directory:
-function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.9.0 @args }
+function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:main @args }
 ```
 
 <details>
 <summary>Alternative install methods (Scoop, Homebrew 4+, or Go toolchain)</summary>
 
 ```powershell
-# Windows (Scoop)
-scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.9.0/dtkit.json
+# Windows (Scoop, v0.8.0)
+scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json
 ```
 
 ```bash
 # macOS / Linux (Homebrew 4+ requires HOMEBREW_NO_INSTALL_FROM_API=1 + full path)
-curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.9.0/dtkit.rb
+curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb
 HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"
 
-# Go Toolchain (Go 1.27.4+)
-go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.9.0
+# Go Toolchain (Go 1.27.4+): @v0.8.0 for published release or @main for latest features
+go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0
 ```
 
 </details>

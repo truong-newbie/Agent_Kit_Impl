@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.9.0"
+VERSION="0.8.0"
 BIN_DIR="${HOME}/.local/bin"
 BASE_URL=""
 DRY_RUN=0

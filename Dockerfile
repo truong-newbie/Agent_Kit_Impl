@@ -1,6 +1,6 @@
 FROM golang:1.27.4 AS builder
 
-ARG VERSION=0.9.0
+ARG VERSION=main
 ARG COMMIT=unknown
 ARG DATE=unknown
 

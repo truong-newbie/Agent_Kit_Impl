@@ -42,19 +42,20 @@ flowchart LR
 
 ## 2. Cài Đặt `dtkit` & Khởi Tạo Dự Án Trong 30 Giây
 
-### 2.1. Cài `dtkit` chỉ với 1 lệnh (`v0.9.0`)
-- **macOS / Linux (tự kiểm tra `SHA256SUMS`):**
+### 2.1. Cài `dtkit` chỉ với 1 lệnh (`v0.8.0` / `main`)
+*(Script `install.sh` / `install.ps1` cài bản phát hành `v0.8.0`; dùng Docker `#main` hoặc `go install ...@main` nếu bạn muốn dùng ngay `engineer@0.7.0`, `dtkit spec` và `dtkit converge` trên `main`.)*
+- **macOS / Linux (`v0.8.0`, tự kiểm tra `SHA256SUMS`):**
   `curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash`
-- **Windows PowerShell (tự kiểm tra `SHA256SUMS`):**
+- **Windows PowerShell (`v0.8.0`, tự kiểm tra `SHA256SUMS`):**
   `irm https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.ps1 | iex`
-- **Docker Desktop (nếu máy Windows bật Application Control / Smart App Control chặn file `.exe`):**
+- **Docker Desktop (`main` — khuyên dùng nếu máy Windows bật Application Control / Smart App Control chặn file `.exe`):**
   ```powershell
-  docker build -t dtkit:0.9.0 https://github.com/truong-newbie/Agent_Kit_Impl.git#v0.9.0
+  docker build -t dtkit:main https://github.com/truong-newbie/Agent_Kit_Impl.git#main
   # Thêm vào PowerShell ($PROFILE):
-  function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.9.0 @args }
+  function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:main @args }
   ```
-  Khi chạy từ container Linux trên Windows, khởi tạo dự án bằng `dtkit init --runtime codex --with-mcp --lock --yes` (bỏ `--with-hooks`), và nếu nối MCP cho app Windows hãy trỏ `command` tới `docker` với `args: ["run", "--rm", "-i", "-v", "<Đường-dẫn-dự-án>:/work", "-w", "/work", "dtkit:0.9.0", "mcp", "serve", "--path", "/work"]`.
-- **Cách khác (`v0.9.0`):** Scoop (`.../v0.9.0/dtkit.json`), Homebrew 4+ (`curl -fsSLO .../v0.9.0/dtkit.rb && HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"`), hoặc `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.9.0`.
+  Khi chạy từ container Linux trên Windows, khởi tạo dự án bằng `dtkit init --runtime codex --with-mcp --lock --yes` (bỏ `--with-hooks`), và nếu nối MCP cho app Windows hãy trỏ `command` tới `docker` với `args: ["run", "--rm", "-i", "-v", "<Đường-dẫn-dự-án>:/work", "-w", "/work", "dtkit:main", "mcp", "serve", "--path", "/work"]`.
+- **Cách khác (`v0.8.0`):** Scoop (`https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json`), Homebrew 4+ (`curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb && HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"`), hoặc `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0` (`@main` để lấy bản mới nhất).
 
 ### 2.2. Khởi tạo cho dự án (`dtkit init`)
 Đứng trong thư mục gốc của bất kỳ dự án nào, chỉ cần chạy **1 lệnh**:

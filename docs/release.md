@@ -1,6 +1,6 @@
 # Release Readiness Checklist
 
-> **Current Release Stream (`main`):** All Mốc A (`N00`–`N12`, `A01`–`A04`), Mốc B (`B01`–`B08`), Mốc C (`C01`–`C06`), v0.7 Core + Extensions (`D01`–`D04`, `E01`–`E03`), Spec-Kit learnings (`S01`–`S06`), Structured Feature Spec (`engineer@0.7.0`, `dtkit spec init|check`, `dtkit converge --spec`, `dtkit_spec_check`), and streamlined 1-command/Docker install (`Dockerfile`, `install.sh`/`install.ps1` defaulting to `0.9.0`) are on `main`, targeting **`v0.9.0`** via [release.yml](../.github/workflows/release.yml) while preserving truthful `partial`/`experimental` live-runtime labels in [compatibility.md](./compatibility.md).
+> **Current Release Stream (`main`):** Latest published GitHub Release tag is **`v0.8.0`**. Spec-Kit learnings (`S01`–`S06`), Structured Feature Spec (`engineer@0.7.0`, `dtkit spec init|check`, `dtkit converge --spec`, `dtkit_spec_check`), and streamlined 1-command/Docker install (`Dockerfile`, `install.sh`/`install.ps1`) are merged on `main` ahead of **`v0.9.0`** (pending `test (windows-latest)` CI resolution) while preserving truthful `partial`/`experimental` live-runtime labels in [compatibility.md](./compatibility.md).
 
 ## Owner Decisions Already Confirmed
 
