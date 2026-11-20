@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.4.0-rc.1",
+    [string]$Version = "0.9.0",
     [string]$BinDir = "",
     [string]$BaseUrl = "",
     [switch]$DryRun,
@@ -161,6 +161,10 @@ try {
     }
 
     Write-Output "Installed $Archive -> $destExe"
+    $pathEntries = @($env:PATH -split ';' | ForEach-Object { $_.Trim().TrimEnd('\') } | Where-Object { $_ })
+    if ($pathEntries -notcontains $resolvedBinDir.TrimEnd('\')) {
+        Write-Output "Add to PATH if needed: `$env:PATH = `"$resolvedBinDir;`$env:PATH`""
+    }
 } finally {
     if (Test-Path -LiteralPath $tmpDir) {
         Remove-Item -Recurse -Force -Path $tmpDir -ErrorAction SilentlyContinue

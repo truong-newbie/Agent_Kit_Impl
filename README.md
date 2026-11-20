@@ -59,66 +59,48 @@ flowchart LR
 
 ## 30-Second Quick Start
 
-### 1. Install `dtkit` (`v0.8.0`)
+### 1. Install `dtkit` (`v0.9.0`)
 
-Pick whichever method fits your machine best:
+One command per OS (automatically verifies `SHA256SUMS`):
 
-**Option A — Package Managers (Scoop on Windows / Homebrew on macOS & Linux):**
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.ps1 | iex
+```
+
+**Docker Desktop (no clone needed — recommended on Windows if Smart App Control blocks unsigned `.exe` files):**
+
+```powershell
+docker build -t dtkit:0.9.0 https://github.com/truong-newbie/Agent_Kit_Impl.git#v0.9.0
+# Add to PowerShell $PROFILE so `dtkit` works inside any project directory:
+function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.9.0 @args }
+```
+
+<details>
+<summary>Alternative install methods (Scoop, Homebrew 4+, or Go toolchain)</summary>
 
 ```powershell
 # Windows (Scoop)
-scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json
-dtkit version --json
+scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.9.0/dtkit.json
 ```
 
 ```bash
-# macOS / Linux (Homebrew — HOMEBREW_NO_INSTALL_FROM_API=1 + full path is required by Homebrew 4+)
-curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb
+# macOS / Linux (Homebrew 4+ requires HOMEBREW_NO_INSTALL_FROM_API=1 + full path)
+curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.9.0/dtkit.rb
 HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"
-dtkit version --json
+
+# Go Toolchain (Go 1.27.4+)
+go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.9.0
 ```
 
-**Option B — Verified One-Line Installer (recommended for macOS/Linux; checks `SHA256SUMS`):**
-
-```bash
-# macOS (Apple Silicon /opt/homebrew/bin) or Linux (~/.local/bin)
-curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash -s -- --version 0.8.0 --bin-dir "$HOME/.local/bin"
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-```powershell
-# Windows PowerShell (from repo clone -> %LOCALAPPDATA%\Programs\dtkit\bin)
-.\scripts\install.ps1 -Version "0.8.0"
-```
-
-**Option C — Go Toolchain (`Go 1.27.4+`):**
-
-```bash
-# Latest released tag (v0.8.0) or latest main branch (@main)
-go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0
-```
-
-**Option D — Docker Desktop (recommended on Windows if Smart App Control / Application Control blocks unsigned `.exe` files):**
-
-```powershell
-# Build local dtkit:0.8.0 image once from a clone of this repo (PowerShell syntax)
-@'
-FROM golang:1.27.4 AS b
-WORKDIR /s
-COPY go.mod ./
-COPY cmd ./cmd
-COPY internal ./internal
-COPY schemas ./schemas
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w -X github.com/truong-newbie/Agent_Kit_Impl/internal/buildinfo.Version=0.8.0" -o /dtkit ./cmd/dtkit
-FROM alpine:3.21
-RUN apk add --no-cache git ca-certificates
-COPY --from=b /dtkit /usr/local/bin/dtkit
-ENTRYPOINT ["/usr/local/bin/dtkit"]
-'@ | docker build -t dtkit:0.8.0 -f - .
-
-# Add to PowerShell $PROFILE so `dtkit` works inside any project directory:
-function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }
-```
+</details>
 
 > Release archives and `SHA256SUMS` are published on [GitHub Releases](https://github.com/truong-newbie/Agent_Kit_Impl/releases). See [docs/release.md](docs/release.md#terminal-install--checksum-verification-pinned-version-no-admin) for manual checksum verification.
 

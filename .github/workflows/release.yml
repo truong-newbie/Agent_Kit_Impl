@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (without v prefix, e.g. 0.7.0 or 0.7.0-rc.1)'
+        description: 'Release version (without v prefix, e.g. 0.9.0 or 0.9.0-rc.1)'
         required: true
-        default: '0.7.0'
+        default: '0.9.0'
       publish_draft:
         description: 'Create a draft GitHub Release (requires tag ref or maintainer approval)'
         required: true

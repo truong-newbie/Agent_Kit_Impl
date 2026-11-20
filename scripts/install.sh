@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.4.0-rc.1"
+VERSION="0.9.0"
 BIN_DIR="${HOME}/.local/bin"
 BASE_URL=""
 DRY_RUN=0
@@ -166,3 +166,7 @@ fi
 rm -f "$BACKUP_BIN"
 
 printf 'Installed %s -> %s\n' "$ARCHIVE" "$DEST_BIN"
+case ":${PATH}:" in
+  *":${BIN_DIR%/}:"*) ;;
+  *) printf 'Add to PATH if needed: export PATH="%s:$PATH"\n' "${BIN_DIR%/}" ;;
+esac

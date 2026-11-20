@@ -42,18 +42,15 @@ flowchart LR
 
 ## 2. Install `dtkit` & Two-Minute Project Setup
 
-### 2.1. Install `dtkit`
+### 2.1. Install `dtkit` (`v0.9.0`)
 
-Choose any of the four ways below (verified against `SHA256SUMS` or built cleanly from source):
+One command per OS (verified automatically against `SHA256SUMS`):
 
-- **Verified one-line installer (macOS/Linux) or PowerShell script:**
-  - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash -s -- --version 0.8.0 --bin-dir "$HOME/.local/bin"`
-  - Windows PowerShell (from repo clone): `.\scripts\install.ps1 -Version "0.8.0"`
-- **Package managers (`v0.8.0`):**
-  - Windows (Scoop): `scoop install https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.json`
-  - macOS / Linux (Homebrew 4+ requires `HOMEBREW_NO_INSTALL_FROM_API=1` + absolute path for local `.rb` formulas): `curl -fsSLO https://github.com/truong-newbie/Agent_Kit_Impl/releases/download/v0.8.0/dtkit.rb && HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"`
-- **Go toolchain (`1.27.4+`):** `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.8.0` (or `@main` for unreleased commits)
-- **Docker Desktop (if Windows Application Control blocks unsigned `.exe` binaries):** build a local `dtkit:0.8.0` image from the repo (see [README.md](../README.md#1-install-dtkit-v080)) and add `function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.8.0 @args }` to PowerShell `$PROFILE`. Note that when running inside a Linux container on Windows, skip `--with-hooks` (which registers container paths) and point your runtime's MCP config to `docker run --rm -i -v "<repo>:/work" -w /work dtkit:0.8.0 mcp serve --path /work`.
+- **macOS / Linux:** `curl -fsSL https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.sh | bash`
+- **Windows PowerShell:** `irm https://raw.githubusercontent.com/truong-newbie/Agent_Kit_Impl/main/scripts/install.ps1 | iex`
+- **Docker Desktop (if Windows Application Control blocks unsigned `.exe` binaries):**
+  `docker build -t dtkit:0.9.0 https://github.com/truong-newbie/Agent_Kit_Impl.git#v0.9.0` and add `function dtkit { docker run --rm -i -v "${PWD}:/work" -w /work dtkit:0.9.0 @args }` to PowerShell `$PROFILE`. (When running inside a Linux container on Windows, skip `--with-hooks` and point MCP config to `docker run --rm -i -v "<repo>:/work" -w /work dtkit:0.9.0 mcp serve --path /work`.)
+- **Package managers / Go (`v0.9.0`):** Scoop (`.../v0.9.0/dtkit.json`), Homebrew 4+ (`HOMEBREW_NO_INSTALL_FROM_API=1 brew install --formula "$(pwd)/dtkit.rb"`), or `go install github.com/truong-newbie/Agent_Kit_Impl/cmd/dtkit@v0.9.0`.
 
 ### 2.2. Initialize Any Project (`dtkit init`)
 

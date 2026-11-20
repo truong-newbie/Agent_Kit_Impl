@@ -1,0 +1,11 @@
+.git
+.github
+.dtkit
+.agents
+.claude
+.cursor
+.gemini
+.opencode
+dist
+spec-kit
+docs
